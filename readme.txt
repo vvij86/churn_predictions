@@ -1,1 +1,1 @@
-
+I am currently working on the SonataODS Data Exploration and Feature Identification task. Most of the initial analysis is completed, including table review, relationship understanding, blank/unusable column identification, and potential feature column review. I am currently completing the basic data quality checks and consolidating the observations into the documentation. I should be able to complete the documentation in the next couple of days. No blockers as of now.
