@@ -1,8 +1,19 @@
-Thanks. This helps. For the ML dataset preparation, I understand full rollover out can be treated as not retained/churn, partial rollover out can be treated as churn risk or FUM leakage, and dormant/inactive members should still be treated as retained if they have FUM and remain with us.
-To finalize the FRS and ML target definition, can you please confirm the below remaining points:
-Should retention/churn be measured at member level or account level?
-Can we use rolling 12 months as the standard time period?
-Can full rollover out and account closure be treated as churn/not retained?
-Should partial rollover out be treated as churn risk only, not full churn?
-How should death and transfer to another scheme be classified?
-Can FUM retention rate be calculated as FUM retained at end of period / FUM at start of period?
+Yes. Ask only major pending questions, simple one by one. You can send this to Taj:
+
+Hi Taj, thanks for the earlier clarification. Based on your response and the BRS, I have noted the confirmed points. To finalize the FRS for retention rate ML scope, I need confirmation only on the below major pending questions:
+
+1. Should the retention/churn prediction be done at member level, account level, or both?
+
+2. What is the exact retention rate formula we should use for this ML use case?
+
+3. For account closure, should we treat it as churn/not retained only when the member has fully exited or fully rolled over out?
+
+4. For death cases, should we exclude them from churn calculation, or treat them as not retained only if the account/FUM is fully exited?
+
+5. For FUM retention, can we calculate it as:
+   FUM at end of 12-month period / FUM at start of 12-month period?
+
+6. For ML target label, can we define it like below?
+   Retained = member/account remains with Mercer and has FUM at the end of 12 months
+   Not retained/churn = full rollover out or account closure due to full exit
+   Churn risk/FUM leakage = partial rollover outThis avoids asking already answered items like 12 months, full rollover, partial rollover, and dormant/inactive.
