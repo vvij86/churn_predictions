@@ -1,21 +1,12 @@
-
-Subject: Request for BA Validation on Functional Requirements in FRS
-Hi Taj,
-As part of the FRS review, we have identified the below Functional Requirement IDs that require BA/business validation and confirmation.
-Functional IDs for validation:
-FR-RR-002
-FR-RR-003
-FR-RR-004
-FR-RR-005
-FR-RR-006
-FR-RR-007
-FR-RR-008
-FR-RR-009
-FR-RR-011
-FR-RR-015
-FR-RR-016
-FR-RR-017
-Could you please review these requirements and confirm whether the mentioned rules/definitions/thresholds are aligned with the business expectation?
-Please also let us know if any updates or additional clarifications are required from the BA/business side.
-Thanks,
-Vijay
+Hi Sai,
+Noted you are out of office. When you are back, could you please help confirm the approach for the below action item?
+We need to ensure that the exit reason flags, including death and other exit reasons, are populated in the data table for the Power BI dashboard.
+My understanding is that we may need fields like:
+Is_Deceased
+Is_Rollover_Out
+Is_Full_Withdrawal
+Is_Transfer_Out
+Is_Account_Closed
+Churn_Reason
+Please confirm if this approach is correct, or if any different grouping/rule needs to be followed.
+Once confirmed, I will respond back to the email/comment.
