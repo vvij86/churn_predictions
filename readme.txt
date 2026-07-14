@@ -1,1 +1,1 @@
-
+My new sprint story is ML model evaluation and recommendation. I plan to build a POC using the data and churn-driver columns identified during my recent exploration. I will compare multiple classification models using ROC-AUC, precision, recall, F1-score and confusion matrix. Based on the POC results, prediction quality and model explainability, I will provide a documented best-model recommendation. The initial results will be subject to revalidation once the final curated dataset and business target definition are confirmed.
