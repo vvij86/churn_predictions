@@ -1,40 +1,26 @@
-The revised SonataODS-only specification is accepted as a draft.
+I ran the initial SonataODS profiling queries.
 
-Before generating the training dataset SQL, help me resolve the remaining
-items one by one.
+The results are:
 
-For the initial Version 1 POC, simplify the dataset as follows:
+1. ROLLOVER.PARTIAL_FULL_FLAG values:
+[paste results]
 
-1. Keep one row per account_id.
-2. Temporarily exclude all CLIENT-level features because the rule for
-   selecting the correct client for an account is not yet confirmed.
-3. Keep only account, account transaction, contribution transaction and
-   rollover-related features.
-4. Keep full rollover, full-exit closure, exit date, exit type, exit reason
-   and post-exit account status as target-supporting only.
-5. Keep partial rollover only when it occurred on or before as_of_date.
-6. Do not use account_txn_gross_amt_sum_12m or
-   account_txn_net_effect_sum_12m until transaction sign and
-   BALANCE_EFFECT_INDICATOR meanings are confirmed.
-7. Continue excluding all death-related exits.
-8. Do not generate the final SQL yet.
+2. ACCOUNT_TRANSACTION date range:
+[paste results]
 
-Please provide:
+3. CONTRIBUTION_TRANSACTION date range:
+[paste results]
 
-A. The simplified and confirmed candidate feature list.
-B. A list of SQL profiling queries I should run to determine:
-   - minimum and maximum transaction dates
-   - minimum and maximum contribution dates
-   - minimum and maximum rollover dates
-   - account counts by year
-   - full rollover counts by year
-   - partial rollover counts by year
-   - death-related exit counts by year
-   - retained and not-retained account counts by year
-C. Based on those profiling results, explain how to select:
-   - the 12-month feature window
-   - the as_of_date
-   - the 3-month outcome window
+4. ROLLOVER date range:
+[paste results]
 
-Generate only read-only profiling SELECT queries.
-Do not generate the final training dataset query yet.
+Based only on these actual results:
+
+1. Confirm the full and partial rollover flag mappings.
+2. Identify which date field should be used for each feature.
+3. Propose three possible as_of_date candidates.
+4. For each candidate, show:
+   - 12-month feature window
+   - 3-month outcome window
+5. Do not generate the final training dataset SQL yet.
+6. Clearly flag any decision that still requires BA or SME confirmation.
