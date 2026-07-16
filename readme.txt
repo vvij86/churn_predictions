@@ -1,44 +1,53 @@
-The 2026-01-01 to 2026-03-31 rollover queries returned no data, but
-2025-01-01 to 2025-03-31 returned usable results.
+Based on Query 1 and Query 2, shortlist only these tables:
 
-Therefore, revise the POC dates to:
+1. ACCOUNT_FUND_BALANCE
+2. ACCOUNT_GENERAL_BALANCE
+3. ACCOUNT_STATEMENT
 
-- Feature window: 2024-01-01 to 2024-12-31
-- as_of_date: 2024-12-31
-- Outcome window: 2025-01-01 to 2025-03-31
+Exclude:
+- ACCOUNT_CASH_BALANCE because it contains cash components only and must
+  not be assumed to represent total FUM.
+- ACCOUNT_FUND_PIE_BALANCE because it has no direct ACCOUNT_ID and appears
+  to contain tax, fee and income component information.
 
-The external rollover profiling found approximately:
+Please generate simple read-only SQL profiling queries, without dynamic SQL,
+for the three shortlisted tables.
 
-- 102,371 accounts with EXIT_DATE on the same day as the first external rollover
-- 2,675 accounts with no EXIT_DATE
-- 605 accounts with EXIT_DATE after the external rollover
-- 102,976 closed accounts with EXIT_DATE
-- approximately 2,675 active accounts without EXIT_DATE
+Use:
+- as_of_date = 2024-12-31
+- outcome_end_date = 2025-03-31
 
-Do not create the final target yet.
+For ACCOUNT_FUND_BALANCE, profile:
+1. Minimum and maximum UPDATE_DATETIME.
+2. Row count and distinct ACCOUNT_ID count.
+3. Distinct BALANCE_TYPE and BALANCE_TYPE_CODE values with counts.
+4. Number of rows per ACCOUNT_ID.
+5. Number of FUND_ID values per ACCOUNT_ID.
+6. Null, zero, positive and negative counts for DOLLAR_BALANCE.
+7. Coverage near 2024-12-31 and 2025-03-31.
+8. Whether summing DOLLAR_BALANCE by ACCOUNT_ID appears possible.
+9. Do not assume UPDATE_DATETIME is a historical snapshot date until confirmed.
 
-The metadata search identified these possible balance/FUM tables:
+For ACCOUNT_GENERAL_BALANCE, profile:
+1. Minimum and maximum BALANCE_DATE.
+2. Row count and distinct ACCOUNT_ID count.
+3. Distinct BALANCE_TYPE_CODE and DATE_TYPE_CODE values with counts.
+4. Number of rows per ACCOUNT_ID and BALANCE_DATE.
+5. Null, zero, positive and negative counts for AMOUNT.
+6. Coverage on 2024-12-31 and 2025-03-31.
+7. Identify which BALANCE_TYPE_CODE values may represent total account
+   balance, but do not assume the meaning without confirmation.
 
-- ACCOUNT_CASH_BALANCE
-- ACCOUNT_FUND_BALANCE
-- ACCOUNT_FUND_PIE_BALANCE
-- ACCOUNT_GENERAL_BALANCE
-- ACCOUNT_STATEMENT
+For ACCOUNT_STATEMENT, profile:
+1. Minimum and maximum START_DATE and END_DATE.
+2. Row count and distinct ACCOUNT_ID count.
+3. Distinct TYPE_CODE and TYPE_SHORT_DESC values with counts.
+4. Null, zero, positive and negative counts for CLOSING_BALANCE.
+5. Statements whose END_DATE is 2024-12-31 or 2025-03-31.
+6. Latest statement available on or before each required date.
+7. Whether multiple statements exist per account and period.
 
-Please generate read-only profiling queries to compare only these candidate tables.
+Also provide one separate query for each table to check how many ACCOUNT_ID
+values successfully join to dbo.ACCOUNT.
 
-For each table, show:
-
-1. All column names and data types.
-2. Whether ACCOUNT_ID exists directly or through a reliable join.
-3. Minimum and maximum balance/snapshot dates.
-4. Row count and distinct account count.
-5. Whether multiple rows exist per account and date.
-6. Which amount columns may represent total account FUM.
-7. Coverage for 2024-12-31 and 2025-03-31.
-8. Null, zero, positive and negative amount counts.
-9. Do not assume cash balance alone equals total FUM.
-10. Recommend which table is the strongest candidate, but clearly mark
-    that the authoritative FUM source requires BA/SME or data-team confirmation.
-
-Do not generate Python or final training-dataset SQL yet.
+Do not generate the final FUM logic or churn target yet.
