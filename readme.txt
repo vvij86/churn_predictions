@@ -1,28 +1,50 @@
+WITH params AS (
+    SELECT
+        CAST('2024-12-31' AS date) AS as_of_date,
+        CAST('2025-01-01' AS date) AS outcome_start_date,
+        CAST('2025-03-31' AS date) AS outcome_end_date
+)
 SELECT
-    account_closed_outcome_flag,
-    outcome_external_rollover_flag,
-    target_churn,
-    COUNT(*) AS account_count
-FROM final_output
-WHERE exclude_from_training_flag = 0
-GROUP BY
-    account_closed_outcome_flag,
-    outcome_external_rollover_flag,
-    target_churn
-ORDER BY
-    target_churn,
-    account_closed_outcome_flag,
-    outcome_external_rollover_flag;
+    CASE
+        WHEN a.EXIT_DATE IS NULL
+            THEN 'NO_EXIT_DATE'
 
+        WHEN CAST(a.EXIT_DATE AS date) <= p.as_of_date
+            THEN 'EXITED_ON_OR_BEFORE_AS_OF_DATE'
 
-SELECT
-    account_status_code_outcome,
-    target_churn,
+        WHEN CAST(a.EXIT_DATE AS date) >= p.outcome_start_date
+         AND CAST(a.EXIT_DATE AS date) <= p.outcome_end_date
+            THEN 'EXITED_IN_OUTCOME_WINDOW'
+
+        WHEN CAST(a.EXIT_DATE AS date) > p.outcome_end_date
+            THEN 'EXITED_AFTER_OUTCOME_WINDOW'
+
+        ELSE 'REVIEW'
+    END AS exit_date_category,
+
+    a.STATUS_CODE,
     COUNT(*) AS account_count
-FROM final_output
-WHERE exclude_from_training_flag = 0
+
+FROM SonataODS.dbo.ACCOUNT a
+CROSS JOIN params p
+
 GROUP BY
-    account_status_code_outcome,
-    target_churn
-ORDER BY
-    account_count DESC;
+    CASE
+        WHEN a.EXIT_DATE IS NULL
+            THEN 'NO_EXIT_DATE'
+
+        WHEN CAST(a.EXIT_DATE AS date) <= p.as_of_date
+            THEN 'EXITED_ON_OR_BEFORE_AS_OF_DATE'
+
+        WHEN CAST(a.EXIT_DATE AS date) >= p.outcome_start_date
+         AND CAST(a.EXIT_DATE AS date) <= p.outcome_end_date
+            THEN 'EXITED_IN_OUTCOME_WINDOW'
+
+        WHEN CAST(a.EXIT_DATE AS date) > p.outcome_end_date
+            THEN 'EXITED_AFTER_OUTCOME_WINDOW'
+
+        ELSE 'REVIEW'
+    END,
+    a.STATUS_CODE
+
+ORDER BY account_count DESC;
