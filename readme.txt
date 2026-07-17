@@ -1,1 +1,1 @@
-“I’m currently working on the ML model evaluation and recommendation user story. I have started preparing and validating the ML dataset, and I’m also working on data preprocessing and feature preparation. The work is currently in progress, and I’ll continue with the model evaluation once the dataset preparation is completed. No blockers at the moment.”
+
