@@ -1,30 +1,24 @@
-Please modify the existing full SonataODS training dataset query for the POC.
-Apply these corrections:
-In account_base, include only accounts that were active as of 2024-12-31:
-a.COMMENCE_DATE <= p.as_of_date
-AND (
-    a.EXIT_DATE IS NULL
-    OR CAST(a.EXIT_DATE AS date) > p.as_of_date
-)
-Remove ACCOUNT.STATUS_CODE = 'CLOS' from the churn-target logic because the current status may reflect a closure after the as-of date and would create future-data leakage.
-Define account_closed_outcome_flag = 1 only when:
-CAST(a.EXIT_DATE AS date)
-    BETWEEN p.outcome_start_date AND p.outcome_end_date
-Keep STATUS_CODE only as a diagnostic or target-supporting column. Do not use it as an ML feature or as a POC churn rule.
-Define provisional target_churn as:
-NULL for death-excluded accounts
-1 when account_closed_outcome_flag = 1
-1 when outcome_external_rollover_flag = 1
-otherwise 0
-Preserve:
-one row per account_id
-feature window 2024-01-01 to 2024-12-31
-outcome window 2025-01-01 to 2025-03-31
-death exclusions
-existing historical ML features
-no FUM or balance features
-no partial/full rollover split
-Do not redesign unrelated sections. Return:
-the complete corrected SQL
-a brief summary of exactly what changed
-validation queries for row uniqueness, target distribution and closure/rollover overlap.
+Task
+Work involved
+Estimate
+1. Prepare and validate ML dataset
+Load CSV, add headers if required, verify columns, remove excluded rows, check target distribution, missing values and data types
+4 hours
+2. Data preprocessing and feature preparation
+Separate ML features and target, remove leakage columns, handle null values, encode categorical fields and prepare train/test split
+5 hours
+3. Build baseline models
+Train Logistic Regression, Decision Tree and Random Forest models
+5 hours
+4. Build advanced comparison models
+Train XGBoost or another suitable boosting model and perform basic parameter tuning
+5 hours
+5. Model evaluation and comparison
+Compare ROC-AUC, Precision, Recall, F1-score, confusion matrix and prediction probabilities
+5 hours
+6. Best-model recommendation and documentation
+Document results, explain why the selected model is recommended, record assumptions and POC limitations
+4 hours
+7. Review and final updates
+Review results with lead, make corrections and update the story/documentation
+2 hours
