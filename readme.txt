@@ -1,12 +1,15 @@
 Create a new Python file named:
 
+split_churn_dataset.py
+
+Do not modify the existing files:
+
+validate_churn_dataset.py
 preprocess_churn_dataset.py
 
-Do not modify the existing validate_churn_dataset.py file.
+Use churn_prepared_dataset.csv as the input file.
 
-The validation of dataset.csv has passed. It contains 793,990 unique account rows, 17 columns, no nulls, no duplicates, valid binary target values, and no target-leakage columns.
-
-In the new preprocess_churn_dataset.py file, create a beginner-friendly pandas preprocessing script.
+Create a beginner-friendly Python script using pandas and scikit-learn to split the prepared churn dataset into training and testing datasets.
 
 Requirements:
 
@@ -14,114 +17,105 @@ Requirements:
 
 
 
-csv_file = r"dataset.csv"
+csv_file = r"churn_prepared_dataset.csv"
 
-2. Remove ACCOUNT_TYPE_CODE because it is a constant column.
-
-
-3. Keep ACCOUNT_ID separately for traceability, but do not include it as a model feature.
+2. Validate that these columns exist:
 
 
-4. For these recency columns:
-
-
-
-txn_days_since_last_12m
-
-contrib_days_since_last_12m
-
-rollover_days_since_last_12m
-
-
-Create corresponding no-history indicator columns:
-
-no_txn_history_12m
-
-no_contrib_history_12m
-
-no_rollover_history_12m
-
-
-5. Determine no-history using the related event count:
-
-
-
-txn_count_12m = 0
-
-contrib_count_12m = 0
-
-rollover_count_12m = 0
-
-
-Do not determine no-history only from the recency value.
-
-6. When the related event count is zero, replace its recency value with 366, representing no event during the 12-month observation window.
-
-
-7. Keep PRODUCT_ID and SCHEME_ID as categorical features.
-
-
-8. Separate:
-
-
-
-X for model features
-
-y for target_churn
-
-account_ids for traceability
-
-
-9. Print:
-
-
-
-input dataset shape
-
-prepared dataset shape
-
-final feature names
-
-X shape
-
-y shape
-
-account_ids shape
-
-counts for each newly created no-history indicator
-
-
-10. Save the prepared output with headers as:
-
-
-
-churn_prepared_dataset.csv
-
-The saved file should contain:
 
 ACCOUNT_ID
-
-all prepared model features
-
+PRODUCT_ID
+SCHEME_ID
 target_churn
 
-
-11. Add clear comments and basic error handling for:
-
+3. Keep ACCOUNT_ID separately for traceability and do not use it as a model feature.
 
 
-missing dataset.csv
+4. Separate:
+
+
+
+X = all model feature columns
+y = target_churn
+account_ids = ACCOUNT_ID
+
+5. Treat PRODUCT_ID and SCHEME_ID as categorical columns, not continuous numeric variables.
+
+
+6. Create a stratified 80/20 train-test split using:
+
+
+
+test_size=0.20
+random_state=42
+stratify=y
+
+7. Split account_ids using the same train-test indices so account traceability is preserved.
+
+
+8. Print:
+
+
+
+total dataset shape
+
+X_train shape
+
+X_test shape
+
+y_train shape
+
+y_test shape
+
+train target counts and percentages
+
+test target counts and percentages
+
+train and test account ID counts
+
+confirmation that no ACCOUNT_ID appears in both train and test
+
+
+9. Save these four files with headers:
+
+
+
+churn_X_train.csv
+churn_X_test.csv
+churn_y_train.csv
+churn_y_test.csv
+
+10. Also save traceability files:
+
+
+
+churn_train_account_ids.csv
+churn_test_account_ids.csv
+
+11. Do not encode categorical columns yet.
+
+
+12. Do not scale numeric columns yet.
+
+
+13. Do not train or evaluate any ML model yet.
+
+
+14. Add clear comments and basic error handling for:
+
+
+
+missing input file
 
 missing required columns
 
-failure while saving the output
+invalid target values
+
+failure while saving output files
 
 
-12. Do not split the dataset and do not train or evaluate any model yet.
-
-
-13. At the end, explain how to run the new file from the VS Code terminal using:
+15. At the end, explain how to run the file from the VS Code terminal:
 
 
 
-python preprocess_churn_dataset.py
+python split_churn_dataset.py
