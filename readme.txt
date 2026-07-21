@@ -1,87 +1,99 @@
-Create a new Python file named:
+Yes, you can update the existing extract_logistic_churn_drivers.py file. It is related to driver interpretation, so a separate file is not necessary.
+
+Use this prompt:
+
+Update the existing Python file:
 
 extract_logistic_churn_drivers.py
 
-Do not retrain the model.
+Do not create a new Python file and do not retrain the Logistic Regression model.
 
-Use the existing saved model:
+Keep all existing coefficient and churn-driver extraction logic unchanged.
 
-logistic_regression_pipeline.joblib
+Add a new category profiling section using:
 
-Create a beginner-friendly Python script that:
+churn_prepared_dataset.csv
 
-1. Loads the saved pipeline using joblib.
+Requirements:
 
-
-2. Extracts the fitted preprocessing step and Logistic Regression model.
-
-
-3. Gets the final transformed feature names, including one-hot encoded PRODUCT_ID and SCHEME_ID values.
+1. Read churn_prepared_dataset.csv.
 
 
-4. Extracts the Logistic Regression coefficients.
-
-
-5. Creates a dataframe containing:
-
-feature_name
-
-coefficient
-
-absolute_coefficient
-
-direction
+2. For every unique PRODUCT_ID, calculate:
 
 
 
-6. Set direction as:
+account count
 
-Increases churn risk when coefficient is positive
+churn count where target_churn = 1
 
-Reduces churn risk when coefficient is negative
+non-churn count where target_churn = 0
 
+churn rate percentage
 
+percentage of total accounts
 
-7. Sort features by absolute_coefficient in descending order.
-
-
-8. Print:
-
-top 15 features increasing churn risk
-
-top 15 features reducing churn risk
+low sample flag
 
 
+3. For every unique SCHEME_ID, calculate the same metrics.
 
-9. Save the complete result as:
+
+4. Set low_sample_flag to:
 
 
 
-logistic_regression_churn_drivers.csv
+Yes
 
-10. Also save the top 30 drivers as:
+when the category has fewer than 100 accounts; otherwise set it to:
 
+No
 
-
-logistic_regression_top_churn_drivers.csv
-
-11. Add a warning that Logistic Regression coefficients show model association, not necessarily business causation.
+5. Sort both outputs by churn rate in descending order.
 
 
-12. Add clear comments and error handling for:
+6. Save the results as:
 
 
 
-missing model file
+product_id_churn_profile.csv
+scheme_id_churn_profile.csv
 
-invalid pipeline structure
-
-failure while extracting feature names
-
-failure while saving output files
+7. Print the top 10 categories by churn rate for both PRODUCT_ID and SCHEME_ID.
 
 
-13. At the end, explain how to run:
+8. Clearly identify categories having fewer than 100 accounts, because their churn rates and Logistic Regression coefficients may be unreliable.
+
+
+9. Validate that these required columns exist:
+
+
+
+ACCOUNT_ID
+PRODUCT_ID
+SCHEME_ID
+target_churn
+
+10. Add error handling for:
+
+
+
+missing input file
+
+missing required columns
+
+invalid target values
+
+failure while saving the output files
+
+
+11. Do not change or overwrite the existing churn-driver CSV outputs.
+
+
+12. Do not retrain or modify the saved Logistic Regression pipeline.
+
+
+13. Run the updated script using:
 
 
 
