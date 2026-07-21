@@ -1,33 +1,69 @@
-Update the existing churn dataset SQL query to incorporate the business-provided Sonata partial withdrawal logic.
-Business logic:
-CASE
-    WHEN trev.event_type_code IN ('ETC','ETCV','FLCL','PFCO') THEN 0
-    ELSE 1
-END AS partial_withdrawal_flag
-Source table:
-sonatadm.sonata.transaction_event trev
+Yes, but don’t choose an arbitrary amount yet.
+
+A fixed threshold like amount >= 100 may ignore genuinely meaningful withdrawals for small-balance accounts. Better options are:
+
+minimum transaction amount, confirmed by business;
+
+percentage of account balance, such as withdrawal ≥ 5% or 10% of balance;
+
+both amount and percentage together.
+
+
+Since reliable historical balance is not currently available, for this POC use a business-approved minimum amount threshold only, and keep the raw amount/count features as well.
+
+Ask Copilot with this prompt:
+
+> Update the revised churn dataset SQL to add a configurable minimum partial-withdrawal amount threshold.
+
+Add this parameter:
+
+CAST(100.00 AS decimal(18,2)) AS min_partial_withdrawal_amount
+
+Use it only for partial-withdrawal feature creation.
+
 Requirements:
-Keep the existing cohort, feature-window, outcome-window, death-exclusion and target logic unchanged unless explicitly stated below.
-Join transaction_event to the correct account or transaction-level source using the validated business key already available in the existing query.
-Before changing the churn target, create profiling SQL that shows for each event_type_code:
-row count
-distinct account count
-minimum and maximum event date
-partial withdrawal flag based on the business rule
-number of accounts that later closed
-number of accounts with external rollover outcome
-Add historical partial-withdrawal features only from the 12-month feature window up to as_of_date:
+
+1. Keep the original raw features:
+
 partial_withdrawal_count_12m
-partial_withdrawal_amount_12m, if a validated amount field exists
-days_since_last_partial_withdrawal_12m
-partial_withdrawal_flag_12m
-Do not use any transaction-event record after as_of_date as an ML feature.
-Do not directly label partial withdrawal as churn. Treat it as a churn-risk or FUM-leakage feature because the account may remain open.
-Keep full account closure and qualifying external full-exit logic as the churn target.
-Add clear comments explaining that partial withdrawal indicates FUM leakage/churn risk, not confirmed full churn.
-Ensure the final modelling dataset still contains exactly one row per ACCOUNT_ID.
-Provide:
-the profiling query first
-then the revised full dataset query
-then a validation query for row count, distinct account count, target distribution and duplicates
-Do not generate Python code yet.
+
+partial_withdrawal_amount_12m
+
+
+
+2. Add threshold-based features using only individual partial-withdrawal transactions where the validated withdrawal amount is greater than or equal to min_partial_withdrawal_amount:
+
+significant_partial_withdrawal_count_12m
+
+significant_partial_withdrawal_amount_12m
+
+days_since_last_significant_partial_withdrawal_12m
+
+significant_partial_withdrawal_flag_12m
+
+
+
+3. Do not remove small transactions from the raw dataset features.
+
+
+4. Do not use partial withdrawal directly to create target_churn.
+
+
+5. Keep one row per ACCOUNT_ID.
+
+
+6. Add profiling showing, for thresholds 0, 50, 100, 500 and 1000:
+
+qualifying transaction count
+
+distinct account count
+
+total withdrawal amount
+
+percentage of partial-withdrawal accounts retained
+
+
+
+7. Return the profiling query first. Do not change the full dataset query until the threshold distribution is reviewed.
+
+
