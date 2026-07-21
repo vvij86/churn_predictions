@@ -1,240 +1,234 @@
+Yes. Use this prompt in Copilot:
+
 Create a new Python file named:
 
-train_logistic_regression.py
+create_logistic_model_visuals.py
 
-Use these input files:
+Use these existing files:
 
-churn_X_train.csv
-churn_X_test.csv
-churn_y_train.csv
-churn_y_test.csv
-churn_test_account_ids.csv
+logistic_regression_metrics.csv
+logistic_regression_test_predictions.csv
+logistic_regression_churn_drivers.csv
+logistic_regression_top_churn_drivers.csv
 
-Create a beginner-friendly Python script using pandas, scikit-learn and joblib to train, evaluate and interpret a Logistic Regression churn model.
+Create beginner-friendly statistical visualizations for the Logistic Regression churn model so that a non-technical stakeholder can understand the results.
 
 Requirements:
 
-1. Read all five input files.
+1. Read all available input CSV files and validate the required columns.
 
 
-2. Validate that the train and test feature files have matching columns.
-
-
-3. Validate that the target files contain only 0 and 1.
-
-
-4. Validate that the number of rows matches correctly between:
+2. Create and save the following charts as separate PNG files:
 
 
 
-churn_X_train.csv
-churn_y_train.csv
+01_confusion_matrix.png
+02_roc_curve.png
+03_precision_recall_curve.png
+04_model_metrics_summary.png
+05_top_behavioural_churn_drivers.png
+06_churn_probability_distribution.png
+07_threshold_precision_recall.png
 
-and between:
-
-churn_X_test.csv
-churn_y_test.csv
-churn_test_account_ids.csv
-
-5. Treat these columns as categorical features:
-
-
-
-product_id
-scheme_id
-
-6. Treat all remaining feature columns as numeric.
-
-
-7. Do not use ACCOUNT_ID as a model feature.
-
-
-8. Build a scikit-learn preprocessing pipeline using:
+3. Confusion matrix:
 
 
 
-OneHotEncoder(handle_unknown="ignore")
+Show:
 
-for categorical columns and:
+Correctly predicted non-churn
 
-StandardScaler()
+False churn alerts
 
-for numeric columns.
+Missed churn cases
 
-9. Build the Logistic Regression model using:
-
-
-
-LogisticRegression(
-    max_iter=1000,
-    class_weight="balanced",
-    random_state=42
-)
-
-10. Combine preprocessing and Logistic Regression using a single scikit-learn Pipeline.
+Correctly predicted churn
 
 
-11. Train the pipeline only on the training dataset.
+Display both count and percentage inside each cell.
+
+Use business-friendly labels instead of only TN, FP, FN and TP.
+
+Add a subtitle explaining:
+
+missed churn cases are actual churn accounts predicted as retained;
+
+false alerts are retained accounts predicted as churn.
 
 
-12. Generate predictions and churn probabilities for the test dataset.
+
+4. ROC curve:
 
 
-13. Use the default classification threshold of 0.50.
+
+Use actual_target and churn_probability.
+
+Plot the no-skill diagonal.
+
+Display the ROC-AUC value clearly.
+
+Add a simple explanation in the title or subtitle:
+
+“Higher AUC means better separation between churn and non-churn accounts.”
 
 
-14. Calculate and print:
+
+5. Precision–Recall curve:
 
 
+
+Use actual_target and churn_probability.
+
+Display Average Precision / PR-AUC.
+
+Include the churn prevalence baseline.
+
+Add a simple explanation:
+
+“This chart is especially useful because churn cases are less common.”
+
+
+
+6. Model metrics summary:
+
+
+
+Create a bar chart for:
 
 ROC-AUC
 
-PR-AUC / Average Precision
+PR-AUC
 
 Accuracy
 
-Precision for churn class
+Precision
 
-Recall for churn class
+Recall
 
-F1-score for churn class
+F1-score
 
-Confusion matrix
 
-Classification report
+Show the metric value above each bar.
 
-training row count
+Add a plain-English note below the chart:
 
-test row count
+Precision = how reliable the churn alerts are
 
-numeric feature count
+Recall = how many actual churn cases were identified
 
-categorical feature count
+F1-score = balance between precision and recall
 
-training time
 
-prediction time
 
+7. Top behavioural churn drivers:
 
-15. Save the evaluation metrics as:
 
 
+Use only rows where driver_group = "Behavioural driver".
 
-logistic_regression_metrics.csv
+Exclude product_id and scheme_id associations.
 
-16. Save the test predictions as:
+Show the top 15 features by absolute_coefficient.
 
+Use a horizontal bar chart.
 
+Clearly show whether each feature:
 
-logistic_regression_test_predictions.csv
+increases churn risk;
 
-The prediction file must contain:
+reduces churn risk.
 
-ACCOUNT_ID
-actual_target
-predicted_target
-churn_probability
 
-17. Save the complete fitted preprocessing and Logistic Regression pipeline as:
+Replace technical column names with readable labels, for example:
 
+partial_withdrawal_count_12m → Partial withdrawal frequency
 
+days_since_last_partial_withdrawal_12m → Time since last partial withdrawal
 
-logistic_regression_pipeline.joblib
+account_txn_count_12m → Account transaction frequency
 
-18. After training, extract the final transformed feature names from the fitted preprocessing pipeline, including one-hot encoded product_id and scheme_id values.
+reversal_txn_count_12m → Reversal transaction frequency
 
 
-19. Extract the Logistic Regression coefficients and create a dataframe with:
+Add a footnote:
 
+“These are model associations, not confirmed business causes.”
 
 
-feature_name
-coefficient
-absolute_coefficient
-direction
-driver_group
 
-20. Set direction as:
+8. Churn probability distribution:
 
 
 
-Increases churn risk
+Show separate probability distributions for:
 
-when the coefficient is positive, and:
+actual non-churn accounts;
 
-Reduces churn risk
+actual churn accounts.
 
-when the coefficient is negative.
 
-21. Set driver_group as:
+Mark the default decision threshold of 0.50.
 
+Add a plain-English explanation:
 
+“Accounts to the right of the threshold are classified as churn.”
 
-Product/Scheme association
 
-for one-hot encoded product_id and scheme_id features, and:
 
-Behavioural driver
+9. Threshold precision-recall chart:
 
-for all other features.
 
-22. Sort the coefficient dataframe by absolute_coefficient in descending order.
 
+Calculate precision, recall and F1-score across thresholds from 0.10 to 0.90.
 
-23. Save all coefficients as:
+Plot all three lines.
 
+Mark the current threshold of 0.50.
 
+Highlight the threshold with the highest F1-score.
 
-logistic_regression_churn_drivers.csv
+Print the best F1 threshold and corresponding precision, recall and F1-score.
 
-24. Save the top 30 drivers as:
 
+10. Use clear titles, large fonts and readable labels suitable for PowerPoint or Confluence.
 
 
-logistic_regression_top_churn_drivers.csv
+11. Do not use unexplained abbreviations in chart titles.
 
-25. Print:
 
+12. Add a short business interpretation below each chart where possible.
 
 
-top 15 features increasing churn risk
+13. Save all charts in a new folder:
 
-top 15 features reducing churn risk
 
-top 10 behavioural drivers by absolute coefficient
 
-top 10 product/scheme associations by absolute coefficient
+model_visuals
 
+14. Create a summary CSV named:
 
-26. Add a warning that Logistic Regression coefficients show model association and not confirmed business causation.
 
 
-27. Add clear comments and error handling for:
+model_visuals_summary.csv
 
+with:
 
+chart_name
+purpose
+business_interpretation
+output_file
 
-missing input files
+15. Print a final summary listing all generated chart files.
 
-missing required columns
 
-mismatched row counts
+16. Add clear comments and error handling.
 
-invalid target values
 
-preprocessing failure
+17. Do not retrain the model.
 
-model training failure
 
-feature-name extraction failure
+18. Run using:
 
-output save failure
 
 
-28. Do not train Random Forest, XGBoost or any other model yet.
-
-
-29. At the end, explain how to run:
-
-
-
-python train_logistic_regression.py
+python create_logistic_model_visuals.py
