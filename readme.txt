@@ -1,100 +1,33 @@
-Yes, you can update the existing extract_logistic_churn_drivers.py file. It is related to driver interpretation, so a separate file is not necessary.
-
-Use this prompt:
-
-Update the existing Python file:
-
-extract_logistic_churn_drivers.py
-
-Do not create a new Python file and do not retrain the Logistic Regression model.
-
-Keep all existing coefficient and churn-driver extraction logic unchanged.
-
-Add a new category profiling section using:
-
-churn_prepared_dataset.csv
-
+Update the existing churn dataset SQL query to incorporate the business-provided Sonata partial withdrawal logic.
+Business logic:
+CASE
+    WHEN trev.event_type_code IN ('ETC','ETCV','FLCL','PFCO') THEN 0
+    ELSE 1
+END AS partial_withdrawal_flag
+Source table:
+sonatadm.sonata.transaction_event trev
 Requirements:
-
-1. Read churn_prepared_dataset.csv.
-
-
-2. For every unique PRODUCT_ID, calculate:
-
-
-
-account count
-
-churn count where target_churn = 1
-
-non-churn count where target_churn = 0
-
-churn rate percentage
-
-percentage of total accounts
-
-low sample flag
-
-
-3. For every unique SCHEME_ID, calculate the same metrics.
-
-
-4. Set low_sample_flag to:
-
-
-
-Yes
-
-when the category has fewer than 100 accounts; otherwise set it to:
-
-No
-
-5. Sort both outputs by churn rate in descending order.
-
-
-6. Save the results as:
-
-
-
-product_id_churn_profile.csv
-scheme_id_churn_profile.csv
-
-7. Print the top 10 categories by churn rate for both PRODUCT_ID and SCHEME_ID.
-
-
-8. Clearly identify categories having fewer than 100 accounts, because their churn rates and Logistic Regression coefficients may be unreliable.
-
-
-9. Validate that these required columns exist:
-
-
-
-ACCOUNT_ID
-PRODUCT_ID
-SCHEME_ID
-target_churn
-
-10. Add error handling for:
-
-
-
-missing input file
-
-missing required columns
-
-invalid target values
-
-failure while saving the output files
-
-
-11. Do not change or overwrite the existing churn-driver CSV outputs.
-
-
-12. Do not retrain or modify the saved Logistic Regression pipeline.
-
-
-13. Run the updated script using:
-
-
-
-python extract_logistic_churn_drivers.py
+Keep the existing cohort, feature-window, outcome-window, death-exclusion and target logic unchanged unless explicitly stated below.
+Join transaction_event to the correct account or transaction-level source using the validated business key already available in the existing query.
+Before changing the churn target, create profiling SQL that shows for each event_type_code:
+row count
+distinct account count
+minimum and maximum event date
+partial withdrawal flag based on the business rule
+number of accounts that later closed
+number of accounts with external rollover outcome
+Add historical partial-withdrawal features only from the 12-month feature window up to as_of_date:
+partial_withdrawal_count_12m
+partial_withdrawal_amount_12m, if a validated amount field exists
+days_since_last_partial_withdrawal_12m
+partial_withdrawal_flag_12m
+Do not use any transaction-event record after as_of_date as an ML feature.
+Do not directly label partial withdrawal as churn. Treat it as a churn-risk or FUM-leakage feature because the account may remain open.
+Keep full account closure and qualifying external full-exit logic as the churn target.
+Add clear comments explaining that partial withdrawal indicates FUM leakage/churn risk, not confirmed full churn.
+Ensure the final modelling dataset still contains exactly one row per ACCOUNT_ID.
+Provide:
+the profiling query first
+then the revised full dataset query
+then a validation query for row count, distinct account count, target distribution and duplicates
+Do not generate Python code yet.
