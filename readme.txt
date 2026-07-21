@@ -1,81 +1,155 @@
+Create a new Python file named:
 
+validate_churn_dataset.py
 
-The profiling supports using 100 as a reasonable POC threshold:
+The workspace currently contains only the latest revised dataset.csv with column headers. All previous Python files and generated CSV files were deleted.
 
-Keeps 441,280 accounts — 64.74% of partial-withdrawal accounts.
-
-Keeps about 4.84 million transactions.
-
-Retains approximately 98% of the total withdrawal amount compared with no threshold.
-
-Removes many very small-value transactions without losing much monetary value.
-
-
-So you can proceed with 100, but document it as a POC threshold pending business approval.
-
-Use this Copilot prompt:
-
-> Update the revised full churn dataset SQL using 100.00 as the configurable minimum significant partial-withdrawal amount.
-
-Keep the existing raw partial-withdrawal features unchanged:
-
-partial_withdrawal_count_12m
-
-partial_withdrawal_amount_12m
-
-days_since_last_partial_withdrawal_12m
-
-partial_withdrawal_flag_12m
-
-
-Add these threshold-based features using only individual partial-withdrawal transactions with an amount greater than or equal to 100.00:
-
-significant_partial_withdrawal_count_12m
-
-significant_partial_withdrawal_amount_12m
-
-days_since_last_significant_partial_withdrawal_12m
-
-significant_partial_withdrawal_flag_12m
-
-
-Add this configurable parameter:
-
-CAST(100.00 AS decimal(18,2)) AS min_partial_withdrawal_amount
+Create a beginner-friendly pandas validation script for the latest churn modelling dataset.
 
 Requirements:
 
-1. Keep the existing cohort, feature window, outcome window, target logic and death exclusions unchanged.
+1. Read:
 
 
-2. Partial withdrawal must remain a feature only and must not directly create target_churn.
+
+csv_file = r"dataset.csv"
+
+2. Print:
 
 
-3. Use only transactions on or before as_of_date for these features.
-
-
-4. Preserve exactly one row per ACCOUNT_ID.
-
-
-5. Add comments stating that the 100.00 threshold is for the POC and requires business confirmation.
-
-
-6. Return the complete revised dataset query.
-
-
-7. Also return validation SQL for:
 
 row count
 
-distinct account count
+column count
 
-duplicate account check
+all column names
 
-target distribution
+first five rows
 
-counts of accounts with raw and significant partial withdrawals
-
-
+data types
 
 
-Do not generate Python code yet.
+3. Validate:
+
+
+
+ACCOUNT_ID has no null values
+
+ACCOUNT_ID has no duplicates
+
+target_churn has no null values
+
+target_churn contains only 0 and 1
+
+row count is approximately 793915
+
+distinct account count equals row count
+
+
+4. Confirm these raw partial-withdrawal columns are present:
+
+
+
+partial_withdrawal_count_12m
+partial_withdrawal_amount_12m
+days_since_last_partial_withdrawal_12m
+partial_withdrawal_flag_12m
+
+5. Confirm these threshold-based partial-withdrawal columns are present:
+
+
+
+significant_partial_withdrawal_count_12m
+significant_partial_withdrawal_amount_12m
+days_since_last_significant_partial_withdrawal_12m
+significant_partial_withdrawal_flag_12m
+
+6. Validate the threshold logic:
+
+
+
+significant_partial_withdrawal_count_12m must never be greater than partial_withdrawal_count_12m
+
+significant_partial_withdrawal_amount_12m must never be greater than partial_withdrawal_amount_12m
+
+whenever significant_partial_withdrawal_flag_12m = 1, partial_withdrawal_flag_12m must also be 1
+
+whenever significant_partial_withdrawal_count_12m = 0, significant_partial_withdrawal_flag_12m must be 0
+
+whenever significant_partial_withdrawal_count_12m > 0, significant_partial_withdrawal_flag_12m must be 1
+
+
+7. Show counts for:
+
+
+
+raw partial-withdrawal accounts
+
+significant partial-withdrawal accounts
+
+accounts with raw withdrawals only below the threshold
+
+accounts having both raw and significant withdrawals
+
+
+8. Show:
+
+
+
+target class counts and percentages
+
+null count and null percentage for every column
+
+unique count for every column
+
+constant columns
+
+columns with more than 80% null values
+
+infinite values in numeric columns
+
+total dataframe memory usage
+
+
+9. Check that no target-leakage columns are present, including names containing:
+
+
+
+account_exit_date
+account_status
+account_closed_outcome
+outcome_external_rollover
+death_exit_outcome
+exclude_from_training
+exit_type
+exit_reason
+
+10. Save the validation summary as:
+
+
+
+churn_model_dataset_validation_summary.csv
+
+11. Add clear comments and basic error handling for:
+
+
+
+missing dataset.csv
+
+missing required columns
+
+invalid target values
+
+validation failures
+
+failure while saving the output file
+
+
+12. Do not preprocess the data and do not train any model yet.
+
+
+13. At the end, explain how to run:
+
+
+
+python validate_churn_dataset.py
