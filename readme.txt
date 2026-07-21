@@ -1,37 +1,34 @@
-Yes, but don’t choose an arbitrary amount yet.
-
-A fixed threshold like amount >= 100 may ignore genuinely meaningful withdrawals for small-balance accounts. Better options are:
-
-minimum transaction amount, confirmed by business;
-
-percentage of account balance, such as withdrawal ≥ 5% or 10% of balance;
-
-both amount and percentage together.
 
 
-Since reliable historical balance is not currently available, for this POC use a business-approved minimum amount threshold only, and keep the raw amount/count features as well.
+The profiling supports using 100 as a reasonable POC threshold:
 
-Ask Copilot with this prompt:
+Keeps 441,280 accounts — 64.74% of partial-withdrawal accounts.
 
-> Update the revised churn dataset SQL to add a configurable minimum partial-withdrawal amount threshold.
+Keeps about 4.84 million transactions.
 
-Add this parameter:
+Retains approximately 98% of the total withdrawal amount compared with no threshold.
 
-CAST(100.00 AS decimal(18,2)) AS min_partial_withdrawal_amount
+Removes many very small-value transactions without losing much monetary value.
 
-Use it only for partial-withdrawal feature creation.
 
-Requirements:
+So you can proceed with 100, but document it as a POC threshold pending business approval.
 
-1. Keep the original raw features:
+Use this Copilot prompt:
+
+> Update the revised full churn dataset SQL using 100.00 as the configurable minimum significant partial-withdrawal amount.
+
+Keep the existing raw partial-withdrawal features unchanged:
 
 partial_withdrawal_count_12m
 
 partial_withdrawal_amount_12m
 
+days_since_last_partial_withdrawal_12m
+
+partial_withdrawal_flag_12m
 
 
-2. Add threshold-based features using only individual partial-withdrawal transactions where the validated withdrawal amount is greater than or equal to min_partial_withdrawal_amount:
+Add these threshold-based features using only individual partial-withdrawal transactions with an amount greater than or equal to 100.00:
 
 significant_partial_withdrawal_count_12m
 
@@ -42,28 +39,43 @@ days_since_last_significant_partial_withdrawal_12m
 significant_partial_withdrawal_flag_12m
 
 
+Add this configurable parameter:
 
-3. Do not remove small transactions from the raw dataset features.
+CAST(100.00 AS decimal(18,2)) AS min_partial_withdrawal_amount
+
+Requirements:
+
+1. Keep the existing cohort, feature window, outcome window, target logic and death exclusions unchanged.
 
 
-4. Do not use partial withdrawal directly to create target_churn.
+2. Partial withdrawal must remain a feature only and must not directly create target_churn.
 
 
-5. Keep one row per ACCOUNT_ID.
+3. Use only transactions on or before as_of_date for these features.
 
 
-6. Add profiling showing, for thresholds 0, 50, 100, 500 and 1000:
+4. Preserve exactly one row per ACCOUNT_ID.
 
-qualifying transaction count
+
+5. Add comments stating that the 100.00 threshold is for the POC and requires business confirmation.
+
+
+6. Return the complete revised dataset query.
+
+
+7. Also return validation SQL for:
+
+row count
 
 distinct account count
 
-total withdrawal amount
+duplicate account check
 
-percentage of partial-withdrawal accounts retained
+target distribution
 
-
-
-7. Return the profiling query first. Do not change the full dataset query until the threshold distribution is reviewed.
+counts of accounts with raw and significant partial withdrawals
 
 
+
+
+Do not generate Python code yet.
