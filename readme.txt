@@ -1,6 +1,6 @@
-Create a new Python script named train_decision_tree.py.
+Create a new Python script named train_random_forest.py.
 
-Use the existing prepared files:
+Use the existing files only:
 
 - churn_X_train.csv
 - churn_X_test.csv
@@ -8,23 +8,27 @@ Use the existing prepared files:
 - churn_y_test.csv
 - churn_test_account_ids.csv
 
-Use the same preprocessing approach already used in train_logistic_regression.py:
+Do not create a new train/test split.
+Do not modify the Logistic Regression or Decision Tree scripts and outputs.
+
+Use the same preprocessing logic already used in train_decision_tree.py:
 
 - Treat product_id and scheme_id as categorical columns
-- One-hot encode categorical columns with handle_unknown="ignore"
-- Pass numeric columns through without scaling because scaling is not required for a decision tree
-- Preserve the same missing-value and no-history handling already present in the existing workflow
-- Do not create a new train/test split
-- Do not modify the existing logistic regression files
+- Use OneHotEncoder(handle_unknown="ignore")
+- Pass numeric features without scaling
+- Preserve the existing missing-value and no-history handling
 
-Train a DecisionTreeClassifier with:
+Train and compare RandomForestClassifier models using:
 
-- random_state=42
-- class_weight="balanced"
-- max_depth values: 3, 5, 8, 10, 15 and None
-- min_samples_leaf values: 1, 10, 50, 100 and 500
+- n_estimators: 100 and 200
+- max_depth: 10, 15 and None
+- min_samples_leaf: 10, 50, 100 and 500
+- max_features: "sqrt"
+- class_weight: "balanced"
+- random_state: 42
+- n_jobs: -1
 
-Evaluate every parameter combination on the existing test set using:
+Evaluate every combination on the existing test set using:
 
 - ROC-AUC
 - PR-AUC / Average Precision
@@ -33,43 +37,52 @@ Evaluate every parameter combination on the existing test set using:
 - Recall for churn class 1
 - F1-score for churn class 1
 
-Select the best model primarily using PR-AUC, and use F1-score as the secondary metric.
+Select the best model primarily by PR-AUC and secondarily by F1-score.
 
-For the selected model:
+For the final selected model:
 
-1. Print the chosen hyperparameters.
-2. Print the confusion matrix and classification report.
-3. Save all parameter-comparison results to:
-   decision_tree_model_comparison.csv
+1. Print the selected hyperparameters.
+2. Print confusion matrix and classification report.
+3. Save all parameter results to:
+   random_forest_model_comparison.csv
 4. Save final metrics to:
-   decision_tree_metrics.csv
-5. Save test predictions with:
-   ACCOUNT_ID,
-   actual_target,
-   predicted_target,
-   churn_probability
-   to decision_tree_test_predictions.csv
-6. Save the complete preprocessing and trained model pipeline to:
-   decision_tree_pipeline.joblib
-7. Extract and save feature importance for all transformed features to:
-   decision_tree_feature_importance.csv
+   random_forest_metrics.csv
+5. Save predictions with ACCOUNT_ID, actual_target, predicted_target and churn_probability to:
+   random_forest_test_predictions.csv
+6. Save the full trained preprocessing and model pipeline to:
+   random_forest_pipeline.joblib
+7. Save all transformed feature importances to:
+   random_forest_feature_importance.csv
 8. Save the top 20 feature importances to:
-   decision_tree_top_churn_drivers.csv
-9. Separately identify the top 10 behavioural features, excluding product_id and scheme_id one-hot features.
-10. Add clear error handling, comments and console summaries.
+   random_forest_top_churn_drivers.csv
+9. Separately show the top 10 behavioural drivers, excluding product_id and scheme_id.
+10. Add clear comments, validations and error handling.
 
-Also compare the final decision-tree metrics against logistic_regression_metrics.csv and create:
+Then compare:
 
-model_comparison_logistic_vs_decision_tree.csv
+- Logistic Regression
+- Decision Tree
+- Random Forest
 
-Include both models and clearly state which model performs better for:
+Read metrics from:
 
-- ROC-AUC
-- PR-AUC
-- Precision
-- Recall
-- F1-score
+- logistic_regression_metrics.csv
+- decision_tree_metrics.csv
+- random_forest_metrics.csv
 
-Do not claim that feature importance proves causation. Mention that it shows model association only.
+Create:
 
-Run the script after creating it and report the generated files and the final comparison results.
+model_comparison_all_models.csv
+
+Include ROC-AUC, PR-AUC, Accuracy, Precision, Recall and F1-score for all three models.
+
+Clearly identify:
+
+- Best model by PR-AUC
+- Best model by recall
+- Best model by F1-score
+- Training and prediction time where available
+
+Do not claim feature importance proves business causation. State that it represents model association only.
+
+Run the script and report the selected hyperparameters, final metrics, generated files and the overall best model.
