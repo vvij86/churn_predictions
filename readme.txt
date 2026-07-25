@@ -1,247 +1,534 @@
-Paste this into Copilot, then paste your complete original 41-column SQL query underneath it.
+Here’s a simple demo flow you can use. The key is: don’t open every file. Walk them through the process in order and open only the important files.
+
+1. Start with the business objective
+
+Say:
+
+> “The objective was to build a proof-of-concept model that predicts which active accounts may churn in the next three months, using their previous 12 months of behaviour.”
+
+
+
+Then explain the timeline:
+
+> “I used one year of historical behaviour to create features, and the following three months to create the actual churn outcome.”
+
+
 
 
 ---
 
-I have an existing SQL Server query used to create a churn model training dataset. The original query returns 41 columns.
+2. Show the original SQL dataset creation
 
-I now need a separate scoring dataset query to generate new records for prediction using the already-trained model.
+Open:
 
-Scoring dates
+Full_Dataset_Query.sql
 
-Feature window start: 2025-04-01
-As-of date:           2026-03-31
-Prediction period:    2026-04-01 to 2026-06-30
+or the final version you actually used, such as:
 
-The prediction period is for business interpretation only. Do not use any data after 2026-03-31 in the scoring dataset.
+Full_Dataset_Query_3.sql
 
-Main requirement
+Say:
 
-Create a scoring version of the original training query.
+> “This query creates the full account-level modelling dataset. It produces one row per account and initially returns 41 columns.”
 
-Reuse the original:
 
-tables and joins;
 
-account cohort logic;
+Explain the 41 columns in three groups:
 
-feature definitions;
+Account identifiers and behavioural features
 
-SQL data types;
+Examples:
 
-column names;
+account_id
 
-transaction logic;
+as_of_date
 
-contribution logic;
+account_tenure_days
 
-rollover logic;
+transaction counts and recency
 
-partial-withdrawal logic.
+contribution counts and amounts
 
+rollover behaviour
 
-Do not redesign or simplify the feature calculations unless necessary.
+partial-withdrawal behaviour
 
-Scoring query requirements
+product and scheme
 
-1. Set the dates once at the beginning, preferably using variables:
 
+Outcome and audit fields
 
+Examples:
 
-DECLARE @FeatureStartDate DATE = '2025-04-01';
-DECLARE @AsOfDate DATE = '2026-03-31';
+account exit date
 
-2. Produce one row per account_id, as of 2026-03-31.
+closure flag
 
+external rollover outcome
 
-3. Include only accounts that are active as of 2026-03-31, using the same active-account definition as the original training query.
+death outcome flag
 
+exclusion flag
 
-4. Calculate all behavioural features using data from:
 
+Target
 
-
-2025-04-01 through 2026-03-31
-
-5. Do not use any event, transaction, account status or other information after 2026-03-31.
-
-
-6. Preserve the original feature definitions exactly, including:
-
-
-
-account tenure;
-
-account transaction count;
-
-distinct transaction-type count;
-
-reversal transaction count;
-
-transaction recency;
-
-contribution count;
-
-contribution amount;
-
-active contribution months;
-
-contribution recency;
-
-rollover count;
-
-rollover amount;
-
-rollover recency;
-
-partial-withdrawal count;
-
-partial-withdrawal amount;
-
-partial-withdrawal recency;
-
-partial-withdrawal flags;
-
-significant partial-withdrawal features;
-
-product and scheme fields;
-
-missing-history indicators, where present.
-
-
-7. Preserve the original partial-withdrawal business rule:
-
-
-
-Event type codes ETC, ETCV, FLCL and PFCO are closure-like events
-and must have partialWithdrawalFlag = 0.
-
-Other qualifying event types may have partialWithdrawalFlag = 1.
-
-Retain the provisional significant partial-withdrawal threshold of 100, or use the existing SQL parameter if the original query already defines one.
-
-8. Keep account_id in the final output as an identifier only.
-
-
-9. Keep as_of_date as scoring metadata only.
-
-
-10. Do not use account_id or as_of_date as model features.
-
-
-11. The original SQL produces 41 columns. Remove all future-outcome, target, exclusion and target-audit fields from the scoring output.
-
-
-
-The following original columns must not appear in the scoring dataset:
-
-feature_start_date
-outcome_start_date
-outcome_end_date
-account_status_code_outcome
-account_exit_date
-account_closed_outcome_flag
-outcome_external_rollover_flag
-outcome_external_rollover_count
-outcome_external_rollover_amount
-outcome_external_exit_type_id
-outcome_external_exit_type_code
-outcome_external_exit_reason_code
-death_exit_outcome_flag
-exclude_from_training_flag
 target_churn
 
-12. Do not simply remove these fields from the final SELECT. Review the upstream CTEs and remove or adjust outcome-related CTEs that are no longer required.
+Say:
 
-
-13. Do not create an actual churn target for 2026-04-01 to 2026-06-30. Those outcomes will be created later in a separate evaluation query, after the outcome period is complete.
-
-
-14. Preserve the original pre-outcome SQL output columns where appropriate. However, distinguish between:
+> “The 41-column dataset is useful for validation and target creation, but not all 41 columns are given to the model.”
 
 
 
-identifier columns;
 
-reporting metadata;
+---
 
-actual model-input columns.
+3. Show the raw exported dataset
 
+Open briefly:
 
-15. Note that account_type_code was constant in the original model-development dataset and may have been removed before training. Flag this for verification rather than automatically using it as a model feature.
+model_dataset.csv
 
+or:
 
-16. Add clear SQL comments for:
+dataset.csv
 
+Say:
 
-
-parameters;
-
-active-account cohort;
-
-feature window;
-
-transaction features;
-
-contribution features;
-
-rollover features;
-
-partial-withdrawal features;
-
-final scoring output.
+> “This is the SQL output exported into CSV. It contains the account features, outcome fields and target.”
 
 
-Required response
 
-Please provide:
-
-1. The complete scoring SQL query.
+Do not scroll through thousands of rows. Just show the header and a few records.
 
 
-2. A list of CTEs removed or modified from the training query.
+---
+
+4. Show dataset validation
+
+Open:
+
+validate_churn_dataset.py
+
+Then show:
+
+churn_model_dataset_validation_summary.csv
+
+Say:
+
+> “Before modelling, I validated the dataset for row count, duplicate account IDs, missing values, target distribution and data quality.”
 
 
-3. A list of columns removed because they relate to the future outcome, exclusion or target.
 
-
-4. The final scoring SQL output column list.
-
-
-5. A separate list of fields that should be passed to the trained Python pipeline.
-
-
-6. Any assumptions or items requiring manual validation.
-
-
-7. A validation checklist confirming:
+Mention your key checks:
 
 one row per account;
 
-no duplicate account IDs;
+no duplicate ACCOUNT_ID;
 
-no information after 2026-03-31;
+no missing account IDs;
 
-same feature definitions as training;
+churn and non-churn distribution;
 
-compatible column names and data types;
+excluded records removed;
 
-no target leakage;
-
-no future-outcome fields.
+feature columns checked.
 
 
+You can say:
+
+> “After exclusions, the trainable dataset had approximately 794,000 accounts, with around 13.6% churn.”
 
 
-Important Python compatibility point
-
-The definitive model-input schema is the column list from the original Python X_train dataframe, not simply all 41 SQL columns or all retained scoring columns.
-
-The scoring dataframe passed into the saved pipeline must match the original X_train columns exactly.
-
-Original 41-column training SQL query
-
-PASTE THE COMPLETE ORIGINAL SQL QUERY HERE
 
 
 ---
+
+5. Show preprocessing and train/test split
+
+Open:
+
+preprocess_and_split_model_dataset.py
+
+or:
+
+prepare_model_dataset.py
+
+Say:
+
+> “This script separates model-safe features from target-building fields and removes leakage.”
+
+
+
+Explain simply:
+
+Outcome columns removed.
+
+target_churn separated as the label.
+
+ACCOUNT_ID retained separately.
+
+Constant fields such as account_type_code removed.
+
+Data split into training and test sets.
+
+Same stratified split used for all models.
+
+
+Then show these output files:
+
+churn_X_train.csv
+churn_X_test.csv
+churn_y_train.csv
+churn_y_test.csv
+churn_train_account_ids.csv
+churn_test_account_ids.csv
+
+Explain:
+
+> “X contains the behavioural input fields. Y contains the actual churn result. Account ID files allow predictions to be mapped back to the correct accounts.”
+
+
+
+Also mention:
+
+> “The test accounts were not used to train the model.”
+
+
+
+
+---
+
+6. Show the model training scripts
+
+You have separate scripts for each model:
+
+train_logistic_regression.py
+train_decision_tree.py
+train_random_forest.py
+train_xgboost.py
+train_hist_gradient_boosting.py
+
+Say:
+
+> “I trained five different classification algorithms using the same training and test datasets. This made the comparison fair.”
+
+
+
+Briefly explain each:
+
+Logistic Regression: simple and explainable baseline.
+
+Decision Tree: rule-based model.
+
+Random Forest: many trees combined.
+
+XGBoost: sequential boosting model.
+
+HistGradientBoosting: efficient gradient boosting model.
+
+
+Do not explain every code line. Show the same main pattern in one script:
+
+model.fit(X_train, y_train)
+
+Then:
+
+predict_proba(X_test)
+
+Say:
+
+> “The model is trained on the training set, then generates a churn probability for each account in the test set.”
+
+
+
+
+---
+
+7. Show the saved model pipelines
+
+Examples:
+
+logistic_regression_pipeline.joblib
+decision_tree_pipeline.joblib
+random_forest_pipeline.joblib
+xgboost_pipeline.joblib
+hist_gradient_boosting_pipeline.joblib
+
+Say:
+
+> “Each joblib file contains the trained preprocessing and model pipeline. These saved pipelines can later be reused to score new account datasets without retraining.”
+
+
+
+This is important for explaining the scoring process.
+
+
+---
+
+8. Show one prediction output
+
+Open one selected model prediction file, preferably XGBoost or Random Forest:
+
+xgboost_test_predictions.csv
+
+or:
+
+random_forest_test_predictions.csv
+
+Explain the columns:
+
+ACCOUNT_ID
+actual_target
+predicted_target
+churn_probability
+
+Say:
+
+> “This is the account-level result. It shows the actual outcome, the model prediction and the predicted churn probability.”
+
+
+
+Example explanation:
+
+> “A probability of 0.82 means the model estimated an 82% churn risk. At the current 0.5 threshold, that account is classified as predicted churn.”
+
+
+
+
+---
+
+9. Show model metrics
+
+Open examples such as:
+
+logistic_regression_metrics.csv
+random_forest_metrics.csv
+xgboost_metrics.csv
+hist_gradient_boosting_metrics.csv
+decision_tree_metrics.csv
+
+Say:
+
+> “Each model was evaluated using the same metrics: ROC-AUC, PR-AUC, precision, recall, F1-score and confusion matrix.”
+
+
+
+Explain quickly:
+
+Precision: of accounts flagged, how many actually churned?
+
+Recall: of actual churners, how many were found?
+
+F1: balance of precision and recall.
+
+ROC-AUC: how well churners are ranked above non-churners.
+
+PR-AUC: performance focused on the churn class.
+
+
+You can use the Logistic Regression example:
+
+> “The Logistic Regression correctly identified 18,548 churners, produced 689 false alerts and missed 3,000 churners.”
+
+
+
+
+---
+
+10. Show the full model comparison
+
+Open:
+
+model_comparison_all_models.csv
+
+This should be one of the main files in the demo.
+
+Say:
+
+> “This file compares all five models side by side using the same test dataset.”
+
+
+
+Then explain your recommendation:
+
+> “Random Forest gave the strongest overall ROC-AUC and F1 result. XGBoost gave the strongest PR-AUC and recall and may offer a better production balance. For the POC, both are strong candidates, with the final choice depending on whether the business prioritises maximum detection, fewer false alerts or operational speed.”
+
+
+
+Keep the recommendation aligned with what is written in your documentation.
+
+
+---
+
+11. Show churn drivers
+
+Open one or two files:
+
+xgboost_top_churn_drivers.csv
+xgboost_behavioural_top_churn_drivers.csv
+random_forest_top_churn_drivers.csv
+logistic_regression_top_churn_drivers.csv
+
+Say:
+
+> “These files show which features had the strongest influence on the prediction.”
+
+
+
+Examples could include:
+
+transaction inactivity;
+
+days since last contribution;
+
+rollover activity;
+
+partial withdrawals;
+
+account tenure;
+
+product and scheme.
+
+
+Add this disclaimer:
+
+> “These are predictive relationships. They do not prove that a behaviour directly causes churn.”
+
+
+
+
+---
+
+12. Show visuals
+
+Open the folder:
+
+model_visuals
+
+Or show visuals created by:
+
+create_logistic_model_visuals.py
+
+Useful visuals include:
+
+ROC curve;
+
+precision-recall curve;
+
+confusion matrix;
+
+feature importance chart;
+
+model comparison chart.
+
+
+Say:
+
+> “The visuals provide a more understandable representation of model performance and the main drivers.”
+
+
+
+
+---
+
+13. Show the documentation
+
+Open:
+
+Churn_Model_Evaluation_and_Recommendation.docx
+
+or:
+
+Churn_Model_Evaluation_Comparison_and_Recommendation...
+
+Say:
+
+> “This document records the dataset design, feature logic, models tested, evaluation results, assumptions, recommendation and POC limitations.”
+
+
+
+You can mention the supporting scripts:
+
+create_churn_model_documentation.py
+create_churn_model_evaluation_document.py
+
+
+---
+
+14. Show the scoring query as the next step
+
+Open:
+
+Scoring_Dataset.sql
+
+Say:
+
+> “This is the scoring version of the dataset query. It uses the same feature calculations but removes target and future-outcome columns.”
+
+
+
+Explain the process:
+
+1. Change the feature start and as-of dates.
+
+
+2. Generate the latest account-level features.
+
+
+3. Pass the output through the saved pipeline.
+
+
+4. Produce churn probability and predicted churn.
+
+
+5. Later compare with actual three-month outcomes.
+
+
+
+
+---
+
+Simple end-to-end summary to say
+
+> “First, I created a 41-column account-level dataset using SQL. Then I validated the data, removed leakage and separated the behavioural features from the churn target. I created a fixed training and test split and used the same split to train five algorithms. Each model generated account-level churn probabilities, which I evaluated using precision, recall, F1, ROC-AUC, PR-AUC and confusion matrices. I then compared the models, reviewed the churn drivers, saved the trained pipelines and created a separate scoring query for future predictions.”
+
+
+
+Recommended file-opening order
+
+Use only these during the main demo:
+
+1. Full_Dataset_Query.sql
+
+
+2. churn_model_dataset_validation_summary.csv
+
+
+3. preprocess_and_split_model_dataset.py
+
+
+4. churn_X_train.csv
+
+
+5. One training script, preferably train_xgboost.py
+
+
+6. xgboost_test_predictions.csv
+
+
+7. model_comparison_all_models.csv
+
+
+8. xgboost_top_churn_drivers.csv
+
+
+9. Churn_Model_Evaluation_and_Recommendation.docx
+
+
+10. Scoring_Dataset.sql
+
+
+
+That gives a clear story without getting buried in files.
