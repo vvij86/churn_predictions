@@ -1,1 +1,1 @@
-I used the full available SonataODS DEV dataset for the selected report-from and report-to period, covering about 794,000 accounts. It is a large DEV dataset
+Sure. I’ll include Salesforce and Qualtrics data in the POC exploration, create a separate review task, and schedule time with you to walk through the findings. I’ll also assess the expected impact of using production-volume data compared with the lower-volume DEV dataset.
