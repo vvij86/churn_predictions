@@ -1,309 +1,217 @@
-Yes. That is a valid technical scalability test.
-
-Ask Copilot to:
-
-duplicate the existing model-safe training and test records to create larger row counts;
-
-keep the same feature columns;
-
-generate new synthetic account IDs so duplicate IDs do not break validation;
-
-benchmark every model using the same dataset sizes;
-
-measure loading, preprocessing, training and prediction time;
-
-capture memory usage if possible;
-
-export the results to an Excel workbook.
-
-
-Important caveat:
-
-> Duplicate data can test runtime, memory and scalability, but it must not be used to judge model accuracy because it does not add new behavioural patterns.
-
-
-
-You can paste this prompt into Copilot:
-
-
----
-
-Create a Python benchmarking script for the churn-model POC.
-
-Existing files
-
-Use these prepared files:
-
-churn_X_train.csv
-churn_X_test.csv
-churn_y_train.csv
-churn_y_test.csv
-churn_train_account_ids.csv
-churn_test_account_ids.csv
-
-The project also contains training scripts and saved configurations for:
-
-Logistic Regression
-Decision Tree
-Random Forest
-XGBoost
-HistGradientBoosting
-
-Objective
-
-Test how model training and prediction times change as the number of records increases.
-
-This is a technical volume and timing test only. Synthetic duplicated records must not be used to make conclusions about model accuracy or business performance.
-
-Dataset sizes
-
-Create benchmark datasets of approximately:
-
-Current original size
-1,000,000 rows
-1,500,000 rows
-2,000,000 rows
-3,000,000 rows
-
-If the machine does not have enough memory, skip the failed size safely, record the error, and continue with the next model or smaller size.
-
-Synthetic data creation rules
-
-1. Duplicate existing rows to reach each target size.
-
-
-2. Shuffle the repeated rows.
-
-
-3. Preserve the relationship between X, y, and account IDs.
-
-
-4. Generate unique synthetic account IDs for every duplicated row.
-
-
-5. Do not change feature values or targets.
-
-
-6. Clearly label each dataset as synthetic volume-expanded data.
-
-
-7. Do not write all expanded datasets to disk unless required; prefer generating them in memory to reduce storage use.
-
-
-8. Use a fixed random seed for reproducibility.
-
-
-
-Models
-
-Benchmark:
-
-Logistic Regression
-Decision Tree
-Random Forest
-XGBoost
-HistGradientBoosting
-
-Use the same final hyperparameters selected during the original POC. Do not run hyperparameter grid search again, because this test is for scalability rather than model selection.
-
-For Random Forest, capture:
-
-n_estimators
-max_depth
-min_samples_leaf
-n_jobs
-
-Timing measurements
-
-For each model and dataset size, record separately:
-
-data expansion time
-preprocessing fit/transform time
-model training time
-prediction time
-total runtime
-prediction rows per second
-
-Measure time using time.perf_counter().
-
-Run prediction on the corresponding expanded test dataset. Use a consistent train/test proportion for all benchmark sizes.
-
-Memory measurements
-
-Where possible, record:
-
-process memory before training
-peak memory during training
-memory after training
-
-Use psutil or another reliable Python approach.
-
-Also record:
-
-success or failure status
-error message
-
-The script must catch memory and model errors instead of terminating the entire benchmark.
-
-Fair comparison requirements
-
-1. Use the same feature schema for all models.
-
-
-2. Use the same expanded dataset for all models at a given size.
-
-
-3. Use the same random seed.
-
-
-4. Do not include ACCOUNT_ID as a model feature.
-
-
-5. Treat product_id and scheme_id using the same categorical preprocessing as the existing model pipelines.
-
-
-6. Delete temporary models and dataframes between runs and call garbage collection to reduce memory carry-over.
-
-
-7. Run each successful test at least three times if practical and calculate:
-
-average time;
-
-minimum time;
-
-maximum time;
-
-standard deviation.
-
-
-
-8. Record machine information:
-
-CPU count;
-
-total RAM;
-
-Python version;
-
-operating system.
-
-
-
-
-Model metrics
-
-Accuracy metrics are secondary because the rows are duplicated. Record them only as a consistency check:
-
-ROC-AUC
-PR-AUC
-precision
-recall
-F1-score
-
-Add a note in the output that these metrics are not valid evidence of improved model performance on synthetic duplicated data.
-
-Excel output
-
-Create:
+I have already generated an Excel workbook called:
 
 model_scalability_benchmark.xlsx
 
-Include these sheets:
+It contains detailed timing and memory results for:
 
-Benchmark_Summary
+Logistic Regression
 
-One row per model and dataset size, with columns such as:
+Decision Tree
 
-model
-target_total_rows
-train_rows
-test_rows
-run_number
-status
-data_expansion_seconds
-preprocessing_seconds
-training_seconds
-prediction_seconds
-total_seconds
-predictions_per_second
-memory_before_mb
-peak_memory_mb
-memory_after_mb
-roc_auc
-pr_auc
-precision
-recall
-f1
-error_message
+Random Forest
 
-Aggregated_Results
+XGBoost
 
-Average, minimum, maximum and standard deviation by model and dataset size.
-
-Random_Forest_Detail
-
-Random Forest settings and timing results.
-
-Environment
-
-CPU, RAM, Python version, package versions and test date.
-
-Notes
-
-State clearly:
-
-The larger datasets were created by duplicating DEV records.
-The results are suitable only for runtime, memory and scalability testing.
-They are not suitable for assessing production accuracy, data diversity or model generalisation.
-
-Charts
-
-Add Excel charts for:
-
-1. Training time versus number of training rows, one series per model.
+HistGradientBoosting
 
 
-2. Prediction time versus number of test rows, one series per model.
+The workbook has multiple runs for these dataset sizes:
+
+Original dataset: approximately 793,915 rows
+
+1,000,000 rows
+
+1,500,000 rows
+
+Other sizes if present
 
 
-3. Peak memory versus dataset size.
+I need a brief, documentation-ready summary, not the full raw benchmark table.
+
+Required output
+
+Create a new Excel sheet called:
+
+Documentation_Summary
+
+Do not modify or delete the existing sheets.
+
+1. Create a concise summary table
+
+Create one row per model and dataset size using the average of all successful runs.
+
+Include only these columns:
+
+Dataset size
+Model
+Average preprocessing time (seconds)
+Average training time (seconds)
+Average prediction time (seconds)
+Average total time (seconds)
+Average peak memory (MB)
+Status
+
+Round timing values to 2 decimal places and memory values to the nearest whole MB.
+
+Order the rows by:
+
+1. Dataset size
 
 
-4. Random Forest training time versus number of records.
+2. Model name
 
 
 
-Final response
+2. Create a Random Forest focused table
 
-After writing the code, explain:
+Because Random Forest is the main focus of the scalability POC, create a second table called:
 
-1. How the synthetic datasets are created.
+Random Forest Scalability Summary
 
+Include:
 
-2. How account IDs remain unique.
+Dataset size
+Training rows
+Test rows
+Average preprocessing time
+Average training time
+Average prediction time
+Average total time
+Average peak memory
+Training time increase versus original
+Prediction time increase versus original
 
+Calculate the increase versus the original dataset as both:
 
-3. How timings are measured.
+additional seconds;
 
-
-4. How memory failures are handled.
-
-
-5. Why duplicated data cannot be used to assess accuracy.
-
-
-6. How to run the script.
-
-
-7. The expected Excel output structure.
-
-
-
-Save the Python script as:
-
-benchmark_model_scalability.py
+percentage increase.
 
 
----
+3. Create a short findings section
 
-For your first run, start with the original size, 1 million and 1.5 million rows. Jumping straight to 3 million across five models—especially Random Forest—may make the laptop reconsider its career choices.
+Below the tables, generate 5 to 7 concise findings suitable for the final POC document.
+
+Cover:
+
+how training time changed as rows increased;
+
+how prediction time changed;
+
+which model trained fastest;
+
+which model predicted fastest;
+
+whether Random Forest remained operationally practical;
+
+whether memory use increased;
+
+why these results are indicative only.
+
+
+Use wording similar to:
+
+> The benchmark used duplicated DEV records to simulate larger data volumes. Therefore, the results are valid for runtime and memory testing only and should not be used to assess model accuracy or production generalisation.
+
+
+
+4. Create a small executive table
+
+Create a third table with only one row per dataset size for Random Forest:
+
+Dataset size
+Average training time
+Average prediction time
+Average peak memory
+Operational assessment
+
+Use simple operational assessments such as:
+
+Low impact
+
+Manageable
+
+Higher resource requirement
+
+Requires production infrastructure testing
+
+
+Base the assessment on the relative growth in runtime and memory, and state clearly that the assessment is provisional.
+
+5. Add charts
+
+Create only two charts:
+
+1. Random Forest training time versus dataset size
+
+
+2. Random Forest prediction time versus dataset size
+
+
+
+Use averages from successful runs only.
+
+6. Produce documentation text
+
+Also create a plain-text file:
+
+model_scalability_documentation_summary.txt
+
+Include:
+
+POC objective;
+
+test approach;
+
+dataset sizes;
+
+brief Random Forest results;
+
+comparison across models;
+
+limitations;
+
+recommendation.
+
+
+Keep the text under 500 words and make it suitable for copying into the final model-evaluation document.
+
+Important rules
+
+Use only successful benchmark rows.
+
+Average repeated runs before producing the summary.
+
+Do not overwrite the original workbook.
+
+Save the updated copy as:
+
+
+model_scalability_benchmark_documentation.xlsx
+
+Preserve all original sheets.
+
+Add the new Documentation_Summary sheet at the beginning.
+
+Do not change any source benchmark values.
+
+Clearly state that the larger datasets were created using duplicated SonataODS DEV records.
+
+Do not draw conclusions about accuracy from duplicated records.
+
+Focus the final summary mainly on training time, prediction time and memory scalability.
+
+
+At the end, explain:
+
+1. which source columns were used;
+
+
+2. how averages were calculated;
+
+
+3. how failed runs were excluded;
+
+
+4. where the new files were saved.
+
