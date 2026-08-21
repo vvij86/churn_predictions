@@ -1,87 +1,38 @@
-Create a new Databricks notebook named:
+Update my existing "databricks_model_versioning_poc.ipynb" notebook so that model versioning actually creates a new registered model version.
 
-"databricks_model_versioning_poc.ipynb"
+Current behavior:
 
-Objective: Demonstrate a simple MLflow Model Registry / model versioning POC using the existing Random Forest churn model experiment.
+- Training notebook runs successfully.
+- MLflow creates a new experiment run when I change parameters such as "max_depth".
+- "mlflow.sklearn.autolog(log_models=True)" logs the trained model as an MLflow artifact.
+- However, rerunning the training notebook does NOT automatically create a new model version.
 
-Important current constraint:
+I want the versioning notebook to clearly demonstrate the difference between:
 
-- A dedicated schema such as "superdata_au_dev.ml_schema" does not currently exist.
-- Do not make the notebook dependent on that schema.
-- First identify whether there is any existing catalog/schema/model-registry location where I currently have permission to register a model.
-- If an existing permitted location is available, use that for this POC.
-- Keep catalog, schema and model name configurable through variables.
-- If model registration is not possible because of permissions, do not fail the notebook. Show the intended registration/versioning code and clearly print the missing prerequisite.
+MLflow Experiment Run
+and
+Registered Model Version
 
-Keep the notebook small, standalone and suitable for an MLOps demonstration.
+Please update the notebook with the following flow.
 
-Use clear Markdown before each code cell explaining what is being demonstrated.
+1. Retrieve latest successful Random Forest runs
 
-Cell 1 – Import Libraries
+Get the latest successful Random Forest MLflow runs from my existing experiment.
 
-Import:
+Display a table containing:
 
-- "mlflow"
-- "MlflowClient"
-- other required standard libraries
-
-Display the installed MLflow version.
-
----
-
-Cell 2 – Configure Model Registry Settings
-
-Create configurable variables such as:
-
-- "CATALOG_NAME"
-- "SCHEMA_NAME"
-- "MODEL_NAME"
-- "FULL_MODEL_NAME"
-
-Do not hard-code "superdata_au_dev.ml_schema" as an existing schema.
-
-Use an existing catalog/schema only if it is accessible.
-
-Add a Markdown note explaining:
-
-«For the current POC, an existing permitted model registry location can be used.
-For the future implementation, dedicated ML schemas are recommended, for example:
-
-- "superdata_au_dev.ml_schema"
-- "superdata_au_test.ml_schema"
-- "superdata_au_prod.ml_schema"
-
-These schemas need to be created by the appropriate Databricks/platform administration team and required permissions need to be provided.»
-
-If Unity Catalog is being used, configure the appropriate MLflow registry URI.
-
----
-
-Cell 3 – Identify Existing Random Forest Experiment
-
-Use the existing Random Forest churn model MLflow experiment.
-
-Retrieve the latest successful Random Forest run programmatically where possible.
-
-Do not hard-code the run ID unless absolutely necessary.
-
-Display:
-
-- Experiment name
 - Run ID
-- Run status
-- Model/artifact path
-- Training timestamp
-
-Also retrieve available evaluation metrics such as:
-
+- Run name
+- Start time
+- "max_depth"
+- "n_estimators"
 - Accuracy
 - Precision
 - Recall
-- F1 Score
+- F1
 - ROC-AUC
 
-Support both standard MLflow metric names and the custom metric names already logged in the POC, such as:
+Support the custom metrics already used in my POC, such as:
 
 - "custom_accuracy"
 - "custom_precision"
@@ -89,303 +40,285 @@ Support both standard MLflow metric names and the custom metric names already lo
 - "custom_f1_score"
 - "custom_roc_auc"
 
----
+This should allow me to visually compare, for example:
 
-Cell 4 – Identify Model Artifact
-
-Inspect the selected MLflow run and identify the trained model artifact path.
-
-Build the model URI in the format:
-
-"runs:/<run_id>/<model_artifact_path>"
-
-Display:
-
-- Source Run ID
-- Model artifact path
-- Model URI
-
-Do not assume the model artifact path if it can be identified programmatically.
+- Run A with "max_depth=10"
+- Run B with "max_depth=20"
 
 ---
 
-Cell 5 – Check Model Registration Capability
+2. Select a run for registration
 
-Before attempting registration, validate whether the configured catalog/schema/model registry location is accessible.
+Allow me to select the MLflow run that I want to register.
 
-Check:
+Prefer using a variable such as:
 
-- Whether the catalog exists
-- Whether the schema exists
-- Whether the current user can register/create a model there
+"SELECTED_RUN_ID"
 
-If access is available:
+If it is empty, automatically select the latest successful Random Forest run.
 
 Print:
 
-"Model registry location is available for POC."
-
-If access is unavailable:
-
-Print a clear message such as:
-
-"Model registration could not be completed because a permitted Unity Catalog schema/model registry location is not currently available."
-
-Also print:
-
-"Recommended future prerequisite: create dedicated ML schemas in DEV, TEST and PROD and provide required model registration permissions."
-
-Do not allow this permission issue to terminate the entire notebook.
+- Selected Run ID
+- Model parameters
+- Key metrics
 
 ---
 
-Cell 6 – Register Existing Random Forest Model
+3. Identify the logged model artifact
 
-If model registration access is available, register the existing Random Forest model from the selected MLflow run.
+Identify the model artifact produced by:
 
-Do not retrain the model simply for registration.
+"mlflow.sklearn.autolog(log_models=True)"
 
-Register it using the configurable model name.
+Build the model URI:
 
-Display:
+"runs:/<selected_run_id>/<model_artifact_path>"
 
-- Registered model name
-- Newly created version number
-- Source Run ID
-- Model URI
-
-Add exception handling for permission/schema related errors.
+Display the final model URI before registration.
 
 ---
 
-Cell 7 – Display Registered Model Versions
+4. Configure registered model name
 
-Using "MlflowClient", retrieve all available versions of the registered model.
+Keep the registered model name configurable.
 
-Display them in a table containing where available:
+Do not assume "superdata_au_dev.ml_schema" exists.
 
-- Registered model name
+Use variables such as:
+
+- "CATALOG_NAME"
+- "SCHEMA_NAME"
+- "MODEL_NAME"
+- "REGISTERED_MODEL_NAME"
+
+If a Unity Catalog schema is available and accessible, use:
+
+"<catalog>.<schema>.<model_name>"
+
+Otherwise clearly explain that an accessible registry/schema is required.
+
+Do not create a schema automatically.
+
+---
+
+5. Register the selected MLflow run as a model version
+
+Explicitly call MLflow model registration.
+
+Use the equivalent of:
+
+"mlflow.register_model()"
+
+with:
+
+- selected run model URI
+- same registered model name
+
+The important behavior I want to demonstrate is:
+
+Run A registered under the model name
+→ Version 1
+
+Run B registered later under the SAME model name
+→ Version 2
+
+Run C registered later
+→ Version 3
+
+Print clearly after successful registration:
+
+"Registered Model: <name>"
+
+"Source Run ID: <run_id>"
+
+"Created Model Version: <version>"
+
+---
+
+6. Prevent accidental duplicate versions
+
+Before registering the selected run, check whether the same MLflow Run ID is already registered under this registered model.
+
+If the Run ID is already registered:
+
+Do NOT create another model version.
+
+Print:
+
+"This MLflow run is already registered as Model Version X."
+
+If the Run ID has not previously been registered:
+
+Create a new model version.
+
+This safeguard is important because I may rerun the notebook multiple times during the demo.
+
+Expected behavior:
+
+Same Run ID
+→ reuse/show existing version
+
+New Run ID
+→ create next model version
+
+---
+
+7. Display all registered model versions
+
+After registration, retrieve all versions of the same registered model.
+
+Display a table with:
+
 - Version
-- Run ID
+- Source Run ID
 - Creation timestamp
-- Source
+- Model source URI
 - Alias
-- Description/status
-
-Explain that registering a newer approved model run under the same registered model name creates another model version.
-
----
-
-Cell 8 – Demonstrate Version 1 and Version 2
-
-If two successful Random Forest MLflow runs are available, register two different model runs under the same registered model name.
-
-For example:
-
-- Version 1 – First approved Random Forest run
-- Version 2 – Newer Random Forest run
-
-Do not register the exact same run twice unless no alternative run exists and it is clearly labelled as a technical POC-only demonstration.
-
-For both versions, display the source run metrics where possible:
-
+- Run "max_depth"
+- Accuracy
 - Precision
 - Recall
 - F1
 - ROC-AUC
 
-The objective is to show that each registered model version is traceable back to the MLflow run from which it was created.
+This should make it easy to demonstrate that different experiment runs can become different registered model versions.
 
 ---
 
-Cell 9 – Demonstrate Candidate and Champion Aliases
+8. Candidate and Champion aliases
 
-If aliases are supported in the available registry configuration, demonstrate:
+If model aliases are supported:
 
-- Version 1 → "Champion"
-- Version 2 → "Candidate"
+For the first approved model:
 
-Display the alias mapping.
+"Version 1 → Champion"
 
-Explain in Markdown that aliases allow downstream applications to reference a logical model such as:
+For a newly registered model:
 
-"@Champion"
-
-instead of hard-coding:
-
-"Version 1"
-
-or:
-
-"Version 2"
-
-If aliases cannot be demonstrated because registration access is unavailable, show the sample code as a future implementation example and clearly label it:
-
-"Not executed – model registry prerequisite required."
-
----
-
-Cell 10 – Demonstrate Model Promotion
-
-Demonstrate the concept of promoting a Candidate model.
-
-Before promotion:
-
-- Version 1 = Champion
-- Version 2 = Candidate
-
-After approval:
-
-- Version 2 = Champion
-
-Print a simple message such as:
-
-"Champion model changed from Version 1 to Version 2."
-
-Explain that Version 1 remains registered and can still be used for traceability or rollback.
-
-Do not delete previous versions.
-
----
-
-Cell 11 – Load Model Using Champion Alias
-
-If registration and aliases are available, demonstrate loading the model through:
-
-"models:/<registered_model_name>@Champion"
-
-rather than using a hard-coded model version.
+"Version 2 → Candidate"
 
 Display:
 
-- Registered model name
-- Champion version
-- Source Run ID
+Version| Run ID| Alias
+1| Run A| Champion
+2| Run B| Candidate
 
-If practical, execute a very small sample prediction.
+Do not automatically promote Candidate to Champion unless explicitly controlled by a variable.
 
-If the required feature structure for sample prediction is not easily available, skip the prediction and only demonstrate model loading.
+Create a variable such as:
 
----
-
-Cell 12 – Rollback Demonstration
-
-Provide sample code showing how the Champion alias could be moved back to the previous version.
-
-For example:
-
-Version 2 → current Champion
-
-Then rollback:
-
-Version 1 → Champion
-
-Do not automatically execute the rollback unless appropriate for the POC.
-
-Clearly label the code:
-
-"Optional rollback demonstration"
-
-Explain that rollback is achieved by changing the alias reference rather than deleting or rebuilding the old model.
+"PROMOTE_CANDIDATE = False"
 
 ---
 
-Cell 13 – Explain DEV / TEST / PROD Future Design
+9. Optional promotion
 
-Add a Markdown-only section explaining the recommended future model registry structure.
+If:
 
-Suggested target structure:
+"PROMOTE_CANDIDATE = True"
 
-DEV
+move the "Champion" alias to the selected Candidate version.
 
-"superdata_au_dev.ml_schema"
+Print:
 
-Used for:
+"Champion changed from Version X to Version Y."
 
-- Development models
-- Candidate models
-- Experiment-based registration
-- Initial validation
-
-TEST
-
-"superdata_au_test.ml_schema"
-
-Used for:
-
-- QA/testing
-- Model validation
-- Integration testing
-
-PROD
-
-"superdata_au_prod.ml_schema"
-
-Used for:
-
-- Approved production models
-- Production scoring
-- Controlled Champion versions
-
-Clearly state:
-
-"These schemas are recommendations from the POC and are not currently available."
+Do not delete the previous version.
 
 ---
 
-Cell 14 – Model Versioning POC Summary
+10. Demonstrate rollback
 
-Print a summary.
+Include an optional, non-executed example showing how Champion could be moved back to the previous version.
 
-If model registration was successful, show:
+Clearly label this:
 
-Model Versioning POC Summary
+"Optional rollback example"
 
-- Existing MLflow experiment run retrieved successfully
-- Existing trained Random Forest model reused
-- Model registration demonstrated
-- Model version creation demonstrated
-- Model version linked back to source MLflow run
-- Candidate and Champion aliases demonstrated
-- Model promotion concept demonstrated
-- Rollback approach demonstrated
-- Previous versions retained for traceability
+Explain that old versions remain available in the Model Registry.
 
-If registration was not possible because of permissions/schema availability, show:
+---
 
-Model Versioning POC Summary
+11. Add explanatory Markdown
 
-- Existing MLflow experiment tracking validated
-- Existing Random Forest run successfully identified
-- Model artifact URI successfully identified
-- Model registration approach prepared
-- Model versioning approach documented
-- Candidate/Champion alias approach documented
-- Current blocker: suitable Unity Catalog ML schema/model registration permission not available
-- Recommended prerequisite: create dedicated ML schemas and provide model registry permissions
+Add a simple explanation in the notebook:
 
-Finally show this simple flow:
+Experiment Run vs Model Version
 
-"Model Training"
+MLflow Experiment Run
+
+Created every time the training notebook executes.
+
+Example:
+
+"max_depth=10"
+→ Run A
+
+"max_depth=20"
+→ Run B
+
+Experiment tracking stores:
+
+- Parameters
+- Metrics
+- Model artifact
+- Dataset information
+- Other metadata
+
+Registered Model Version
+
+Created only when an MLflow run's model artifact is explicitly registered in Model Registry.
+
+Example:
+
+Run A
+→ Register
+→ Version 1
+
+Run B
+→ Register
+→ Version 2
+
+Therefore:
+
+"mlflow.sklearn.autolog(log_models=True)"
+
+logs the model artifact, but does NOT by itself create a registered model version.
+
+---
+
+12. Final POC summary
+
+Print:
+
+Model Versioning POC
+
+"Training Run"
 → "MLflow Experiment"
-→ "Successful Run"
+→ "Compare Runs"
+→ "Select Model"
 → "Register Model"
-→ "Version 1 / Version 2"
+→ "Model Version"
 → "Candidate"
 → "Champion"
-→ "Production Scoring"
 
-Important Instructions
+Also print an example based on the available runs:
 
-- Do not modify the existing Random Forest training notebook.
-- Do not rebuild the full training pipeline.
-- Reuse existing MLflow runs and model artifacts.
-- Do not assume "superdata_au_dev.ml_schema" already exists.
-- Do not create schemas automatically.
-- Do not request elevated permissions programmatically.
-- Handle missing permissions gracefully.
-- Clearly distinguish between:
-  - Validated in current POC
-  - Demonstration code
-  - Future recommended MLOps setup
-- Keep the notebook concise and demo-friendly.
+"Random Forest Run A – max_depth=10 → Version 1"
+
+"Random Forest Run B – max_depth=20 → Version 2"
+
+Only show the Version numbers if registration actually succeeded.
+
+If registration cannot be completed due to missing Unity Catalog schema or permissions, clearly state the prerequisite instead of reporting success.
+
+Important:
+
+- Update the existing versioning notebook only.
+- Do not modify the Random Forest training notebook.
+- Do not retrain models in this notebook.
+- Reuse existing MLflow runs.
+- Do not automatically create Unity Catalog schemas.
+- Do not create duplicate model versions for the same Run ID.
+- Keep the notebook simple and suitable for an MLOps POC demonstration.This will give you the behavior you expected: changing max_depth and rerunning training gives a new run, then running the versioning notebook against that new run gives a new model version.
