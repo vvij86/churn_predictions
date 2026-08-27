@@ -1,361 +1,252 @@
-Copilot Prompt — Step 8: Define Model Output Schema and Save POC Scoring Results to Unity Catalog
+Copilot Prompt — Step 9: Schedule Batch Scoring with Databricks Jobs
 
 Create a new Databricks notebook named:
 
-"08_model_output_schema_and_save_to_uc.ipynb"
+"09_schedule_batch_scoring_poc.ipynb"
 
-This notebook should continue from the existing MLOps POC.
+This notebook should document and validate the scheduling approach for the existing batch-scoring process.
 
 Current State
 
-The following are already completed:
+The following POC steps are already completed:
 
 - Model registered in Unity Catalog
 - Version 1 = Champion
 - Version 2 = Candidate
-- Batch scoring completed using the "Champion" alias
-- Batch scoring CSV generated at:
+- Batch scoring using "@Champion"
+- Scoring output saved to:
 
-"Output_Metrics/champion_batch_scoring_output.csv"
+"superdata_au_dev.mlops.churn_scoring_output_poc"
 
-The registered model is:
+Existing batch scoring notebook:
 
-"superdata_au_dev.mlops.superannuation_churn_model"
+"07_batch_scoring_using_champion_alias"
 
 Purpose
 
-Demonstrate the model output schema and persist the POC scoring output as a Unity Catalog table.
+Demonstrate how batch scoring can be automated using Databricks Jobs / Workflows instead of being manually executed.
 
-This step should:
+The actual schedule should be configured through the Databricks Jobs UI.
 
-1. Load the existing batch scoring output
-2. Validate the output columns and data types
-3. Define a clear model output schema
-4. Convert the pandas dataframe to a Spark dataframe
-5. Create a POC Unity Catalog table
-6. Verify that the table can be queried from Databricks Catalog Explorer
+Do not create a production scheduling framework.
 
-Use this target table:
-
-"superdata_au_dev.mlops.churn_scoring_output_poc"
-
-This is a POC table only.
-
-Step 8 - Model Output Schema and Unity Catalog Output Table
+Step 9 - Schedule Batch Scoring
 
 Create a Markdown heading:
 
-"# Step 8 - Define Model Output Schema and Save Scoring Output"
+"# Step 9 - Schedule Batch Scoring Using Databricks Jobs"
 
-Explain that the scoring model produces account-level results that can later be consumed by Power BI or downstream applications.
+Explain in simple terms:
 
-Explain that a defined output schema ensures the meaning and data type of every model output column is consistent.
+- Batch scoring currently runs manually.
+- Databricks Jobs can automatically execute the scoring notebook on a defined schedule.
+- The scheduled job will load the current "Champion" model alias each time it runs.
+- This means the scoring job does not need to be modified when the Champion model version changes.
 
-1. Import Required Libraries
+1. Explain Scheduled Scoring Flow
 
-Import:
+Add a simple Markdown flow:
 
-import pandas as pd
-import numpy as np
-from pyspark.sql import functions as F
-from pyspark.sql.types import *
+"Latest Scoring Dataset → Champion Model → Batch Scoring → Unity Catalog Output Table"
 
-Define:
+Then:
 
-OUTPUT_FILE = "Output_Metrics/champion_batch_scoring_output.csv"
+"Databricks Job Schedule → Automatically repeats the above process"
 
-OUTPUT_TABLE = "superdata_au_dev.mlops.churn_scoring_output_poc"
+Explain that the scoring frequency depends on business requirements.
 
-2. Load Existing Batch Scoring Output
+For this POC, use a monthly schedule as an example.
 
-Load:
+Add this note:
 
-"Output_Metrics/champion_batch_scoring_output.csv"
+POC Note: Monthly scoring is used only as an example. The actual production frequency should be agreed with the business and downstream consumers.
 
-into:
+2. Identify Notebook to Schedule
 
-"scoring_output"
+Use the existing notebook:
 
-Print:
+"07_batch_scoring_using_champion_alias"
 
-- number of rows
-- number of columns
-- column names
+Explain that this notebook:
 
-Display the first 20 rows.
+- loads the Champion model
+- performs predictions
+- creates account-level scoring output
 
-Do not rerun the ML model.
+Also mention that if the full production flow must include writing results to Unity Catalog, the scoring and output-write logic can later be combined into one production scoring notebook.
 
-Do not generate predictions again.
+Do not modify Step 7 automatically.
 
-Reuse the output already created in Step 7.
+3. Databricks Jobs UI Instructions
 
-3. Define Expected Model Output Columns
+Create a Markdown section named:
 
-The expected POC output should include:
+"## Create the Databricks Job"
 
-- account_id
-- predicted_churn
-- churn_probability
-- churn_risk_score
-- churn_risk_score_pct
-- churn_risk_band
-- model_name
-- model_alias
-- model_version
-- model_run_id
-- scoring_timestamp
+Provide these manual UI steps:
 
-Create a list named:
+1. Open Jobs & Pipelines in Databricks.
 
-EXPECTED_COLUMNS = [...]
+2. Select Jobs.
 
-Validate that all expected columns exist.
+3. Click Create Job.
 
-If any are missing, raise a clear error explaining which columns are missing.
+4. Give the job a meaningful name:
+   
+   "superannuation_churn_batch_scoring_poc"
 
-4. Explain Each Output Field
+5. Create a task named:
+   
+   "churn_batch_scoring"
 
-Add a Markdown section with a simple table explaining:
+6. Select task type:
+   
+   "Notebook"
 
-account_id
+7. Select the existing notebook:
+   
+   "07_batch_scoring_using_champion_alias"
 
-Unique account/member identifier used to associate the prediction with the source account.
+8. Select an available compute option.
+   
+   Prefer Serverless if it is permitted and compatible with the notebook.
 
-predicted_churn
+9. Save the task.
 
-Binary model prediction.
+4. Configure Schedule
 
-- 1 = predicted churn
-- 0 = predicted non-churn
+Add a Markdown section explaining how to configure the trigger/schedule.
 
-churn_probability
+For this POC, suggest:
 
-Probability generated by the model, normally between 0 and 1.
+"Monthly"
 
-churn_risk_score
+Explain that an example could be the first day of every month.
 
-ML risk score derived from churn probability.
+Do not force an exact production date/time.
 
-For this POC, it is the same value as churn probability.
+Explain that Databricks allows:
 
-churn_risk_score_pct
+- Daily
+- Weekly
+- Monthly
+- Cron-based schedules
 
-Risk score represented as a percentage from 0 to 100.
+Mention that the production schedule should align with when the latest scoring features become available.
 
-churn_risk_band
+5. Test Using Run Now
 
-Business-friendly risk category:
+Explain that before relying on the schedule, the user should click:
 
-- Low
-- Medium
-- High
+"Run now"
 
-State clearly that the risk-band thresholds are POC examples only.
+This validates that the notebook can execute successfully as a Databricks Job.
 
-model_name
+After execution, verify:
 
-Unity Catalog registered model name used for scoring.
+- Job status = Succeeded
+- Notebook task completed
+- Start time
+- End time
+- Duration
+- Logs/output are available
 
-model_alias
+6. Verify Batch Output
 
-Alias used during scoring, such as "Champion".
+After the Job completes, verify that scoring output was generated.
 
-model_version
+If using the existing Step 7 notebook, verify the generated scoring output file.
 
-Actual Unity Catalog model version that the alias resolved to.
-
-model_run_id
-
-MLflow run ID associated with the registered model version.
-
-scoring_timestamp
-
-UTC timestamp showing when the prediction was generated.
-
-5. Validate Data Types
-
-Inspect the current pandas dtypes.
-
-Convert fields where required so that the intended schema is:
-
-- account_id → string
-- predicted_churn → integer
-- churn_probability → double
-- churn_risk_score → double
-- churn_risk_score_pct → double
-- churn_risk_band → string
-- model_name → string
-- model_alias → string
-- model_version → string
-- model_run_id → string
-- scoring_timestamp → timestamp
-
-Be careful with account IDs.
-
-Do not accidentally convert account IDs into decimals or scientific notation.
-
-6. Perform Output Data Quality Checks
-
-Run these checks:
-
-- total row count
-- duplicate account_id count
-- null account_id count
-- null churn_probability count
-- null churn_risk_band count
-- null model_version count
-- churn_probability minimum
-- churn_probability maximum
-- distinct risk bands
-- distinct model aliases
-- distinct model versions
-
-Validate that churn probabilities are between 0 and 1.
-
-Display all validation results clearly.
-
-Do not automatically remove duplicate accounts.
-
-If duplicates are found, report them as a POC warning.
-
-7. Convert to Spark DataFrame
-
-Convert the validated pandas dataframe into a Spark dataframe named:
-
-scoring_spark_df
-
-Ensure "scoring_timestamp" is stored as a proper Spark timestamp.
-
-Display:
-
-scoring_spark_df.printSchema()
-
-Also display a sample of 20 records.
-
-8. Create Unity Catalog Output Table
-
-Before writing, execute:
-
-USE CATALOG superdata_au_dev;
-USE SCHEMA mlops;
-
-Use Spark SQL or "spark.sql()".
-
-Save the Spark dataframe as:
+Also explain that in the production flow the preferred output should be a Unity Catalog table such as:
 
 "superdata_au_dev.mlops.churn_scoring_output_poc"
 
-For the POC, use:
+Do not automatically overwrite or change the current table in this notebook.
 
-scoring_spark_df.write \
-    .format("delta") \
-    .mode("overwrite") \
-    .option("overwriteSchema", "true") \
-    .saveAsTable(OUTPUT_TABLE)
+7. Explain Champion Alias Benefit
 
-Add a Markdown warning:
+Add a Markdown section explaining this important MLOps concept:
 
-POC Note: "overwrite" is being used only to keep this demonstration simple. Production scoring may require append, merge/upsert, partitioning, scoring-date history, or retention rules.
+The scheduled job should load:
 
-9. Verify Table Creation
+"models:/superdata_au_dev.mlops.superannuation_churn_model@Champion"
 
-Run:
+and should NOT hardcode:
 
-SELECT COUNT(*)
-FROM superdata_au_dev.mlops.churn_scoring_output_poc;
+"Version 1"
 
-Then run:
+Example:
 
-SELECT *
-FROM superdata_au_dev.mlops.churn_scoring_output_poc
-LIMIT 20;
+Today:
 
-Display both results.
+"Champion → Version 1"
 
-10. Verify Risk Distribution
+Later:
 
-Run SQL that displays:
+"Champion → Version 2"
 
-SELECT
-    churn_risk_band,
-    COUNT(*) AS account_count,
-    AVG(churn_probability) AS avg_churn_probability
-FROM superdata_au_dev.mlops.churn_scoring_output_poc
-GROUP BY churn_risk_band
-ORDER BY account_count DESC;
+The scheduled scoring notebook still uses:
 
-Display the results.
+"@Champion"
 
-11. Verify Model Metadata
+so no notebook or Job configuration change is required.
 
-Run:
+8. Add Optional Job Parameters Concept
 
-SELECT
-    model_name,
-    model_alias,
-    model_version,
-    COUNT(*) AS prediction_count
-FROM superdata_au_dev.mlops.churn_scoring_output_poc
-GROUP BY
-    model_name,
-    model_alias,
-    model_version;
+Add a Markdown-only section explaining that in future the scoring notebook can accept parameters such as:
 
-This should demonstrate which registered model generated the stored predictions.
+- scoring_date
+- input_table
+- output_table
+- model_alias
+- environment
 
-12. Explain Power BI / Downstream Usage
+Do not implement complex parameterization in this POC.
 
-Add a Markdown section explaining that a downstream Power BI dataset could consume this output table and use fields such as:
+Explain that parameters make the same scoring notebook reusable across DEV/TEST/PROD.
 
-- account_id
-- churn_risk_score
-- churn_risk_band
-- predicted_churn
+9. Failure and Retry Concept
 
-Also explain that model metadata can support auditability and troubleshooting.
+Add a short Markdown section explaining that Databricks Jobs supports:
 
-Do not build Power BI integration in this notebook.
+- retries
+- timeout settings
+- notifications
+- failure alerts
 
-13. Explain How to View the Table in Databricks UI
+For this POC, do not configure complex alerting.
 
-Add a Markdown section explaining:
+State that these settings should be finalized during production implementation.
 
-After the notebook completes, navigate to:
+10. What to Capture for POC Evidence
 
-"Catalog → superdata_au_dev → mlops → Tables → churn_scoring_output_poc"
+Add a Markdown checklist of evidence to capture after creating the Job:
 
-From Catalog Explorer, the user should be able to view:
+- Job name
+- Task name
+- Scheduled notebook
+- Selected compute
+- Trigger/schedule
+- Successful Run Now execution
+- Run status
+- Run duration
+- Output generated successfully
 
-- Schema
-- Sample Data
-- Details
-- Lineage if available
+11. Final Summary
 
-14. Final Summary
+Add a final Markdown summary:
 
-Print:
+"Step 9 demonstrates that the churn batch-scoring process can be automated using Databricks Jobs. The scoring notebook uses the Champion model alias, allowing future model promotion without changing the scheduled job."
 
-- Output table name
-- Total records saved
-- Number of columns
-- Model alias
-- Model version
-- High-risk account count
+Add this note:
 
-Print:
+POC Note: Scheduling frequency, compute configuration, retry policy, notifications, and production dependencies are not final and should be agreed during actual implementation.
 
-"Step 8 completed successfully. Model output schema validated and scoring results saved to Unity Catalog."
+Do not create:
 
-Important Requirements
+- monitoring logic
+- retraining logic
+- rollback logic
+- additional model versions
 
-- Do not retrain a model.
-- Do not generate predictions again.
-- Reuse the Step 7 scoring CSV.
-- Do not modify Champion/Candidate aliases.
-- Do not create a new model version.
-- Use a Delta table.
-- Use "overwrite" only for this POC and explain why.
-- Keep account_id safely represented.
-- Add simple Markdown explanations before each major section.
-- This table is a POC output table, not a final production design.
+Keep this notebook focused only on the scheduling concept and manual Databricks Job configuration.
