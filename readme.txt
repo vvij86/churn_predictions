@@ -1,65 +1,106 @@
-Copilot Prompt — Create Separate Step 2 Notebook
+Copilot Prompt — Step 3: Load Existing Model and Test Data
 
 Create a new Databricks notebook named:
 
-"02_verify_unity_catalog_access.ipynb"
+"03_load_existing_model_and_test_data.ipynb"
 
-This notebook should contain only Step 2 of the MLOps POC.
+This notebook should contain only Step 3 of the MLOps POC.
 
 Purpose
 
-Verify that the current user can access:
+Load the already trained Logistic Regression model and the existing test dataset so they can be reused for MLflow model registration and scoring in later steps.
 
-"superdata_au_dev.mlops"
+Do not retrain the model.
 
-and confirm the permissions required for model registration.
+Existing Files
+
+Model:
+
+"Models/logistic_regression_pipeline.joblib"
+
+Test files:
+
+"Test_ds/churn_X_test.csv"
+
+"Test_ds/churn_y_test.csv"
+
+"Test_ds/churn_test_account_ids.csv"
 
 Notebook Content
 
-Create a Markdown section:
+Create a Markdown heading:
 
-"# Step 2 - Verify Unity Catalog Schema Access"
+"# Step 3 - Load Existing Model and Test Dataset"
 
-Briefly explain what this step is checking and why it is required before registering MLflow models.
+Explain briefly that the model has already been trained previously and this POC will reuse it instead of training again.
 
-Then add code to:
+1. Import Libraries
 
-1. Run:
+Import:
 
-USE CATALOG superdata_au_dev
+- pandas
+- joblib
+- os
 
-2. Run:
+2. Load Test Data
 
-USE SCHEMA mlops
+Load:
 
-3. Display:
+- "churn_X_test.csv" into "X_test"
+- "churn_y_test.csv" into "y_test"
+- "churn_test_account_ids.csv" into "test_account_ids"
 
-SELECT current_catalog(), current_schema()
+Print the shape of each dataset.
 
-4. Run:
+Display the first 5 rows of each.
 
-SHOW GRANTS ON SCHEMA superdata_au_dev.mlops
+3. Validate Data
 
-Display the grant results clearly.
+Print:
 
-If "SHOW GRANTS" is not permitted, catch the exception and display a friendly warning instead of failing the notebook.
+- number of rows in X_test
+- number of rows in y_test
+- number of account IDs
 
-Add a Markdown explanation of these permissions:
+Confirm that all three row counts match.
 
-- "USE CATALOG"
-- "USE SCHEMA"
-- "CREATE MODEL"
+If they do not match, print a warning.
 
-Explain that "CREATE MODEL" is needed for registering a model in Unity Catalog.
+4. Load Existing Logistic Regression Model
 
-Do not:
+Load:
 
-- load training/test datasets
-- load joblib models
-- train a model
-- create an MLflow experiment
-- register a model
+"Models/logistic_regression_pipeline.joblib"
+
+using "joblib.load()".
+
+Store it as:
+
+"model"
+
+Print:
+
+- model type
+- model object
+- pipeline steps if it is an sklearn Pipeline
+
+5. Basic Validation
+
+Confirm that the model supports:
+
+- "predict()"
+- "predict_proba()"
+
+Print a message indicating whether each method is available.
+
+Do not run full model evaluation yet.
+
+Do not register the model.
+
+Do not create an MLflow experiment.
+
+Do not create a model version.
 
 At the end print:
 
-"Step 2 completed successfully. Unity Catalog access verified."
+"Step 3 completed successfully. Existing model and test dataset are ready for the MLOps POC."
