@@ -1,60 +1,53 @@
-Copilot Prompt — Step 6: Tune Candidate Model, Compare, Register Version 2, and Assign Aliases
+Copilot Prompt — Step 7: Batch Scoring Using Champion Alias
 
 Create a new Databricks notebook named:
 
-"06_tune_candidate_register_version2_and_aliases.ipynb"
+"07_batch_scoring_using_champion_alias.ipynb"
 
-This notebook should continue from the already completed MLOps POC.
+This notebook should continue from the existing MLOps POC.
 
 Current State
 
-The following steps are already completed:
-
-- Unity Catalog access verification
-- Existing Logistic Regression model loaded
-- Model evaluated and logged to MLflow
-- Baseline model registered in Unity Catalog
-
-The registered model already exists as:
+The registered model already exists in Unity Catalog as:
 
 "superdata_au_dev.mlops.superannuation_churn_model"
 
-and currently has:
+Current aliases:
 
-"Version 1"
+- Version 1 → "Champion"
+- Version 2 → "Candidate"
 
-Do not recreate Version 1.
+The purpose of this notebook is to demonstrate batch scoring using the "Champion" alias.
+
+Do not hardcode Version 1 for scoring.
 
 Purpose
 
-Create a meaningful Version 2 by:
+Demonstrate how a production-style batch scoring process can:
 
-1. Loading the existing baseline model
-2. Loading training and test datasets
-3. Tuning a new Logistic Regression candidate using GridSearchCV
-4. Comparing baseline vs tuned candidate
-5. Logging the candidate to MLflow
-6. Registering the candidate under the same Unity Catalog model name
-7. Creating a new model version
-8. Assigning Champion/Candidate aliases
+1. Load the currently approved model using the "Champion" alias
+2. Load scoring/test data
+3. Generate churn predictions and probabilities
+4. Create business-friendly scoring output
+5. Capture model/version metadata with every prediction
+6. Prepare the result for later persistence to a Gold/output table
 
-Hyperopt is not installed.
+Do not create a Databricks Job yet.
+Do not implement monitoring yet.
 
-Do not use Hyperopt or SparkTrials.
+Step 7 - Batch Scoring Using Champion Model
 
-Use scikit-learn "GridSearchCV".
+Create a Markdown heading:
 
----
+"# Step 7 - Batch Scoring Using Champion Alias"
 
-Step 6 - Tune Candidate and Create Model Version 2
+Explain that downstream scoring should use:
 
-Add a Markdown heading:
+"@Champion"
 
-"# Step 6 - Tune Candidate Model and Create Version 2"
+instead of a hardcoded version such as Version 1.
 
-Explain that Version 1 represents the existing baseline model and this notebook creates a genuinely different candidate model through hyperparameter tuning.
-
-Also explain that registering the candidate under the same Unity Catalog model name creates a new model version automatically.
+Explain that if the Champion alias later moves to another version, the scoring code does not need to change.
 
 1. Import Required Libraries
 
@@ -62,22 +55,8 @@ Import:
 
 import pandas as pd
 import numpy as np
-import joblib
 import mlflow
-import mlflow.sklearn
-
-from sklearn.base import clone
-from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import (
-    accuracy_score,
-    precision_score,
-    recall_score,
-    f1_score,
-    roc_auc_score,
-    confusion_matrix
-)
-
-from mlflow.models import infer_signature
+from datetime import datetime, timezone
 from mlflow.tracking import MlflowClient
 
 Configure:
@@ -85,395 +64,277 @@ Configure:
 mlflow.set_registry_uri("databricks-uc")
 
 REGISTERED_MODEL_NAME = "superdata_au_dev.mlops.superannuation_churn_model"
+CHAMPION_ALIAS = "Champion"
 
 client = MlflowClient()
 
-2. Verify Existing Version 1
+2. Verify Current Champion Version
 
-Retrieve existing model versions from:
+Retrieve:
 
-"superdata_au_dev.mlops.superannuation_churn_model"
-
-Display:
-
-- version
-- run_id
-- status
-- creation timestamp
-- aliases if available
-
-Confirm that Version 1 exists.
+champion_version_details = client.get_model_version_by_alias(
+    REGISTERED_MODEL_NAME,
+    CHAMPION_ALIAS
+)
 
 Print:
 
-"Baseline Unity Catalog model version found: Version 1"
+- registered model name
+- alias
+- actual version currently behind Champion
+- run ID
+- status
 
-Do not recreate Version 1.
+Store the actual Champion version dynamically:
 
-3. Load Existing Data
+champion_version = champion_version_details.version
 
-Load:
+Do not assume it is always Version 1.
 
-Training:
+Add Markdown explaining that the alias resolves dynamically to the approved model version.
 
-"Training_ds/churn_X_train.csv"
+3. Create Champion Model URI
 
-"Training_ds/churn_y_train.csv"
+Create:
 
-Test:
+champion_model_uri = f"models:/{REGISTERED_MODEL_NAME}@Champion"
+
+Print the URI.
+
+4. Load Champion Model from Unity Catalog
+
+Load using MLflow:
+
+champion_model = mlflow.sklearn.load_model(champion_model_uri)
+
+Print the loaded model type.
+
+Confirm that the model supports:
+
+- "predict()"
+- "predict_proba()"
+
+5. Load Batch Scoring Dataset
+
+For this POC, use:
 
 "Test_ds/churn_X_test.csv"
 
-"Test_ds/churn_y_test.csv"
+as the batch scoring input.
+
+Also load:
+
+"Test_ds/churn_test_account_ids.csv"
+
+for account identifiers.
 
 Store as:
 
-- "X_train"
-- "y_train"
-- "X_test"
-- "y_test"
-
-Convert y_train and y_test to one-dimensional Series/arrays if required.
-
-Print dataset shapes.
-
-Validate that:
-
-- X_train rows match y_train
-- X_test rows match y_test
-
-4. Load Existing Baseline Model
-
-Load:
-
-"Models/logistic_regression_pipeline.joblib"
-
-into:
-
-"baseline_model"
+- "X_score"
+- "account_ids"
 
 Print:
 
-- model type
-- pipeline steps
+- X_score shape
+- account_ids shape
 
-Do not retrain the baseline model.
+Validate that the row counts match.
 
-5. Evaluate Baseline Model
+If they do not match, stop with a clear error message.
 
-Run:
+Add Markdown explaining:
 
-baseline_pred = baseline_model.predict(X_test)
-baseline_prob = baseline_model.predict_proba(X_test)[:, 1]
+POC Note: The existing test dataset is being reused as scoring input only to demonstrate the batch scoring workflow. In production, scoring data would normally be the latest unlabeled feature dataset.
 
-Calculate:
+6. Generate Predictions
 
-- Accuracy
-- Precision
-- Recall
-- F1
-- ROC AUC
-- Confusion Matrix
+Generate:
 
-Store metrics in:
+predicted_churn = champion_model.predict(X_score)
 
-"baseline_metrics"
+Generate churn probabilities:
 
-Display them clearly.
+churn_probability = champion_model.predict_proba(X_score)[:, 1]
 
-6. Clone Existing Pipeline
+Explain:
 
-Use:
+- "predicted_churn" is the binary model decision
+- "churn_probability" is the probability/risk score produced by the model
 
-candidate_pipeline = clone(baseline_model)
+7. Create Churn Risk Score
 
-Explain that this allows the candidate to reuse exactly the same preprocessing pipeline while changing Logistic Regression hyperparameters.
+Create:
 
-Inspect the pipeline steps and dynamically identify the Logistic Regression step name.
+churn_risk_score = churn_probability
 
-Do not assume the estimator step is called "classifier".
+Keep the risk score in the 0 to 1 range.
 
-7. Define Small Hyperparameter Grid
+Optionally also create a percentage version:
 
-Create a small POC grid for Logistic Regression.
+churn_risk_score_pct = churn_probability * 100
 
-Use values similar to:
+Explain that the 0–1 probability is the primary ML score.
 
-C = [0.1, 0.5, 1.0, 2.0]
+8. Create POC Risk Bands
 
-class_weight = [None, "balanced"]
+Use these example thresholds:
 
-max_iter = [500, 1000]
+- Low: probability < 0.30
+- Medium: probability >= 0.30 and < 0.60
+- High: probability >= 0.60
 
-Build the parameter names dynamically using the detected Logistic Regression pipeline step.
+Create a function or "np.select()" logic to produce:
 
-For example:
-
-"<step_name>__C"
-
-"<step_name>__class_weight"
-
-"<step_name>__max_iter"
-
-Print the generated parameter grid.
-
-8. Run GridSearchCV
-
-Configure:
-
-GridSearchCV(
-    estimator=candidate_pipeline,
-    param_grid=param_grid,
-    scoring="f1",
-    cv=3,
-    n_jobs=-1,
-    verbose=1
-)
-
-If "n_jobs=-1" fails in Databricks/serverless, automatically retry with:
-
-"n_jobs=1"
-
-Fit using:
-
-"X_train" and "y_train"
-
-Store:
-
-candidate_model = grid_search.best_estimator_
-
-Print:
-
-- best parameters
-- best cross-validation F1 score
-
-Add Markdown explaining that Hyperopt is not required for this small POC because GridSearchCV is enough to demonstrate model tuning.
-
-9. Evaluate Tuned Candidate
-
-Run predictions on X_test.
-
-Calculate the same metrics:
-
-- Accuracy
-- Precision
-- Recall
-- F1
-- ROC AUC
-- Confusion Matrix
-
-Store in:
-
-"candidate_metrics"
-
-10. Compare Baseline vs Candidate
-
-Create a dataframe:
-
-Model| Accuracy| Precision| Recall| F1| ROC AUC
-Version 1 Baseline| ...| ...| ...| ...| ...
-Tuned Candidate| ...| ...| ...| ...| ...
-
-Display it.
-
-Also print:
-
-- Baseline F1
-- Candidate F1
-- Baseline ROC AUC
-- Candidate ROC AUC
-
-Do not automatically claim a production winner.
+"churn_risk_band"
 
 Add this Markdown note:
 
-POC Note: Model selection in this notebook is only for demonstrating MLOps lifecycle management. Final production model selection must follow agreed business and ML evaluation criteria.
+POC Note: These risk-band thresholds are examples only. Final thresholds must be agreed during actual development based on business requirements and model performance.
 
-11. Save Tuned Candidate Model
+9. Create Scoring Output DataFrame
 
-Save:
+Create a dataframe named:
 
-"candidate_model"
+"scoring_output"
 
-as:
+Include:
 
-"Models/logistic_regression_tuned_candidate_pipeline.joblib"
-
-Do not overwrite:
-
-"Models/logistic_regression_pipeline.joblib"
-
-Print the candidate model path.
-
-12. Create Model Signature
-
-Create:
-
-input_example = X_test.head(5)
-
-sample_predictions = candidate_model.predict(input_example)
-
-signature = infer_signature(
-    input_example,
-    sample_predictions
-)
-
-Explain briefly what the model signature represents.
-
-13. Log Candidate to MLflow
-
-Use the existing experiment:
-
-"/Shared/MLOps_POC_Superannuation_Churn"
-
-Create a new run named:
-
-"logistic_regression_tuned_candidate"
-
-Log:
-
-- best GridSearchCV parameters
-- tuning_method = GridSearchCV
-- cv_folds = 3
-- optimization_metric = F1
-- model_role = candidate
-- environment = dev
-- poc_stage = model_versioning
-
-Log candidate metrics:
-
-- accuracy
-- precision
-- recall
-- f1_score
-- roc_auc
-
-Log the candidate model using:
-
-model_info = mlflow.sklearn.log_model(
-    sk_model=candidate_model,
-    name="model",
-    signature=signature,
-    input_example=input_example
-)
-
-14. Register Candidate in Unity Catalog
-
-Register the logged candidate using:
-
-registered_candidate = mlflow.register_model(
-    model_uri=model_info.model_uri,
-    name=REGISTERED_MODEL_NAME
-)
-
-Do not hardcode Version 2.
-
-Capture the actual returned version:
-
-candidate_version = registered_candidate.version
-
-Wait for the version to become READY if necessary.
-
-Print:
-
-- Registered model name
-- Candidate version
-- Run ID
-- Status
-
-Because Version 1 already exists, the expected result is normally Version 2, but use the actual returned version dynamically.
-
-15. Assign Model Aliases
-
-For this POC:
-
-Assign Version 1 as:
-
-"Champion"
-
-Assign the newly registered candidate version as:
-
-"Candidate"
+- account_id
+- predicted_churn
+- churn_probability
+- churn_risk_score
+- churn_risk_score_pct
+- churn_risk_band
+- model_name
+- model_alias
+- model_version
+- model_run_id
+- scoring_timestamp
 
 Use:
 
-client.set_registered_model_alias(
-    name=REGISTERED_MODEL_NAME,
-    alias="Champion",
-    version="1"
-)
+model_name = REGISTERED_MODEL_NAME
+model_alias = "Champion"
+model_version = champion_version
+model_run_id = champion_version_details.run_id
 
-and:
+Use a UTC timestamp:
 
-client.set_registered_model_alias(
-    name=REGISTERED_MODEL_NAME,
-    alias="Candidate",
-    version=candidate_version
-)
+datetime.now(timezone.utc)
 
-16. Verify Champion and Candidate
+Do not include target/y_test in the scoring output.
 
-Retrieve both aliases:
-
-champion = client.get_model_version_by_alias(
-    REGISTERED_MODEL_NAME,
-    "Champion"
-)
-
-candidate = client.get_model_version_by_alias(
-    REGISTERED_MODEL_NAME,
-    "Candidate"
-)
-
-Print:
-
-Champion -> Version X
-Candidate -> Version Y
+10. Display Sample Scoring Output
 
 Display:
 
-- Alias
-- Version
-- Run ID
-- Status
+- first 20 rows
+- total number of scored accounts
 
-17. Show Alias-Based Model URIs
+Print counts for:
 
-Create:
+- predicted churn = 1
+- predicted churn = 0
 
-champion_uri = f"models:/{REGISTERED_MODEL_NAME}@Champion"
-candidate_uri = f"models:/{REGISTERED_MODEL_NAME}@Candidate"
+Also display counts by:
 
-Print both.
+- Low
+- Medium
+- High risk
 
-Explain that downstream scoring can use "@Champion" instead of hardcoding a version number.
+11. Basic Scoring Summary
 
-18. Final Summary
+Calculate:
+
+- total scored records
+- average churn probability
+- predicted churn rate
+- minimum probability
+- maximum probability
+- Low-risk count
+- Medium-risk count
+- High-risk count
+
+Display these values clearly.
+
+Explain that these summary statistics can later be used for prediction monitoring.
+
+Do not implement formal monitoring yet.
+
+12. Validate Output Schema
 
 Print:
 
-- Version 1 baseline metrics
-- Candidate metrics
-- Best candidate hyperparameters
-- Best cross-validation F1
-- Registered candidate version
-- Champion version
-- Candidate version
+scoring_output.dtypes
+
+Also display the columns in order.
+
+Check for:
+
+- duplicate account IDs
+- missing churn probabilities
+- missing risk bands
+- missing model metadata
+
+Print clear validation results.
+
+13. Demonstrate Gold Table Target
+
+Add a Markdown section:
+
+"## Future Production Output"
+
+Explain that in the production design, this scoring output could be written to a Gold/output table for Power BI or downstream business consumption.
+
+Use an example target table name:
+
+"superdata_au_dev.mlops.churn_scoring_output_poc"
+
+Do not write to the table automatically.
+
+Show a commented example only, such as:
+
+# spark.createDataFrame(scoring_output).write \
+#     .mode("append") \
+#     .saveAsTable("superdata_au_dev.mlops.churn_scoring_output_poc")
+
+Explain that append/overwrite strategy should be decided during actual development.
+
+14. Optional CSV POC Output
+
+For easier inspection during the POC, optionally save:
+
+"Output_Metrics/champion_batch_scoring_output.csv"
+
+Do not overwrite unrelated files.
+
+If the directory/path is not available, show a friendly warning rather than failing the notebook.
+
+15. Final Summary
 
 Print:
 
-"Step 6 completed successfully. Tuned candidate model created, registered as a new Unity Catalog version, and Champion/Candidate aliases assigned."
+- Model name
+- Alias used
+- Actual Champion version
+- Total scored records
+- Predicted churn count
+- Average churn probability
+- High-risk account count
+
+Print:
+
+"Step 7 completed successfully. Batch scoring using the Champion alias has been demonstrated."
 
 Important Requirements
 
-- Do not recreate Version 1.
-- Do not delete existing model versions.
-- Do not overwrite the baseline joblib model.
-- Do not use Hyperopt.
-- Do not use SparkTrials.
-- Keep the tuning grid intentionally small.
-- Reuse the existing preprocessing pipeline.
-- Do not create batch scoring yet.
-- Do not implement monitoring yet.
-- Use Unity Catalog aliases instead of deprecated Staging/Production stages.
-- Add simple Markdown explanations before each major section.
+- Load the model from Unity Catalog using "@Champion".
+- Do not hardcode Version 1 for scoring.
+- Do not use the Candidate model for production-style scoring in this notebook.
+- Do not retrain any model.
+- Do not create a new model version.
+- Do not change Champion/Candidate aliases.
+- Do not create a Databricks Job yet.
+- Do not implement drift/performance monitoring yet.
+- Do not include actual target labels in the scoring output.
+- Keep each major section explained with simple Markdown.
