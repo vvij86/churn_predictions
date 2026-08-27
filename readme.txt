@@ -1,63 +1,65 @@
-Copilot Prompt — Step 1: Create MLOps POC Notebook and Verify Setup
+Copilot Prompt — Create Separate Step 2 Notebook
 
-Create a new Databricks/Jupyter notebook named:
+Create a new Databricks notebook named:
 
-"databricks_mlops_poc_step_by_step.ipynb"
+"02_verify_unity_catalog_access.ipynb"
 
-For now, create only Step 1. Do not create any later MLOps steps yet.
+This notebook should contain only Step 2 of the MLOps POC.
 
-Step 1 — Imports and Basic MLOps Configuration
+Purpose
 
-Create a Markdown cell with the heading:
+Verify that the current user can access:
 
-"# Step 1 - Import Libraries and Configure MLflow"
+"superdata_au_dev.mlops"
 
-Explain briefly that this step prepares the libraries and configuration required for the MLOps POC.
+and confirm the permissions required for model registration.
 
-Then create a Python code cell that:
+Notebook Content
 
-1. Imports:
-   
-   - pandas
-   - numpy
-   - joblib
-   - mlflow
-   - mlflow.sklearn
-   - MlflowClient from "mlflow.tracking"
-   - datetime
+Create a Markdown section:
 
-2. Prints the installed MLflow version.
+"# Step 2 - Verify Unity Catalog Schema Access"
 
-3. Defines these configuration variables:
+Briefly explain what this step is checking and why it is required before registering MLflow models.
 
-CATALOG_NAME = "superdata_au_dev"
-SCHEMA_NAME = "mlops"
-REGISTERED_MODEL_NAME = "superdata_au_dev.mlops.superannuation_churn_model"
+Then add code to:
 
-4. Configure MLflow to use the Unity Catalog Model Registry:
+1. Run:
 
-mlflow.set_registry_uri("databricks-uc")
+USE CATALOG superdata_au_dev
 
-5. Create an MLflow client:
+2. Run:
 
-client = MlflowClient()
+USE SCHEMA mlops
 
-6. Print:
-   - Catalog name
-   - Schema name
-   - Registered model name
-   - Current MLflow registry URI
+3. Display:
 
-Add comments in the code explaining each important line.
+SELECT current_catalog(), current_schema()
+
+4. Run:
+
+SHOW GRANTS ON SCHEMA superdata_au_dev.mlops
+
+Display the grant results clearly.
+
+If "SHOW GRANTS" is not permitted, catch the exception and display a friendly warning instead of failing the notebook.
+
+Add a Markdown explanation of these permissions:
+
+- "USE CATALOG"
+- "USE SCHEMA"
+- "CREATE MODEL"
+
+Explain that "CREATE MODEL" is needed for registering a model in Unity Catalog.
+
+Do not:
+
+- load training/test datasets
+- load joblib models
+- train a model
+- create an MLflow experiment
+- register a model
 
 At the end print:
 
-"Step 1 completed successfully."
-
-Do not load datasets.
-Do not load any ".joblib" models.
-Do not train or register any model.
-Do not create an MLflow experiment yet.
-Do not implement any other MLOps functionality.
-
-This step should only verify that the required Python/MLflow setup is available and configure the Unity Catalog registry.
+"Step 2 completed successfully. Unity Catalog access verified."
