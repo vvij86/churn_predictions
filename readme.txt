@@ -1,22 +1,22 @@
-Copilot Prompt — Step 4: Evaluate Existing Model and Log Metrics to MLflow
+Copilot Prompt — Step 5: Register Model in Unity Catalog
 
 Create a new Databricks notebook named:
 
-"04_evaluate_model_and_log_mlflow.ipynb"
+"05_register_model_unity_catalog.ipynb"
 
-This notebook should contain only Step 4 of the MLOps POC.
+This notebook should contain only Step 5 of the MLOps POC.
 
 Purpose
 
-Reuse the existing trained Logistic Regression model and test dataset to:
+Register the existing Logistic Regression model in Unity Catalog under:
 
-1. Generate predictions
-2. Calculate evaluation metrics
-3. Create an MLflow experiment
-4. Log the evaluation metrics and model information into MLflow
+"superdata_au_dev.mlops.superannuation_churn_model"
 
-Do not register the model in Unity Catalog yet.
-Model registration will be done in the next step.
+This should create the first registered model version in Unity Catalog.
+
+Do not create aliases yet.
+Do not demonstrate version promotion yet.
+Do not retrain the model.
 
 Existing Inputs
 
@@ -32,30 +32,55 @@ Test data:
 
 "Test_ds/churn_y_test.csv"
 
-Step 4 - Evaluate Model and Log Metrics to MLflow
+Step 5 - Register Model in Unity Catalog
 
-Create a Markdown section explaining that MLflow experiment tracking stores model runs, parameters, metrics and artifacts so different model runs can later be compared.
+Create a Markdown heading:
+
+"# Step 5 - Register Model in Unity Catalog"
+
+Explain briefly that:
+
+- Step 4 logged the model inside an MLflow experiment/run.
+- Step 5 registers the model into Unity Catalog.
+- Registration creates a centrally managed registered model and a model version.
 
 1. Import Required Libraries
 
 Import:
 
 - pandas
-- numpy
 - joblib
 - mlflow
 - mlflow.sklearn
 
-From sklearn.metrics import:
+Also import:
 
-- accuracy_score
-- precision_score
-- recall_score
-- f1_score
-- roc_auc_score
-- confusion_matrix
+from mlflow.models import infer_signature
+from mlflow.tracking import MlflowClient
 
-2. Load Existing Test Dataset
+2. Configure Unity Catalog Registry
+
+Set:
+
+mlflow.set_registry_uri("databricks-uc")
+
+Define:
+
+CATALOG_NAME = "superdata_au_dev"
+SCHEMA_NAME = "mlops"
+REGISTERED_MODEL_NAME = "superdata_au_dev.mlops.superannuation_churn_model"
+
+Print the registry URI and registered model name.
+
+3. Load Existing Model and Test Data
+
+Load:
+
+"Models/logistic_regression_pipeline.joblib"
+
+into:
+
+"model"
 
 Load:
 
@@ -65,143 +90,112 @@ into:
 
 "X_test"
 
-Load:
-
-"Test_ds/churn_y_test.csv"
-
-into:
-
-"y_test"
-
-Ensure y_test is converted to a 1-dimensional array/Series if required.
-
-3. Load Existing Logistic Regression Model
-
-Load:
-
-"Models/logistic_regression_pipeline.joblib"
-
-using joblib.
-
-Store it in:
-
-"model"
-
 Do not retrain the model.
 
-4. Generate Predictions
+4. Create Model Signature
 
-Generate:
+Use a small sample of X_test as the input example.
 
-y_pred = model.predict(X_test)
+For example:
 
-If "predict_proba()" is available, generate positive-class probabilities:
+input_example = X_test.head(5)
 
-y_probability = model.predict_proba(X_test)[:, 1]
+Generate sample predictions:
 
-5. Calculate Evaluation Metrics
+sample_predictions = model.predict(input_example)
 
-Calculate:
+Infer the model signature using:
 
-- Accuracy
-- Precision
-- Recall
-- F1 Score
-- ROC AUC
-- Confusion Matrix
+signature = infer_signature(input_example, sample_predictions)
 
-Use safe handling for divide-by-zero where appropriate.
+Explain in Markdown that the signature records the expected input/output schema of the model.
 
-Display all metrics clearly.
+5. Log Model to a New MLflow Run
 
-Also display the confusion matrix.
-
-6. Explain Metrics
-
-Add a Markdown section briefly explaining:
-
-- Accuracy = overall percentage of correct predictions
-- Precision = of members predicted as churn, how many actually churned
-- Recall = of members who actually churned, how many the model identified
-- F1 = balance between precision and recall
-- ROC AUC = model's overall ability to distinguish churn vs non-churn
-- Confusion Matrix = counts of TP, TN, FP and FN
-
-7. Create MLflow Experiment
-
-Create or use an MLflow experiment named:
+Create or use this experiment:
 
 "/Shared/MLOps_POC_Superannuation_Churn"
 
-Use:
+Start a new MLflow run with a meaningful name such as:
 
-mlflow.set_experiment(...)
+"logistic_regression_uc_registration"
 
-Do not fail if the experiment already exists.
-
-8. Start an MLflow Run
-
-Start a new MLflow run.
-
-Use a meaningful run name such as:
-
-"logistic_regression_existing_model_evaluation"
-
-Log the following parameters:
-
-- model_type = LogisticRegression
-- model_source = existing_joblib
-- poc_type = MLOps
-- dataset = churn_test_dataset
-
-Log these metrics:
-
-- accuracy
-- precision
-- recall
-- f1_score
-- roc_auc
-
-Also log useful tags:
+Log useful tags:
 
 - business_use_case = superannuation_churn
 - environment = dev
-- poc_stage = model_evaluation
+- poc_stage = model_registration
+- model_source = existing_joblib
 
-9. Log Existing Model as MLflow Artifact
+Log the model using:
 
-Log the loaded sklearn model using:
+model_info = mlflow.sklearn.log_model(
+    sk_model=model,
+    name="model",
+    signature=signature,
+    input_example=input_example
+)
 
-mlflow.sklearn.log_model(...)
+Use the current MLflow 3.x recommended "name" parameter rather than deprecated "artifact_path".
 
-Use an artifact path such as:
+6. Register the Logged Model in Unity Catalog
 
-"model"
+Register the model using the logged model URI.
 
-Do NOT register the model in Unity Catalog in this notebook.
+Use:
 
-10. Print MLflow Run Information
+registered_model = mlflow.register_model(
+    model_uri=model_info.model_uri,
+    name=REGISTERED_MODEL_NAME
+)
 
-At the end print:
+Wait until the registration completes if necessary.
 
-- Experiment name
-- Run ID
-- Model type
-- Accuracy
-- Precision
-- Recall
-- F1
-- ROC AUC
+Print:
+
+- Registered model name
+- Model version
+- Run ID if available
+- Registration status
+
+7. Verify the Registered Model
+
+Create an MLflow client:
+
+client = MlflowClient()
+
+Retrieve the registered model / model version information.
+
+Display:
+
+- model name
+- version
+- status
+- source/run information if available
+
+Also list the model versions for:
+
+"superdata_au_dev.mlops.superannuation_churn_model"
+
+8. Final Confirmation
+
+Print a clear message such as:
+
+"Step 5 completed successfully. Model registered in Unity Catalog."
 
 Also print:
 
-"Step 4 completed successfully. Model evaluation and MLflow experiment logging completed."
+"Registered model: superdata_au_dev.mlops.superannuation_churn_model"
+
+and the created version number.
 
 Important Requirements
 
 - Do not retrain the model.
-- Do not register the model in Unity Catalog yet.
-- Do not create model versions yet.
 - Do not create Champion/Candidate aliases yet.
-- Keep the notebook focused only on evaluation and MLflow tracking.
-- Add simple Markdown explanations before each major code section so the notebook is easy to understand later.
+- Do not create multiple versions intentionally.
+- Do not create batch scoring yet.
+- Use the existing Logistic Regression model only.
+- Include model signature and input example.
+- Use Unity Catalog registry with "databricks-uc".
+- Add Markdown explanations before each major section so the notebook is easy to understand later.
