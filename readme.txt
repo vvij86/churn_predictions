@@ -1,106 +1,207 @@
-Copilot Prompt — Step 3: Load Existing Model and Test Data
+Copilot Prompt — Step 4: Evaluate Existing Model and Log Metrics to MLflow
 
 Create a new Databricks notebook named:
 
-"03_load_existing_model_and_test_data.ipynb"
+"04_evaluate_model_and_log_mlflow.ipynb"
 
-This notebook should contain only Step 3 of the MLOps POC.
+This notebook should contain only Step 4 of the MLOps POC.
 
 Purpose
 
-Load the already trained Logistic Regression model and the existing test dataset so they can be reused for MLflow model registration and scoring in later steps.
+Reuse the existing trained Logistic Regression model and test dataset to:
 
-Do not retrain the model.
+1. Generate predictions
+2. Calculate evaluation metrics
+3. Create an MLflow experiment
+4. Log the evaluation metrics and model information into MLflow
 
-Existing Files
+Do not register the model in Unity Catalog yet.
+Model registration will be done in the next step.
+
+Existing Inputs
+
+Use these existing files:
 
 Model:
 
 "Models/logistic_regression_pipeline.joblib"
 
-Test files:
+Test data:
 
 "Test_ds/churn_X_test.csv"
 
 "Test_ds/churn_y_test.csv"
 
-"Test_ds/churn_test_account_ids.csv"
+Step 4 - Evaluate Model and Log Metrics to MLflow
 
-Notebook Content
+Create a Markdown section explaining that MLflow experiment tracking stores model runs, parameters, metrics and artifacts so different model runs can later be compared.
 
-Create a Markdown heading:
-
-"# Step 3 - Load Existing Model and Test Dataset"
-
-Explain briefly that the model has already been trained previously and this POC will reuse it instead of training again.
-
-1. Import Libraries
+1. Import Required Libraries
 
 Import:
 
 - pandas
+- numpy
 - joblib
-- os
+- mlflow
+- mlflow.sklearn
 
-2. Load Test Data
+From sklearn.metrics import:
+
+- accuracy_score
+- precision_score
+- recall_score
+- f1_score
+- roc_auc_score
+- confusion_matrix
+
+2. Load Existing Test Dataset
 
 Load:
 
-- "churn_X_test.csv" into "X_test"
-- "churn_y_test.csv" into "y_test"
-- "churn_test_account_ids.csv" into "test_account_ids"
+"Test_ds/churn_X_test.csv"
 
-Print the shape of each dataset.
+into:
 
-Display the first 5 rows of each.
+"X_test"
 
-3. Validate Data
+Load:
 
-Print:
+"Test_ds/churn_y_test.csv"
 
-- number of rows in X_test
-- number of rows in y_test
-- number of account IDs
+into:
 
-Confirm that all three row counts match.
+"y_test"
 
-If they do not match, print a warning.
+Ensure y_test is converted to a 1-dimensional array/Series if required.
 
-4. Load Existing Logistic Regression Model
+3. Load Existing Logistic Regression Model
 
 Load:
 
 "Models/logistic_regression_pipeline.joblib"
 
-using "joblib.load()".
+using joblib.
 
-Store it as:
+Store it in:
 
 "model"
 
-Print:
+Do not retrain the model.
 
-- model type
-- model object
-- pipeline steps if it is an sklearn Pipeline
+4. Generate Predictions
 
-5. Basic Validation
+Generate:
 
-Confirm that the model supports:
+y_pred = model.predict(X_test)
 
-- "predict()"
-- "predict_proba()"
+If "predict_proba()" is available, generate positive-class probabilities:
 
-Print a message indicating whether each method is available.
+y_probability = model.predict_proba(X_test)[:, 1]
 
-Do not run full model evaluation yet.
+5. Calculate Evaluation Metrics
 
-Do not register the model.
+Calculate:
 
-Do not create an MLflow experiment.
+- Accuracy
+- Precision
+- Recall
+- F1 Score
+- ROC AUC
+- Confusion Matrix
 
-Do not create a model version.
+Use safe handling for divide-by-zero where appropriate.
+
+Display all metrics clearly.
+
+Also display the confusion matrix.
+
+6. Explain Metrics
+
+Add a Markdown section briefly explaining:
+
+- Accuracy = overall percentage of correct predictions
+- Precision = of members predicted as churn, how many actually churned
+- Recall = of members who actually churned, how many the model identified
+- F1 = balance between precision and recall
+- ROC AUC = model's overall ability to distinguish churn vs non-churn
+- Confusion Matrix = counts of TP, TN, FP and FN
+
+7. Create MLflow Experiment
+
+Create or use an MLflow experiment named:
+
+"/Shared/MLOps_POC_Superannuation_Churn"
+
+Use:
+
+mlflow.set_experiment(...)
+
+Do not fail if the experiment already exists.
+
+8. Start an MLflow Run
+
+Start a new MLflow run.
+
+Use a meaningful run name such as:
+
+"logistic_regression_existing_model_evaluation"
+
+Log the following parameters:
+
+- model_type = LogisticRegression
+- model_source = existing_joblib
+- poc_type = MLOps
+- dataset = churn_test_dataset
+
+Log these metrics:
+
+- accuracy
+- precision
+- recall
+- f1_score
+- roc_auc
+
+Also log useful tags:
+
+- business_use_case = superannuation_churn
+- environment = dev
+- poc_stage = model_evaluation
+
+9. Log Existing Model as MLflow Artifact
+
+Log the loaded sklearn model using:
+
+mlflow.sklearn.log_model(...)
+
+Use an artifact path such as:
+
+"model"
+
+Do NOT register the model in Unity Catalog in this notebook.
+
+10. Print MLflow Run Information
 
 At the end print:
 
-"Step 3 completed successfully. Existing model and test dataset are ready for the MLOps POC."
+- Experiment name
+- Run ID
+- Model type
+- Accuracy
+- Precision
+- Recall
+- F1
+- ROC AUC
+
+Also print:
+
+"Step 4 completed successfully. Model evaluation and MLflow experiment logging completed."
+
+Important Requirements
+
+- Do not retrain the model.
+- Do not register the model in Unity Catalog yet.
+- Do not create model versions yet.
+- Do not create Champion/Candidate aliases yet.
+- Keep the notebook focused only on evaluation and MLflow tracking.
+- Add simple Markdown explanations before each major code section so the notebook is easy to understand later.
