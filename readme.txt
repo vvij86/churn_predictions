@@ -1,53 +1,55 @@
-Copilot Prompt — Step 7: Batch Scoring Using Champion Alias
+Copilot Prompt — Step 8: Define Model Output Schema and Save POC Scoring Results to Unity Catalog
 
 Create a new Databricks notebook named:
 
-"07_batch_scoring_using_champion_alias.ipynb"
+"08_model_output_schema_and_save_to_uc.ipynb"
 
 This notebook should continue from the existing MLOps POC.
 
 Current State
 
-The registered model already exists in Unity Catalog as:
+The following are already completed:
+
+- Model registered in Unity Catalog
+- Version 1 = Champion
+- Version 2 = Candidate
+- Batch scoring completed using the "Champion" alias
+- Batch scoring CSV generated at:
+
+"Output_Metrics/champion_batch_scoring_output.csv"
+
+The registered model is:
 
 "superdata_au_dev.mlops.superannuation_churn_model"
 
-Current aliases:
-
-- Version 1 → "Champion"
-- Version 2 → "Candidate"
-
-The purpose of this notebook is to demonstrate batch scoring using the "Champion" alias.
-
-Do not hardcode Version 1 for scoring.
-
 Purpose
 
-Demonstrate how a production-style batch scoring process can:
+Demonstrate the model output schema and persist the POC scoring output as a Unity Catalog table.
 
-1. Load the currently approved model using the "Champion" alias
-2. Load scoring/test data
-3. Generate churn predictions and probabilities
-4. Create business-friendly scoring output
-5. Capture model/version metadata with every prediction
-6. Prepare the result for later persistence to a Gold/output table
+This step should:
 
-Do not create a Databricks Job yet.
-Do not implement monitoring yet.
+1. Load the existing batch scoring output
+2. Validate the output columns and data types
+3. Define a clear model output schema
+4. Convert the pandas dataframe to a Spark dataframe
+5. Create a POC Unity Catalog table
+6. Verify that the table can be queried from Databricks Catalog Explorer
 
-Step 7 - Batch Scoring Using Champion Model
+Use this target table:
+
+"superdata_au_dev.mlops.churn_scoring_output_poc"
+
+This is a POC table only.
+
+Step 8 - Model Output Schema and Unity Catalog Output Table
 
 Create a Markdown heading:
 
-"# Step 7 - Batch Scoring Using Champion Alias"
+"# Step 8 - Define Model Output Schema and Save Scoring Output"
 
-Explain that downstream scoring should use:
+Explain that the scoring model produces account-level results that can later be consumed by Power BI or downstream applications.
 
-"@Champion"
-
-instead of a hardcoded version such as Version 1.
-
-Explain that if the Champion alias later moves to another version, the scoring code does not need to change.
+Explain that a defined output schema ensures the meaning and data type of every model output column is consistent.
 
 1. Import Required Libraries
 
@@ -55,149 +57,42 @@ Import:
 
 import pandas as pd
 import numpy as np
-import mlflow
-from datetime import datetime, timezone
-from mlflow.tracking import MlflowClient
+from pyspark.sql import functions as F
+from pyspark.sql.types import *
 
-Configure:
+Define:
 
-mlflow.set_registry_uri("databricks-uc")
+OUTPUT_FILE = "Output_Metrics/champion_batch_scoring_output.csv"
 
-REGISTERED_MODEL_NAME = "superdata_au_dev.mlops.superannuation_churn_model"
-CHAMPION_ALIAS = "Champion"
+OUTPUT_TABLE = "superdata_au_dev.mlops.churn_scoring_output_poc"
 
-client = MlflowClient()
+2. Load Existing Batch Scoring Output
 
-2. Verify Current Champion Version
+Load:
 
-Retrieve:
+"Output_Metrics/champion_batch_scoring_output.csv"
 
-champion_version_details = client.get_model_version_by_alias(
-    REGISTERED_MODEL_NAME,
-    CHAMPION_ALIAS
-)
-
-Print:
-
-- registered model name
-- alias
-- actual version currently behind Champion
-- run ID
-- status
-
-Store the actual Champion version dynamically:
-
-champion_version = champion_version_details.version
-
-Do not assume it is always Version 1.
-
-Add Markdown explaining that the alias resolves dynamically to the approved model version.
-
-3. Create Champion Model URI
-
-Create:
-
-champion_model_uri = f"models:/{REGISTERED_MODEL_NAME}@Champion"
-
-Print the URI.
-
-4. Load Champion Model from Unity Catalog
-
-Load using MLflow:
-
-champion_model = mlflow.sklearn.load_model(champion_model_uri)
-
-Print the loaded model type.
-
-Confirm that the model supports:
-
-- "predict()"
-- "predict_proba()"
-
-5. Load Batch Scoring Dataset
-
-For this POC, use:
-
-"Test_ds/churn_X_test.csv"
-
-as the batch scoring input.
-
-Also load:
-
-"Test_ds/churn_test_account_ids.csv"
-
-for account identifiers.
-
-Store as:
-
-- "X_score"
-- "account_ids"
-
-Print:
-
-- X_score shape
-- account_ids shape
-
-Validate that the row counts match.
-
-If they do not match, stop with a clear error message.
-
-Add Markdown explaining:
-
-POC Note: The existing test dataset is being reused as scoring input only to demonstrate the batch scoring workflow. In production, scoring data would normally be the latest unlabeled feature dataset.
-
-6. Generate Predictions
-
-Generate:
-
-predicted_churn = champion_model.predict(X_score)
-
-Generate churn probabilities:
-
-churn_probability = champion_model.predict_proba(X_score)[:, 1]
-
-Explain:
-
-- "predicted_churn" is the binary model decision
-- "churn_probability" is the probability/risk score produced by the model
-
-7. Create Churn Risk Score
-
-Create:
-
-churn_risk_score = churn_probability
-
-Keep the risk score in the 0 to 1 range.
-
-Optionally also create a percentage version:
-
-churn_risk_score_pct = churn_probability * 100
-
-Explain that the 0–1 probability is the primary ML score.
-
-8. Create POC Risk Bands
-
-Use these example thresholds:
-
-- Low: probability < 0.30
-- Medium: probability >= 0.30 and < 0.60
-- High: probability >= 0.60
-
-Create a function or "np.select()" logic to produce:
-
-"churn_risk_band"
-
-Add this Markdown note:
-
-POC Note: These risk-band thresholds are examples only. Final thresholds must be agreed during actual development based on business requirements and model performance.
-
-9. Create Scoring Output DataFrame
-
-Create a dataframe named:
+into:
 
 "scoring_output"
 
-Include:
+Print:
+
+- number of rows
+- number of columns
+- column names
+
+Display the first 20 rows.
+
+Do not rerun the ML model.
+
+Do not generate predictions again.
+
+Reuse the output already created in Step 7.
+
+3. Define Expected Model Output Columns
+
+The expected POC output should include:
 
 - account_id
 - predicted_churn
@@ -211,130 +106,256 @@ Include:
 - model_run_id
 - scoring_timestamp
 
-Use:
+Create a list named:
 
-model_name = REGISTERED_MODEL_NAME
-model_alias = "Champion"
-model_version = champion_version
-model_run_id = champion_version_details.run_id
+EXPECTED_COLUMNS = [...]
 
-Use a UTC timestamp:
+Validate that all expected columns exist.
 
-datetime.now(timezone.utc)
+If any are missing, raise a clear error explaining which columns are missing.
 
-Do not include target/y_test in the scoring output.
+4. Explain Each Output Field
 
-10. Display Sample Scoring Output
+Add a Markdown section with a simple table explaining:
 
-Display:
+account_id
 
-- first 20 rows
-- total number of scored accounts
+Unique account/member identifier used to associate the prediction with the source account.
 
-Print counts for:
+predicted_churn
 
-- predicted churn = 1
-- predicted churn = 0
+Binary model prediction.
 
-Also display counts by:
+- 1 = predicted churn
+- 0 = predicted non-churn
+
+churn_probability
+
+Probability generated by the model, normally between 0 and 1.
+
+churn_risk_score
+
+ML risk score derived from churn probability.
+
+For this POC, it is the same value as churn probability.
+
+churn_risk_score_pct
+
+Risk score represented as a percentage from 0 to 100.
+
+churn_risk_band
+
+Business-friendly risk category:
 
 - Low
 - Medium
-- High risk
+- High
 
-11. Basic Scoring Summary
+State clearly that the risk-band thresholds are POC examples only.
 
-Calculate:
+model_name
 
-- total scored records
-- average churn probability
-- predicted churn rate
-- minimum probability
-- maximum probability
-- Low-risk count
-- Medium-risk count
-- High-risk count
+Unity Catalog registered model name used for scoring.
 
-Display these values clearly.
+model_alias
 
-Explain that these summary statistics can later be used for prediction monitoring.
+Alias used during scoring, such as "Champion".
 
-Do not implement formal monitoring yet.
+model_version
 
-12. Validate Output Schema
+Actual Unity Catalog model version that the alias resolved to.
 
-Print:
+model_run_id
 
-scoring_output.dtypes
+MLflow run ID associated with the registered model version.
 
-Also display the columns in order.
+scoring_timestamp
 
-Check for:
+UTC timestamp showing when the prediction was generated.
 
-- duplicate account IDs
-- missing churn probabilities
-- missing risk bands
-- missing model metadata
+5. Validate Data Types
 
-Print clear validation results.
+Inspect the current pandas dtypes.
 
-13. Demonstrate Gold Table Target
+Convert fields where required so that the intended schema is:
 
-Add a Markdown section:
+- account_id → string
+- predicted_churn → integer
+- churn_probability → double
+- churn_risk_score → double
+- churn_risk_score_pct → double
+- churn_risk_band → string
+- model_name → string
+- model_alias → string
+- model_version → string
+- model_run_id → string
+- scoring_timestamp → timestamp
 
-"## Future Production Output"
+Be careful with account IDs.
 
-Explain that in the production design, this scoring output could be written to a Gold/output table for Power BI or downstream business consumption.
+Do not accidentally convert account IDs into decimals or scientific notation.
 
-Use an example target table name:
+6. Perform Output Data Quality Checks
+
+Run these checks:
+
+- total row count
+- duplicate account_id count
+- null account_id count
+- null churn_probability count
+- null churn_risk_band count
+- null model_version count
+- churn_probability minimum
+- churn_probability maximum
+- distinct risk bands
+- distinct model aliases
+- distinct model versions
+
+Validate that churn probabilities are between 0 and 1.
+
+Display all validation results clearly.
+
+Do not automatically remove duplicate accounts.
+
+If duplicates are found, report them as a POC warning.
+
+7. Convert to Spark DataFrame
+
+Convert the validated pandas dataframe into a Spark dataframe named:
+
+scoring_spark_df
+
+Ensure "scoring_timestamp" is stored as a proper Spark timestamp.
+
+Display:
+
+scoring_spark_df.printSchema()
+
+Also display a sample of 20 records.
+
+8. Create Unity Catalog Output Table
+
+Before writing, execute:
+
+USE CATALOG superdata_au_dev;
+USE SCHEMA mlops;
+
+Use Spark SQL or "spark.sql()".
+
+Save the Spark dataframe as:
 
 "superdata_au_dev.mlops.churn_scoring_output_poc"
 
-Do not write to the table automatically.
+For the POC, use:
 
-Show a commented example only, such as:
+scoring_spark_df.write \
+    .format("delta") \
+    .mode("overwrite") \
+    .option("overwriteSchema", "true") \
+    .saveAsTable(OUTPUT_TABLE)
 
-# spark.createDataFrame(scoring_output).write \
-#     .mode("append") \
-#     .saveAsTable("superdata_au_dev.mlops.churn_scoring_output_poc")
+Add a Markdown warning:
 
-Explain that append/overwrite strategy should be decided during actual development.
+POC Note: "overwrite" is being used only to keep this demonstration simple. Production scoring may require append, merge/upsert, partitioning, scoring-date history, or retention rules.
 
-14. Optional CSV POC Output
+9. Verify Table Creation
 
-For easier inspection during the POC, optionally save:
+Run:
 
-"Output_Metrics/champion_batch_scoring_output.csv"
+SELECT COUNT(*)
+FROM superdata_au_dev.mlops.churn_scoring_output_poc;
 
-Do not overwrite unrelated files.
+Then run:
 
-If the directory/path is not available, show a friendly warning rather than failing the notebook.
+SELECT *
+FROM superdata_au_dev.mlops.churn_scoring_output_poc
+LIMIT 20;
 
-15. Final Summary
+Display both results.
+
+10. Verify Risk Distribution
+
+Run SQL that displays:
+
+SELECT
+    churn_risk_band,
+    COUNT(*) AS account_count,
+    AVG(churn_probability) AS avg_churn_probability
+FROM superdata_au_dev.mlops.churn_scoring_output_poc
+GROUP BY churn_risk_band
+ORDER BY account_count DESC;
+
+Display the results.
+
+11. Verify Model Metadata
+
+Run:
+
+SELECT
+    model_name,
+    model_alias,
+    model_version,
+    COUNT(*) AS prediction_count
+FROM superdata_au_dev.mlops.churn_scoring_output_poc
+GROUP BY
+    model_name,
+    model_alias,
+    model_version;
+
+This should demonstrate which registered model generated the stored predictions.
+
+12. Explain Power BI / Downstream Usage
+
+Add a Markdown section explaining that a downstream Power BI dataset could consume this output table and use fields such as:
+
+- account_id
+- churn_risk_score
+- churn_risk_band
+- predicted_churn
+
+Also explain that model metadata can support auditability and troubleshooting.
+
+Do not build Power BI integration in this notebook.
+
+13. Explain How to View the Table in Databricks UI
+
+Add a Markdown section explaining:
+
+After the notebook completes, navigate to:
+
+"Catalog → superdata_au_dev → mlops → Tables → churn_scoring_output_poc"
+
+From Catalog Explorer, the user should be able to view:
+
+- Schema
+- Sample Data
+- Details
+- Lineage if available
+
+14. Final Summary
 
 Print:
 
-- Model name
-- Alias used
-- Actual Champion version
-- Total scored records
-- Predicted churn count
-- Average churn probability
+- Output table name
+- Total records saved
+- Number of columns
+- Model alias
+- Model version
 - High-risk account count
 
 Print:
 
-"Step 7 completed successfully. Batch scoring using the Champion alias has been demonstrated."
+"Step 8 completed successfully. Model output schema validated and scoring results saved to Unity Catalog."
 
 Important Requirements
 
-- Load the model from Unity Catalog using "@Champion".
-- Do not hardcode Version 1 for scoring.
-- Do not use the Candidate model for production-style scoring in this notebook.
-- Do not retrain any model.
+- Do not retrain a model.
+- Do not generate predictions again.
+- Reuse the Step 7 scoring CSV.
+- Do not modify Champion/Candidate aliases.
 - Do not create a new model version.
-- Do not change Champion/Candidate aliases.
-- Do not create a Databricks Job yet.
-- Do not implement drift/performance monitoring yet.
-- Do not include actual target labels in the scoring output.
-- Keep each major section explained with simple Markdown.
+- Use a Delta table.
+- Use "overwrite" only for this POC and explain why.
+- Keep account_id safely represented.
+- Add simple Markdown explanations before each major section.
+- This table is a POC output table, not a final production design.
