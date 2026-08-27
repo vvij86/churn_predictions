@@ -1,78 +1,148 @@
-Copilot Prompt — Step 5: Register Model in Unity Catalog
+Copilot Prompt — Step 6: Tune Candidate Model, Compare, Register Version 2, and Assign Aliases
 
 Create a new Databricks notebook named:
 
-"05_register_model_unity_catalog.ipynb"
+"06_tune_candidate_register_version2_and_aliases.ipynb"
 
-This notebook should contain only Step 5 of the MLOps POC.
+This notebook should continue from the already completed MLOps POC.
 
-Purpose
+Current State
 
-Register the existing Logistic Regression model in Unity Catalog under:
+The following steps are already completed:
+
+- Unity Catalog access verification
+- Existing Logistic Regression model loaded
+- Model evaluated and logged to MLflow
+- Baseline model registered in Unity Catalog
+
+The registered model already exists as:
 
 "superdata_au_dev.mlops.superannuation_churn_model"
 
-This should create the first registered model version in Unity Catalog.
+and currently has:
 
-Do not create aliases yet.
-Do not demonstrate version promotion yet.
-Do not retrain the model.
+"Version 1"
 
-Existing Inputs
+Do not recreate Version 1.
 
-Use these existing files:
+Purpose
 
-Model:
+Create a meaningful Version 2 by:
 
-"Models/logistic_regression_pipeline.joblib"
+1. Loading the existing baseline model
+2. Loading training and test datasets
+3. Tuning a new Logistic Regression candidate using GridSearchCV
+4. Comparing baseline vs tuned candidate
+5. Logging the candidate to MLflow
+6. Registering the candidate under the same Unity Catalog model name
+7. Creating a new model version
+8. Assigning Champion/Candidate aliases
 
-Test data:
+Hyperopt is not installed.
 
-"Test_ds/churn_X_test.csv"
+Do not use Hyperopt or SparkTrials.
 
-"Test_ds/churn_y_test.csv"
+Use scikit-learn "GridSearchCV".
 
-Step 5 - Register Model in Unity Catalog
+---
 
-Create a Markdown heading:
+Step 6 - Tune Candidate and Create Model Version 2
 
-"# Step 5 - Register Model in Unity Catalog"
+Add a Markdown heading:
 
-Explain briefly that:
+"# Step 6 - Tune Candidate Model and Create Version 2"
 
-- Step 4 logged the model inside an MLflow experiment/run.
-- Step 5 registers the model into Unity Catalog.
-- Registration creates a centrally managed registered model and a model version.
+Explain that Version 1 represents the existing baseline model and this notebook creates a genuinely different candidate model through hyperparameter tuning.
+
+Also explain that registering the candidate under the same Unity Catalog model name creates a new model version automatically.
 
 1. Import Required Libraries
 
 Import:
 
-- pandas
-- joblib
-- mlflow
-- mlflow.sklearn
+import pandas as pd
+import numpy as np
+import joblib
+import mlflow
+import mlflow.sklearn
 
-Also import:
+from sklearn.base import clone
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    roc_auc_score,
+    confusion_matrix
+)
 
 from mlflow.models import infer_signature
 from mlflow.tracking import MlflowClient
 
-2. Configure Unity Catalog Registry
-
-Set:
+Configure:
 
 mlflow.set_registry_uri("databricks-uc")
 
-Define:
-
-CATALOG_NAME = "superdata_au_dev"
-SCHEMA_NAME = "mlops"
 REGISTERED_MODEL_NAME = "superdata_au_dev.mlops.superannuation_churn_model"
 
-Print the registry URI and registered model name.
+client = MlflowClient()
 
-3. Load Existing Model and Test Data
+2. Verify Existing Version 1
+
+Retrieve existing model versions from:
+
+"superdata_au_dev.mlops.superannuation_churn_model"
+
+Display:
+
+- version
+- run_id
+- status
+- creation timestamp
+- aliases if available
+
+Confirm that Version 1 exists.
+
+Print:
+
+"Baseline Unity Catalog model version found: Version 1"
+
+Do not recreate Version 1.
+
+3. Load Existing Data
+
+Load:
+
+Training:
+
+"Training_ds/churn_X_train.csv"
+
+"Training_ds/churn_y_train.csv"
+
+Test:
+
+"Test_ds/churn_X_test.csv"
+
+"Test_ds/churn_y_test.csv"
+
+Store as:
+
+- "X_train"
+- "y_train"
+- "X_test"
+- "y_test"
+
+Convert y_train and y_test to one-dimensional Series/arrays if required.
+
+Print dataset shapes.
+
+Validate that:
+
+- X_train rows match y_train
+- X_test rows match y_test
+
+4. Load Existing Baseline Model
 
 Load:
 
@@ -80,122 +150,330 @@ Load:
 
 into:
 
-"model"
+"baseline_model"
 
-Load:
+Print:
 
-"Test_ds/churn_X_test.csv"
+- model type
+- pipeline steps
 
-into:
+Do not retrain the baseline model.
 
-"X_test"
+5. Evaluate Baseline Model
 
-Do not retrain the model.
+Run:
 
-4. Create Model Signature
+baseline_pred = baseline_model.predict(X_test)
+baseline_prob = baseline_model.predict_proba(X_test)[:, 1]
 
-Use a small sample of X_test as the input example.
+Calculate:
+
+- Accuracy
+- Precision
+- Recall
+- F1
+- ROC AUC
+- Confusion Matrix
+
+Store metrics in:
+
+"baseline_metrics"
+
+Display them clearly.
+
+6. Clone Existing Pipeline
+
+Use:
+
+candidate_pipeline = clone(baseline_model)
+
+Explain that this allows the candidate to reuse exactly the same preprocessing pipeline while changing Logistic Regression hyperparameters.
+
+Inspect the pipeline steps and dynamically identify the Logistic Regression step name.
+
+Do not assume the estimator step is called "classifier".
+
+7. Define Small Hyperparameter Grid
+
+Create a small POC grid for Logistic Regression.
+
+Use values similar to:
+
+C = [0.1, 0.5, 1.0, 2.0]
+
+class_weight = [None, "balanced"]
+
+max_iter = [500, 1000]
+
+Build the parameter names dynamically using the detected Logistic Regression pipeline step.
 
 For example:
 
+"<step_name>__C"
+
+"<step_name>__class_weight"
+
+"<step_name>__max_iter"
+
+Print the generated parameter grid.
+
+8. Run GridSearchCV
+
+Configure:
+
+GridSearchCV(
+    estimator=candidate_pipeline,
+    param_grid=param_grid,
+    scoring="f1",
+    cv=3,
+    n_jobs=-1,
+    verbose=1
+)
+
+If "n_jobs=-1" fails in Databricks/serverless, automatically retry with:
+
+"n_jobs=1"
+
+Fit using:
+
+"X_train" and "y_train"
+
+Store:
+
+candidate_model = grid_search.best_estimator_
+
+Print:
+
+- best parameters
+- best cross-validation F1 score
+
+Add Markdown explaining that Hyperopt is not required for this small POC because GridSearchCV is enough to demonstrate model tuning.
+
+9. Evaluate Tuned Candidate
+
+Run predictions on X_test.
+
+Calculate the same metrics:
+
+- Accuracy
+- Precision
+- Recall
+- F1
+- ROC AUC
+- Confusion Matrix
+
+Store in:
+
+"candidate_metrics"
+
+10. Compare Baseline vs Candidate
+
+Create a dataframe:
+
+Model| Accuracy| Precision| Recall| F1| ROC AUC
+Version 1 Baseline| ...| ...| ...| ...| ...
+Tuned Candidate| ...| ...| ...| ...| ...
+
+Display it.
+
+Also print:
+
+- Baseline F1
+- Candidate F1
+- Baseline ROC AUC
+- Candidate ROC AUC
+
+Do not automatically claim a production winner.
+
+Add this Markdown note:
+
+POC Note: Model selection in this notebook is only for demonstrating MLOps lifecycle management. Final production model selection must follow agreed business and ML evaluation criteria.
+
+11. Save Tuned Candidate Model
+
+Save:
+
+"candidate_model"
+
+as:
+
+"Models/logistic_regression_tuned_candidate_pipeline.joblib"
+
+Do not overwrite:
+
+"Models/logistic_regression_pipeline.joblib"
+
+Print the candidate model path.
+
+12. Create Model Signature
+
+Create:
+
 input_example = X_test.head(5)
 
-Generate sample predictions:
+sample_predictions = candidate_model.predict(input_example)
 
-sample_predictions = model.predict(input_example)
+signature = infer_signature(
+    input_example,
+    sample_predictions
+)
 
-Infer the model signature using:
+Explain briefly what the model signature represents.
 
-signature = infer_signature(input_example, sample_predictions)
+13. Log Candidate to MLflow
 
-Explain in Markdown that the signature records the expected input/output schema of the model.
-
-5. Log Model to a New MLflow Run
-
-Create or use this experiment:
+Use the existing experiment:
 
 "/Shared/MLOps_POC_Superannuation_Churn"
 
-Start a new MLflow run with a meaningful name such as:
+Create a new run named:
 
-"logistic_regression_uc_registration"
+"logistic_regression_tuned_candidate"
 
-Log useful tags:
+Log:
 
-- business_use_case = superannuation_churn
+- best GridSearchCV parameters
+- tuning_method = GridSearchCV
+- cv_folds = 3
+- optimization_metric = F1
+- model_role = candidate
 - environment = dev
-- poc_stage = model_registration
-- model_source = existing_joblib
+- poc_stage = model_versioning
 
-Log the model using:
+Log candidate metrics:
+
+- accuracy
+- precision
+- recall
+- f1_score
+- roc_auc
+
+Log the candidate model using:
 
 model_info = mlflow.sklearn.log_model(
-    sk_model=model,
+    sk_model=candidate_model,
     name="model",
     signature=signature,
     input_example=input_example
 )
 
-Use the current MLflow 3.x recommended "name" parameter rather than deprecated "artifact_path".
+14. Register Candidate in Unity Catalog
 
-6. Register the Logged Model in Unity Catalog
+Register the logged candidate using:
 
-Register the model using the logged model URI.
-
-Use:
-
-registered_model = mlflow.register_model(
+registered_candidate = mlflow.register_model(
     model_uri=model_info.model_uri,
     name=REGISTERED_MODEL_NAME
 )
 
-Wait until the registration completes if necessary.
+Do not hardcode Version 2.
+
+Capture the actual returned version:
+
+candidate_version = registered_candidate.version
+
+Wait for the version to become READY if necessary.
 
 Print:
 
 - Registered model name
-- Model version
-- Run ID if available
-- Registration status
+- Candidate version
+- Run ID
+- Status
 
-7. Verify the Registered Model
+Because Version 1 already exists, the expected result is normally Version 2, but use the actual returned version dynamically.
 
-Create an MLflow client:
+15. Assign Model Aliases
 
-client = MlflowClient()
+For this POC:
 
-Retrieve the registered model / model version information.
+Assign Version 1 as:
+
+"Champion"
+
+Assign the newly registered candidate version as:
+
+"Candidate"
+
+Use:
+
+client.set_registered_model_alias(
+    name=REGISTERED_MODEL_NAME,
+    alias="Champion",
+    version="1"
+)
+
+and:
+
+client.set_registered_model_alias(
+    name=REGISTERED_MODEL_NAME,
+    alias="Candidate",
+    version=candidate_version
+)
+
+16. Verify Champion and Candidate
+
+Retrieve both aliases:
+
+champion = client.get_model_version_by_alias(
+    REGISTERED_MODEL_NAME,
+    "Champion"
+)
+
+candidate = client.get_model_version_by_alias(
+    REGISTERED_MODEL_NAME,
+    "Candidate"
+)
+
+Print:
+
+Champion -> Version X
+Candidate -> Version Y
 
 Display:
 
-- model name
-- version
-- status
-- source/run information if available
+- Alias
+- Version
+- Run ID
+- Status
 
-Also list the model versions for:
+17. Show Alias-Based Model URIs
 
-"superdata_au_dev.mlops.superannuation_churn_model"
+Create:
 
-8. Final Confirmation
+champion_uri = f"models:/{REGISTERED_MODEL_NAME}@Champion"
+candidate_uri = f"models:/{REGISTERED_MODEL_NAME}@Candidate"
 
-Print a clear message such as:
+Print both.
 
-"Step 5 completed successfully. Model registered in Unity Catalog."
+Explain that downstream scoring can use "@Champion" instead of hardcoding a version number.
 
-Also print:
+18. Final Summary
 
-"Registered model: superdata_au_dev.mlops.superannuation_churn_model"
+Print:
 
-and the created version number.
+- Version 1 baseline metrics
+- Candidate metrics
+- Best candidate hyperparameters
+- Best cross-validation F1
+- Registered candidate version
+- Champion version
+- Candidate version
+
+Print:
+
+"Step 6 completed successfully. Tuned candidate model created, registered as a new Unity Catalog version, and Champion/Candidate aliases assigned."
 
 Important Requirements
 
-- Do not retrain the model.
-- Do not create Champion/Candidate aliases yet.
-- Do not create multiple versions intentionally.
+- Do not recreate Version 1.
+- Do not delete existing model versions.
+- Do not overwrite the baseline joblib model.
+- Do not use Hyperopt.
+- Do not use SparkTrials.
+- Keep the tuning grid intentionally small.
+- Reuse the existing preprocessing pipeline.
 - Do not create batch scoring yet.
-- Use the existing Logistic Regression model only.
-- Include model signature and input example.
-- Use Unity Catalog registry with "databricks-uc".
-- Add Markdown explanations before each major section so the notebook is easy to understand later.
+- Do not implement monitoring yet.
+- Use Unity Catalog aliases instead of deprecated Staging/Production stages.
+- Add simple Markdown explanations before each major section.
