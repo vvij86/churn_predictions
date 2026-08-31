@@ -1,278 +1,406 @@
-Copilot Prompt — Step 13: Retraining Strategy POC
+Copilot Prompt — Step 14: Model Rollback Demo with Simulated Performance Failure
 
 Create a new Databricks notebook named:
 
-"13_retraining_strategy_poc.ipynb"
+"14_model_rollback_demo_with_failure.ipynb"
 
-This notebook should continue from the existing MLOps POC.
+This notebook should demonstrate a realistic rollback scenario for the existing churn MLOps POC.
 
 Current State
 
-Already completed:
+Registered model:
 
-- Model registration in Unity Catalog
-- Version 1 = Champion
-- Version 2 = Candidate
-- Batch scoring using "@Champion"
-- Model output schema
-- Job scheduling POC
-- Prediction monitoring
-- Feature drift monitoring
-- Model performance monitoring
+"superdata_au_dev.mlops.superannuation_churn_model"
+
+Existing versions:
+
+- Version 1
+- Version 2
+
+Current aliases:
+
+- Champion
+- Candidate
+
+Earlier POC steps already demonstrated:
+
+- model registration
+- versioning
+- Champion/Candidate aliases
+- batch scoring
+- prediction monitoring
+- feature drift monitoring
+- model performance monitoring
+- retraining decision strategy
 
 Purpose
 
-Demonstrate a simple retraining decision strategy.
+Demonstrate a realistic rollback scenario:
 
-This step should answer:
+1. Start with the existing Champion
+2. Temporarily promote the Candidate model to Champion
+3. Simulate a performance problem after promotion
+4. Show that monitoring would recommend rollback
+5. Require an explicit POC/manual approval flag before rollback
+6. Roll Champion back to the previous known-good version
+7. Verify that downstream scoring code still uses "@Champion" and does not change
 
-"When should the churn model be retrained?"
+This is a POC demonstration only.
 
-Do not actually retrain the model in this notebook.
+Do not retrain any model.
 
-Do not create a new model version.
-
-Do not change Champion/Candidate aliases.
-
-Step 13 - Retraining Strategy POC
+Step 14 - Model Rollback Demo
 
 Create a Markdown heading:
 
-"# Step 13 - Retraining Strategy POC"
+"# Step 14 - Model Rollback After Performance Degradation"
 
 Explain in simple terms:
 
-Retraining means rebuilding the model using newer labelled data so that the model can learn from more recent customer behaviour.
-
-Retraining should not happen blindly after every scoring run.
-
-Instead, retraining can be triggered when monitoring indicates that the model or input data has changed significantly.
-
-1. Define Possible Retraining Triggers
-
-Create a Markdown section listing these example triggers:
-
-A. Scheduled Retraining
-
-Example:
-
-- Quarterly
-- Half-yearly
-- Annually
-
-Explain that scheduled retraining is simple but may retrain even when the model is still healthy.
-
-B. Performance Degradation
+A newly promoted model may later show poor production behaviour.
 
 Examples:
 
 - Recall drops significantly
-- F1 drops significantly
-- ROC AUC drops significantly
-- False Negative Rate increases significantly
+- F1 deteriorates
+- False Negatives increase
+- prediction distribution becomes abnormal
+- business validation fails
 
-Explain that performance degradation is one of the strongest reasons to investigate retraining.
+In those situations, the model may need to be rolled back to the previous known-good Champion.
 
-C. Feature Drift
+1. Import and Configure MLflow
 
-Examples:
+Import:
 
-- Multiple important features show HIGH_DRIFT
-- New categories appear
-- Input distributions change significantly
+import pandas as pd
+import mlflow
+from datetime import datetime, timezone
+from mlflow.tracking import MlflowClient
 
-D. Prediction Behaviour Change
+Configure:
 
-Examples:
+mlflow.set_registry_uri("databricks-uc")
 
-- Predicted churn rate changes sharply
-- High-risk population changes significantly
-- Average churn probability changes unexpectedly
+REGISTERED_MODEL_NAME = "superdata_au_dev.mlops.superannuation_churn_model"
 
-E. Business/Data Changes
+client = MlflowClient()
 
-Examples:
+2. Display Existing Model Versions and Aliases
 
-- new products
-- new business rules
-- source-system changes
-- new features become available
-- major changes in member behaviour
+Retrieve all model versions.
 
-2. Create POC Retraining Rules
+Display:
 
-Define example POC rules such as:
+- version
+- run_id
+- status
+- aliases
+- creation timestamp
 
-- Performance health = "DEGRADED" → Retraining recommended
-- F1 drop > 10% → Retraining recommended
-- Recall drop > 10% → Retraining recommended
-- More than 3 HIGH_DRIFT features → Retraining investigation
-- Prediction churn-rate change > 20% → Investigation
-- No meaningful issues → No retraining required
+Retrieve:
+
+current_champion = client.get_model_version_by_alias(
+    REGISTERED_MODEL_NAME,
+    "Champion"
+)
+
+current_candidate = client.get_model_version_by_alias(
+    REGISTERED_MODEL_NAME,
+    "Candidate"
+)
+
+Print:
+
+"Current Champion -> Version X"
+
+"Current Candidate -> Version Y"
+
+Store the original Champion version:
+
+original_champion_version = current_champion.version
+
+Store the Candidate version:
+
+candidate_version = current_candidate.version
+
+3. Temporarily Promote Candidate to Champion
+
+Add Markdown:
+
+"## Simulate Candidate Promotion"
+
+Explain:
+
+For this POC, assume the Candidate has passed pre-production validation and is temporarily promoted to Champion.
+
+Use:
+
+client.set_registered_model_alias(
+    name=REGISTERED_MODEL_NAME,
+    alias="Champion",
+    version=candidate_version
+)
+
+Verify the alias after promotion.
+
+Print:
+
+"POC Promotion completed: Champion -> Version X"
+
+Clearly display:
+
+POC Note: This is a temporary demonstration promotion only.
+
+4. Simulate Post-Promotion Performance Monitoring
+
+Create a Markdown section:
+
+"## Simulate Performance Degradation"
+
+Explain that production monitoring may detect degraded model performance after deployment.
+
+For this POC, create clearly labelled simulated monitoring values.
+
+Use example values such as:
+
+baseline_recall = 0.86
+current_recall = 0.70
+
+baseline_f1 = 0.91
+current_f1 = 0.78
+
+baseline_roc_auc = 0.95
+current_roc_auc = 0.90
 
 Clearly state:
 
-POC Note: These thresholds are illustrative only and must be finalized with the business and ML team during production implementation.
+IMPORTANT: The following values are simulated only to demonstrate rollback logic. They are not actual measured results from Version 2.
 
-3. Read Existing Monitoring Results if Available
+Calculate percentage degradation for:
 
-Look under:
+- Recall
+- F1
+- ROC AUC
 
-"Output_Metrics/"
+5. Define POC Rollback Thresholds
 
-for the latest available files matching patterns such as:
+Use example thresholds:
 
-- "model_performance_monitoring_summary_*.csv"
-- "feature_drift_numeric_summary_*.csv"
-- "prediction_monitoring_summary_*.csv"
+- Recall degradation > 10% → rollback warning
+- F1 degradation > 10% → rollback warning
+- ROC AUC degradation > 5% → rollback warning
 
-Load the latest available monitoring files.
-
-If one of the monitoring outputs does not exist, print a friendly warning and continue.
-
-Do not fabricate monitoring results.
-
-4. Create Retraining Decision Logic
-
-Based on available monitoring results, determine:
-
-- performance_trigger
-- drift_trigger
-- prediction_trigger
-- scheduled_trigger
-
-Create simple boolean flags.
-
-Then calculate:
-
-"retraining_recommended"
-
-Use simple logic:
-
-- If performance is DEGRADED → True
-- OR if important degradation thresholds are breached → True
-- OR if several HIGH_DRIFT features are found → True
-- Otherwise → False
-
-Do not automatically retrain.
-
-5. Create Retraining Decision Summary
+Clearly label all thresholds as POC examples.
 
 Create a dataframe:
 
-"retraining_decision_summary"
+"rollback_monitoring_summary"
 
-with columns:
+with:
 
-- trigger_type
-- monitoring_result
-- threshold
-- trigger_status
-- recommended_action
+- metric
+- baseline_value
+- current_value
+- degradation_pct
+- threshold_pct
+- status
+
+Status:
+
+- "OK"
+- "ROLLBACK_WARNING"
+
+Display it.
+
+6. Determine Rollback Recommendation
+
+Create logic:
+
+If one or more critical metrics exceed the rollback threshold:
+
+Rollback Recommendation: YES
+
+Otherwise:
+
+Rollback Recommendation: NO
+
+Also calculate:
+
+"rollback_reason"
 
 Example:
 
-Trigger| Result| Status| Action
-F1 degradation| 4%| OK| Continue monitoring
-Recall degradation| 13%| TRIGGERED| Investigate retraining
-High drift features| 0| OK| No action
-Prediction-rate change| 6%| OK| Continue monitoring
+"Recall and F1 degradation exceeded POC thresholds."
 
-Display clearly.
+Print the reason clearly.
 
-6. Produce Overall Decision
+7. Add Manual Approval Gate
 
-Print one of:
+Do NOT perform rollback purely because the threshold fired.
 
-"Retraining Decision: NOT REQUIRED"
+Add:
 
-"Retraining Decision: INVESTIGATE"
-
-"Retraining Decision: RECOMMENDED"
-
-Explain why the decision was reached.
-
-Example:
-
-"Retraining recommended because Recall degradation exceeded the configured POC threshold."
-
-7. Explain What Happens After a Retraining Trigger
-
-Add Markdown explaining the future retraining flow:
-
-"New labelled data"
-
-→ "Rebuild training dataset"
-
-→ "Feature engineering"
-
-→ "Retrain model"
-
-→ "Hyperparameter tuning"
-
-→ "Evaluate against Champion"
-
-→ "Register new candidate version"
-
-→ "Validate"
-
-→ "Promote Candidate to Champion if approved"
-
-Explain that retraining does not automatically mean the new model should become Champion.
-
-8. Explain Human Approval / Governance
+APPROVE_ROLLBACK_FOR_POC = True
 
 Add Markdown explaining:
 
-For production, retraining may be automated, but model promotion should follow agreed governance and approval rules.
+In production, monitoring should raise an alert or recommendation, but rollback may require human approval/governance.
 
-A newly trained model should be compared against the existing Champion before promotion.
+Only perform rollback when:
 
-9. Scheduled vs Trigger-Based Retraining
+rollback_recommended == True
+and APPROVE_ROLLBACK_FOR_POC == True
 
-Create a simple Markdown comparison table:
+If approval is False, print:
 
-Approach| Description
-Scheduled| Retrain at fixed intervals
-Trigger-based| Retrain when monitoring thresholds are breached
-Hybrid| Scheduled review plus drift/performance triggers
+"Rollback recommended, but not executed because approval was not provided."
 
-For this churn use case, describe a hybrid strategy as a sensible production consideration, but do not present it as a final approved design.
+8. Perform Rollback
 
-10. Save Retraining Decision
+When both recommendation and approval are True:
+
+Move "Champion" back to:
+
+"original_champion_version"
+
+Use:
+
+client.set_registered_model_alias(
+    name=REGISTERED_MODEL_NAME,
+    alias="Champion",
+    version=original_champion_version
+)
+
+Print:
+
+"Rollback executed successfully."
+
+Print:
+
+"Champion restored to Version X"
+
+9. Verify Final Champion
+
+Retrieve the Champion alias again.
+
+Display:
+
+- alias
+- final version
+- run ID
+- status
+
+Validate that:
+
+final_champion.version == original_champion_version
+
+Print:
+
+"Rollback verification passed."
+
+10. Demonstrate Scoring URI Does Not Change
+
+Create:
+
+champion_uri = f"models:/{REGISTERED_MODEL_NAME}@Champion"
+
+Print the URI before and after rollback.
+
+Explain:
+
+The URI remains:
+
+"models:/superdata_au_dev.mlops.superannuation_churn_model@Champion"
+
+Only the model version behind the alias changes.
+
+Therefore the batch-scoring notebook does not require code changes.
+
+11. Create Rollback Audit Record
+
+Create a dataframe named:
+
+"rollback_audit"
+
+containing:
+
+- model_name
+- original_champion_version
+- promoted_candidate_version
+- rollback_recommended
+- rollback_approved
+- rollback_executed
+- final_champion_version
+- rollback_reason
+- rollback_timestamp
+
+Use UTC timestamp.
+
+Display it.
+
+12. Save POC Rollback Evidence
 
 Save:
 
-"retraining_decision_summary"
+"rollback_monitoring_summary"
 
 to:
 
-"Output_Metrics/retraining_decision_<current_date>.csv"
+"Output_Metrics/model_rollback_monitoring_<date>.csv"
+
+Save:
+
+"rollback_audit"
+
+to:
+
+"Output_Metrics/model_rollback_audit_<date>.csv"
 
 Use UTC date in "YYYYMMDD" format.
 
-Print the output path.
+Print both paths.
 
-11. Final Summary
+13. Add Team Demo Narrative
+
+Create a Markdown section named:
+
+"## Suggested Demo Story"
+
+Include this simple narrative:
+
+1. Version 1 is the known-good Champion.
+2. Version 2 is the tuned Candidate.
+3. Version 2 is temporarily promoted to Champion.
+4. Post-deployment monitoring identifies simulated Recall/F1 degradation.
+5. Monitoring recommends rollback.
+6. Manual approval is provided for the POC.
+7. Champion alias is redirected back to Version 1.
+8. Batch-scoring code continues using "@Champion" without modification.
+
+14. Final Summary
 
 Print:
 
-- Performance trigger status
-- Drift trigger status
-- Prediction trigger status
-- Overall retraining recommendation
+- Original Champion version
+- Temporarily promoted version
+- Number of rollback warnings
+- Rollback recommendation
+- Approval status
+- Final Champion version
+- Rollback execution status
 
 Print:
 
-"Step 13 completed successfully. Retraining strategy and trigger logic have been demonstrated."
+"Step 14 completed successfully. Promotion, simulated performance degradation, approval-based rollback, and recovery were demonstrated."
 
 Important Requirements
 
-- Do not retrain a model.
-- Do not create a new model version.
-- Do not modify aliases.
-- Do not automatically promote a model.
-- Use existing monitoring outputs where available.
-- Do not fabricate monitoring results.
-- Clearly identify all thresholds as POC examples.
-- Keep explanations simple and learning-oriented.
+- Clearly label simulated monitoring values as simulated.
+- Do not claim Version 2 actually performed badly.
+- Do not retrain any model.
+- Do not delete any version.
+- Restore the original Champion before the notebook finishes.
+- Use an explicit manual approval flag before rollback.
+- Do not permanently leave Version 2 as Champion.
+- Keep all explanations simple enough for a team demo.
