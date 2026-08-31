@@ -1,8 +1,8 @@
-Copilot Prompt — Step 12: Model Performance Monitoring POC
+Copilot Prompt — Step 13: Retraining Strategy POC
 
 Create a new Databricks notebook named:
 
-"12_model_performance_monitoring_poc.ipynb"
+"13_retraining_strategy_poc.ipynb"
 
 This notebook should continue from the existing MLOps POC.
 
@@ -15,360 +15,264 @@ Already completed:
 - Version 2 = Candidate
 - Batch scoring using "@Champion"
 - Model output schema
-- Unity Catalog output table
-- Databricks Job scheduling POC
+- Job scheduling POC
 - Prediction monitoring
-- Data / feature drift monitoring
-
-Existing datasets:
-
-Test features:
-
-"Test_ds/churn_X_test.csv"
-
-Actual labels:
-
-"Test_ds/churn_y_test.csv"
-
-Existing Champion registered model:
-
-"superdata_au_dev.mlops.superannuation_churn_model"
-
-Use the "Champion" alias dynamically.
+- Feature drift monitoring
+- Model performance monitoring
 
 Purpose
 
-Demonstrate model performance monitoring by comparing the Champion model predictions against actual known outcomes.
+Demonstrate a simple retraining decision strategy.
 
-The goal is to calculate current model performance metrics and compare them against a reference/baseline performance level.
+This step should answer:
 
-Do not retrain the model.
+"When should the churn model be retrained?"
+
+Do not actually retrain the model in this notebook.
+
+Do not create a new model version.
+
 Do not change Champion/Candidate aliases.
-Do not create another model version.
 
-Step 12 - Model Performance Monitoring
+Step 13 - Retraining Strategy POC
 
 Create a Markdown heading:
 
-"# Step 12 - Model Performance Monitoring POC"
+"# Step 13 - Retraining Strategy POC"
 
 Explain in simple terms:
 
-Prediction monitoring checks whether model outputs changed.
+Retraining means rebuilding the model using newer labelled data so that the model can learn from more recent customer behaviour.
 
-Feature drift monitoring checks whether input data changed.
+Retraining should not happen blindly after every scoring run.
 
-Performance monitoring checks whether the model is still making accurate predictions when actual outcomes become available.
+Instead, retraining can be triggered when monitoring indicates that the model or input data has changed significantly.
 
-Explain that in a real churn use case, actual churn outcomes may only become available after the defined outcome window has completed.
+1. Define Possible Retraining Triggers
 
-1. Import Required Libraries
+Create a Markdown section listing these example triggers:
 
-Import:
+A. Scheduled Retraining
 
-import pandas as pd
-import numpy as np
-import mlflow
+Example:
 
-from mlflow.tracking import MlflowClient
+- Quarterly
+- Half-yearly
+- Annually
 
-from sklearn.metrics import (
-    accuracy_score,
-    precision_score,
-    recall_score,
-    f1_score,
-    roc_auc_score,
-    confusion_matrix
-)
+Explain that scheduled retraining is simple but may retrain even when the model is still healthy.
 
-Configure:
+B. Performance Degradation
 
-mlflow.set_registry_uri("databricks-uc")
+Examples:
 
-REGISTERED_MODEL_NAME = "superdata_au_dev.mlops.superannuation_churn_model"
-MODEL_ALIAS = "Champion"
+- Recall drops significantly
+- F1 drops significantly
+- ROC AUC drops significantly
+- False Negative Rate increases significantly
 
-client = MlflowClient()
+Explain that performance degradation is one of the strongest reasons to investigate retraining.
 
-2. Resolve Current Champion Model Version
+C. Feature Drift
 
-Retrieve:
+Examples:
 
-champion_details = client.get_model_version_by_alias(
-    REGISTERED_MODEL_NAME,
-    MODEL_ALIAS
-)
+- Multiple important features show HIGH_DRIFT
+- New categories appear
+- Input distributions change significantly
 
-Print:
+D. Prediction Behaviour Change
 
-- model name
-- alias
-- actual model version
-- run ID
-- status
+Examples:
 
-Store:
+- Predicted churn rate changes sharply
+- High-risk population changes significantly
+- Average churn probability changes unexpectedly
 
-champion_version = champion_details.version
+E. Business/Data Changes
 
-Do not hardcode Version 1.
+Examples:
 
-3. Load Champion Model
+- new products
+- new business rules
+- source-system changes
+- new features become available
+- major changes in member behaviour
 
-Create:
+2. Create POC Retraining Rules
 
-champion_uri = f"models:/{REGISTERED_MODEL_NAME}@Champion"
+Define example POC rules such as:
 
-Load:
+- Performance health = "DEGRADED" → Retraining recommended
+- F1 drop > 10% → Retraining recommended
+- Recall drop > 10% → Retraining recommended
+- More than 3 HIGH_DRIFT features → Retraining investigation
+- Prediction churn-rate change > 20% → Investigation
+- No meaningful issues → No retraining required
 
-model = mlflow.sklearn.load_model(champion_uri)
+Clearly state:
 
-Print the loaded model type.
+POC Note: These thresholds are illustrative only and must be finalized with the business and ML team during production implementation.
 
-4. Load Test Features and Actual Outcomes
+3. Read Existing Monitoring Results if Available
 
-Load:
+Look under:
 
-"Test_ds/churn_X_test.csv"
+"Output_Metrics/"
 
-into:
+for the latest available files matching patterns such as:
 
-"X_test"
+- "model_performance_monitoring_summary_*.csv"
+- "feature_drift_numeric_summary_*.csv"
+- "prediction_monitoring_summary_*.csv"
 
-Load:
+Load the latest available monitoring files.
 
-"Test_ds/churn_y_test.csv"
+If one of the monitoring outputs does not exist, print a friendly warning and continue.
 
-into:
+Do not fabricate monitoring results.
 
-"y_test"
+4. Create Retraining Decision Logic
 
-Convert y_test to a 1-dimensional Series/array if necessary.
+Based on available monitoring results, determine:
 
-Validate that X_test and y_test row counts match.
+- performance_trigger
+- drift_trigger
+- prediction_trigger
+- scheduled_trigger
 
-Print:
+Create simple boolean flags.
 
-- total records
-- actual churn count
-- actual non-churn count
-- actual churn rate
+Then calculate:
 
-5. Generate Current Champion Predictions
+"retraining_recommended"
 
-Generate:
+Use simple logic:
 
-y_pred = model.predict(X_test)
+- If performance is DEGRADED → True
+- OR if important degradation thresholds are breached → True
+- OR if several HIGH_DRIFT features are found → True
+- Otherwise → False
 
-If supported:
+Do not automatically retrain.
 
-y_prob = model.predict_proba(X_test)[:, 1]
-
-Do not retrain the model.
-
-6. Calculate Current Performance Metrics
-
-Calculate:
-
-- Accuracy
-- Precision
-- Recall
-- F1 Score
-- ROC AUC
-- Confusion Matrix
-
-Store results in:
-
-current_metrics
-
-Display clearly.
-
-For confusion matrix, derive and print:
-
-- True Negative
-- False Positive
-- False Negative
-- True Positive
-
-Add simple Markdown explanation of why False Negatives may be important for churn:
-
-A False Negative means an account that actually churned was predicted as non-churn.
-
-7. Obtain Baseline Performance
-
-Try to retrieve the original baseline metrics from the MLflow run associated with the Champion version.
-
-Use:
-
-baseline_run_id = champion_details.run_id
-baseline_run = client.get_run(baseline_run_id)
-
-Read available metrics such as:
-
-- accuracy
-- precision
-- recall
-- f1_score
-- roc_auc
-
-If the expected metrics are not available in that registered model run, fall back to clearly defined POC baseline metrics calculated from the same existing baseline model evaluation workflow.
-
-Do not fabricate values.
-
-Clearly indicate whether baseline values came from MLflow or were recalculated.
-
-Store baseline metrics in:
-
-baseline_metrics
-
-8. Compare Baseline vs Current Performance
-
-Create a dataframe with:
-
-- Metric
-- Baseline Value
-- Current Value
-- Absolute Change
-- Percentage Change
-
-Include:
-
-- Accuracy
-- Precision
-- Recall
-- F1
-- ROC AUC
-
-Display the table.
-
-9. Define POC Performance-Degradation Thresholds
-
-Use example thresholds:
-
-- Accuracy drop > 5% → WARNING
-- Precision drop > 10% → WARNING
-- Recall drop > 10% → WARNING
-- F1 drop > 10% → WARNING
-- ROC AUC drop > 5% → WARNING
-
-Interpret these as relative percentage drops where practical.
-
-Add this Markdown note:
-
-POC Note: These thresholds are examples only. Final production thresholds must be agreed based on business impact, model behaviour, and risk tolerance.
-
-10. Create Performance Monitoring Status
+5. Create Retraining Decision Summary
 
 Create a dataframe:
 
-"performance_monitoring_summary"
+"retraining_decision_summary"
 
 with columns:
 
-- metric
-- baseline_value
-- current_value
-- change
-- percentage_change
-- allowed_drop_threshold
-- status
+- trigger_type
+- monitoring_result
+- threshold
+- trigger_status
+- recommended_action
 
-Status should be:
+Example:
 
-- "OK"
-- "WARNING"
+Trigger| Result| Status| Action
+F1 degradation| 4%| OK| Continue monitoring
+Recall degradation| 13%| TRIGGERED| Investigate retraining
+High drift features| 0| OK| No action
+Prediction-rate change| 6%| OK| Continue monitoring
 
-Display it with WARNING metrics first.
+Display clearly.
 
-11. Confusion Matrix Monitoring
+6. Produce Overall Decision
 
-Create a small comparison or summary showing:
+Print one of:
 
-- TN
-- FP
-- FN
-- TP
-- False Negative Rate
-- False Positive Rate
+"Retraining Decision: NOT REQUIRED"
 
-Explain:
+"Retraining Decision: INVESTIGATE"
 
-For a churn model, increasing False Negatives may be particularly important because members likely to churn could be missed by retention intervention.
+"Retraining Decision: RECOMMENDED"
 
-12. Overall Model Health Status
+Explain why the decision was reached.
 
-Define simple POC logic:
+Example:
 
-- No warnings → "HEALTHY"
-- 1 or 2 warnings → "REVIEW"
-- More than 2 warnings → "DEGRADED"
+"Retraining recommended because Recall degradation exceeded the configured POC threshold."
 
-Print:
+7. Explain What Happens After a Retraining Trigger
 
-Overall model health: HEALTHY / REVIEW / DEGRADED
+Add Markdown explaining the future retraining flow:
 
-Clearly state this is POC logic only.
+"New labelled data"
 
-13. Save Monitoring Results
+→ "Rebuild training dataset"
 
-Use current UTC date in "YYYYMMDD" format.
+→ "Feature engineering"
+
+→ "Retrain model"
+
+→ "Hyperparameter tuning"
+
+→ "Evaluate against Champion"
+
+→ "Register new candidate version"
+
+→ "Validate"
+
+→ "Promote Candidate to Champion if approved"
+
+Explain that retraining does not automatically mean the new model should become Champion.
+
+8. Explain Human Approval / Governance
+
+Add Markdown explaining:
+
+For production, retraining may be automated, but model promotion should follow agreed governance and approval rules.
+
+A newly trained model should be compared against the existing Champion before promotion.
+
+9. Scheduled vs Trigger-Based Retraining
+
+Create a simple Markdown comparison table:
+
+Approach| Description
+Scheduled| Retrain at fixed intervals
+Trigger-based| Retrain when monitoring thresholds are breached
+Hybrid| Scheduled review plus drift/performance triggers
+
+For this churn use case, describe a hybrid strategy as a sensible production consideration, but do not present it as a final approved design.
+
+10. Save Retraining Decision
 
 Save:
 
-"Output_Metrics/model_performance_monitoring_summary_<date>.csv"
+"retraining_decision_summary"
 
-Also optionally save:
+to:
 
-"Output_Metrics/model_performance_confusion_matrix_<date>.csv"
+"Output_Metrics/retraining_decision_<current_date>.csv"
 
-Print the generated paths.
+Use UTC date in "YYYYMMDD" format.
 
-14. Explain Production Performance Monitoring
+Print the output path.
 
-Add a Markdown section explaining that in production:
-
-1. Batch scoring happens first.
-2. Actual churn outcome may become available weeks/months later.
-3. Predictions are joined with actual outcomes.
-4. Model metrics are recalculated.
-5. Performance degradation can trigger investigation or retraining.
-
-Explain that performance monitoring therefore normally has a delay compared with prediction monitoring.
-
-15. Relationship Between Monitoring Types
-
-Add a simple Markdown table:
-
-Monitoring Type| Main Question
-Prediction Monitoring| Have model outputs changed?
-Feature Drift Monitoring| Has input data changed?
-Performance Monitoring| Is the model still accurate?
-
-16. Final Summary
+11. Final Summary
 
 Print:
 
-- Champion model version
-- Baseline F1
-- Current F1
-- Baseline Recall
-- Current Recall
-- Baseline ROC AUC
-- Current ROC AUC
-- Number of WARNING metrics
-- Overall model health
+- Performance trigger status
+- Drift trigger status
+- Prediction trigger status
+- Overall retraining recommendation
 
 Print:
 
-"Step 12 completed successfully. Model performance monitoring has been demonstrated."
+"Step 13 completed successfully. Retraining strategy and trigger logic have been demonstrated."
 
 Important Requirements
 
-- Do not retrain the model.
+- Do not retrain a model.
 - Do not create a new model version.
-- Do not modify Champion/Candidate aliases.
-- Use "@Champion" dynamically.
-- Use actual y_test outcomes for the POC.
-- Do not fabricate baseline metrics.
-- Clearly distinguish POC thresholds from production thresholds.
-- Add simple Markdown explanations before each major section.
+- Do not modify aliases.
+- Do not automatically promote a model.
+- Use existing monitoring outputs where available.
+- Do not fabricate monitoring results.
+- Clearly identify all thresholds as POC examples.
+- Keep explanations simple and learning-oriented.
