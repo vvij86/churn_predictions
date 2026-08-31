@@ -1,8 +1,8 @@
-Copilot Prompt — Step 11: Data / Feature Drift Monitoring POC
+Copilot Prompt — Step 12: Model Performance Monitoring POC
 
 Create a new Databricks notebook named:
 
-"11_feature_drift_monitoring_poc.ipynb"
+"12_model_performance_monitoring_poc.ipynb"
 
 This notebook should continue from the existing MLOps POC.
 
@@ -15,45 +15,52 @@ Already completed:
 - Version 2 = Candidate
 - Batch scoring using "@Champion"
 - Model output schema
-- Unity Catalog scoring output table
+- Unity Catalog output table
 - Databricks Job scheduling POC
-- Prediction monitoring POC
+- Prediction monitoring
+- Data / feature drift monitoring
 
 Existing datasets:
 
-Training data:
-
-"Training_ds/churn_X_train.csv"
-
-Current scoring/test data:
+Test features:
 
 "Test_ds/churn_X_test.csv"
 
+Actual labels:
+
+"Test_ds/churn_y_test.csv"
+
+Existing Champion registered model:
+
+"superdata_au_dev.mlops.superannuation_churn_model"
+
+Use the "Champion" alias dynamically.
+
 Purpose
 
-Demonstrate basic feature drift monitoring by comparing the feature distribution used during model development/training against the current scoring dataset.
+Demonstrate model performance monitoring by comparing the Champion model predictions against actual known outcomes.
 
-The purpose is to identify whether input data characteristics have changed significantly.
+The goal is to calculate current model performance metrics and compare them against a reference/baseline performance level.
 
 Do not retrain the model.
 Do not change Champion/Candidate aliases.
 Do not create another model version.
 
-Step 11 - Data / Feature Drift Monitoring
+Step 12 - Model Performance Monitoring
 
 Create a Markdown heading:
 
-"# Step 11 - Data / Feature Drift Monitoring POC"
+"# Step 12 - Model Performance Monitoring POC"
 
 Explain in simple terms:
 
-Feature drift means that the data being given to the model today looks different from the data the model originally learned from.
+Prediction monitoring checks whether model outputs changed.
 
-Example:
+Feature drift monitoring checks whether input data changed.
 
-If average withdrawal count during training was 2 but current scoring data has an average of 8, that feature may have drifted.
+Performance monitoring checks whether the model is still making accurate predictions when actual outcomes become available.
 
-Explain that feature drift does not automatically mean the model is wrong, but it indicates that investigation may be required.
+Explain that in a real churn use case, actual churn outcomes may only become available after the defined outcome window has completed.
 
 1. Import Required Libraries
 
@@ -61,20 +68,64 @@ Import:
 
 import pandas as pd
 import numpy as np
+import mlflow
 
-Also import any simple statistical utilities required from scipy only if scipy is already available.
+from mlflow.tracking import MlflowClient
 
-Do not install new libraries.
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    roc_auc_score,
+    confusion_matrix
+)
 
-2. Load Reference and Current Data
+Configure:
+
+mlflow.set_registry_uri("databricks-uc")
+
+REGISTERED_MODEL_NAME = "superdata_au_dev.mlops.superannuation_churn_model"
+MODEL_ALIAS = "Champion"
+
+client = MlflowClient()
+
+2. Resolve Current Champion Model Version
+
+Retrieve:
+
+champion_details = client.get_model_version_by_alias(
+    REGISTERED_MODEL_NAME,
+    MODEL_ALIAS
+)
+
+Print:
+
+- model name
+- alias
+- actual model version
+- run ID
+- status
+
+Store:
+
+champion_version = champion_details.version
+
+Do not hardcode Version 1.
+
+3. Load Champion Model
+
+Create:
+
+champion_uri = f"models:/{REGISTERED_MODEL_NAME}@Champion"
 
 Load:
 
-"Training_ds/churn_X_train.csv"
+model = mlflow.sklearn.load_model(champion_uri)
 
-into:
+Print the loaded model type.
 
-"reference_df"
+4. Load Test Features and Actual Outcomes
 
 Load:
 
@@ -82,284 +133,242 @@ Load:
 
 into:
 
-"current_df"
+"X_test"
+
+Load:
+
+"Test_ds/churn_y_test.csv"
+
+into:
+
+"y_test"
+
+Convert y_test to a 1-dimensional Series/array if necessary.
+
+Validate that X_test and y_test row counts match.
+
+Print:
+
+- total records
+- actual churn count
+- actual non-churn count
+- actual churn rate
+
+5. Generate Current Champion Predictions
+
+Generate:
+
+y_pred = model.predict(X_test)
+
+If supported:
+
+y_prob = model.predict_proba(X_test)[:, 1]
+
+Do not retrain the model.
+
+6. Calculate Current Performance Metrics
+
+Calculate:
+
+- Accuracy
+- Precision
+- Recall
+- F1 Score
+- ROC AUC
+- Confusion Matrix
+
+Store results in:
+
+current_metrics
+
+Display clearly.
+
+For confusion matrix, derive and print:
+
+- True Negative
+- False Positive
+- False Negative
+- True Positive
+
+Add simple Markdown explanation of why False Negatives may be important for churn:
+
+A False Negative means an account that actually churned was predicted as non-churn.
+
+7. Obtain Baseline Performance
+
+Try to retrieve the original baseline metrics from the MLflow run associated with the Champion version.
+
+Use:
+
+baseline_run_id = champion_details.run_id
+baseline_run = client.get_run(baseline_run_id)
+
+Read available metrics such as:
+
+- accuracy
+- precision
+- recall
+- f1_score
+- roc_auc
+
+If the expected metrics are not available in that registered model run, fall back to clearly defined POC baseline metrics calculated from the same existing baseline model evaluation workflow.
+
+Do not fabricate values.
+
+Clearly indicate whether baseline values came from MLflow or were recalculated.
+
+Store baseline metrics in:
+
+baseline_metrics
+
+8. Compare Baseline vs Current Performance
+
+Create a dataframe with:
+
+- Metric
+- Baseline Value
+- Current Value
+- Absolute Change
+- Percentage Change
+
+Include:
+
+- Accuracy
+- Precision
+- Recall
+- F1
+- ROC AUC
+
+Display the table.
+
+9. Define POC Performance-Degradation Thresholds
+
+Use example thresholds:
+
+- Accuracy drop > 5% → WARNING
+- Precision drop > 10% → WARNING
+- Recall drop > 10% → WARNING
+- F1 drop > 10% → WARNING
+- ROC AUC drop > 5% → WARNING
+
+Interpret these as relative percentage drops where practical.
+
+Add this Markdown note:
+
+POC Note: These thresholds are examples only. Final production thresholds must be agreed based on business impact, model behaviour, and risk tolerance.
+
+10. Create Performance Monitoring Status
+
+Create a dataframe:
+
+"performance_monitoring_summary"
+
+with columns:
+
+- metric
+- baseline_value
+- current_value
+- change
+- percentage_change
+- allowed_drop_threshold
+- status
+
+Status should be:
+
+- "OK"
+- "WARNING"
+
+Display it with WARNING metrics first.
+
+11. Confusion Matrix Monitoring
+
+Create a small comparison or summary showing:
+
+- TN
+- FP
+- FN
+- TP
+- False Negative Rate
+- False Positive Rate
 
 Explain:
 
-- "reference_df" represents the model development/training feature distribution
-- "current_df" represents the current scoring feature distribution for this POC
+For a churn model, increasing False Negatives may be particularly important because members likely to churn could be missed by retention intervention.
+
+12. Overall Model Health Status
+
+Define simple POC logic:
+
+- No warnings → "HEALTHY"
+- 1 or 2 warnings → "REVIEW"
+- More than 2 warnings → "DEGRADED"
 
 Print:
 
-- reference row count
-- current row count
-- number of columns
-- common columns
+Overall model health: HEALTHY / REVIEW / DEGRADED
 
-3. Validate Feature Compatibility
+Clearly state this is POC logic only.
 
-Identify:
-
-- common columns
-- columns present only in reference
-- columns present only in current
-
-Display these clearly.
-
-Only compare features that exist in both datasets.
-
-Do not compare target columns.
-
-Do not compare identifiers such as account_id if present.
-
-Create a configurable exclusion list for:
-
-- identifiers
-- target fields
-- obvious metadata fields
-
-4. Separate Numeric and Categorical Features
-
-Automatically identify:
-
-- numeric columns
-- categorical/string columns
-
-Print:
-
-- number of numeric features
-- number of categorical features
-
-For this POC, prioritize numeric feature drift.
-
-5. Numeric Feature Drift Summary
-
-For every numeric feature, calculate:
-
-Reference data:
-
-- mean
-- median
-- standard deviation
-- minimum
-- maximum
-- null percentage
-
-Current data:
-
-- mean
-- median
-- standard deviation
-- minimum
-- maximum
-- null percentage
-
-Calculate:
-
-- absolute mean difference
-- percentage mean change
-- null percentage change
-
-Handle cases where the reference mean is zero safely.
-
-Create a dataframe named:
-
-"numeric_drift_summary"
-
-6. Define Simple POC Drift Thresholds
-
-Use simple example thresholds:
-
-- Mean percentage change <= 10% → "LOW"
-- Mean percentage change > 10% and <= 25% → "MEDIUM"
-- Mean percentage change > 25% → "HIGH"
-
-Also flag a feature if null percentage changes by more than 10 percentage points.
-
-Clearly state:
-
-POC Note: These drift thresholds are examples only. Production thresholds must be determined based on feature behaviour, statistical analysis, business context, and model sensitivity.
-
-7. Assign Drift Status
-
-For each numeric feature assign:
-
-- "NO_DRIFT"
-- "WARNING"
-- "HIGH_DRIFT"
-
-Create columns such as:
-
-- feature_name
-- reference_mean
-- current_mean
-- mean_change_pct
-- reference_null_pct
-- current_null_pct
-- null_change_pct_points
-- drift_status
-
-Sort with "HIGH_DRIFT" features first.
-
-Display the top drifted features.
-
-8. Categorical Feature Drift
-
-For categorical features, perform a simple comparison.
-
-For each categorical feature:
-
-- reference distinct count
-- current distinct count
-- top category in reference
-- top category percentage in reference
-- top category in current
-- top category percentage in current
-
-Also identify:
-
-- new categories present in current but not reference
-- categories missing from current
-
-Create:
-
-"categorical_drift_summary"
-
-Do not use complex statistical testing.
-
-9. Create Overall Drift Summary
-
-Calculate:
-
-- total numeric features checked
-- number with NO_DRIFT
-- number with WARNING
-- number with HIGH_DRIFT
-- number of categorical features checked
-- number containing new categories
-
-Print an overall summary.
-
-Example:
-
-Numeric features checked: 25
-No drift: 18
-Warning: 5
-High drift: 2
-Categorical features checked: 4
-Features with new categories: 1
-
-10. Visualize Most Drifted Features
-
-Select the top 5 numeric features by absolute mean percentage change.
-
-Create simple bar charts using matplotlib.
-
-Show:
-
-- feature name
-- reference mean
-- current mean
-
-Keep charts simple and readable.
-
-Do not use seaborn.
-
-11. Save Drift Monitoring Results
-
-Save:
-
-"numeric_drift_summary"
-
-to:
-
-"Output_Metrics/feature_drift_numeric_summary_<current_date>.csv"
-
-Save:
-
-"categorical_drift_summary"
-
-to:
-
-"Output_Metrics/feature_drift_categorical_summary_<current_date>.csv"
+13. Save Monitoring Results
 
 Use current UTC date in "YYYYMMDD" format.
 
-Do not overwrite unrelated files.
+Save:
 
-Print saved paths.
+"Output_Metrics/model_performance_monitoring_summary_<date>.csv"
 
-12. Optional Unity Catalog Drift Table Design
+Also optionally save:
 
-Add a Markdown-only section explaining that in production the drift results could be persisted into tables such as:
+"Output_Metrics/model_performance_confusion_matrix_<date>.csv"
 
-"superdata_au_dev.mlops.feature_drift_monitoring"
+Print the generated paths.
 
-Possible columns:
+14. Explain Production Performance Monitoring
 
-- scoring_date
-- feature_name
-- reference_value
-- current_value
-- change_percentage
-- drift_status
-- model_name
-- model_version
+Add a Markdown section explaining that in production:
 
-Do not create this production monitoring table automatically in this POC.
+1. Batch scoring happens first.
+2. Actual churn outcome may become available weeks/months later.
+3. Predictions are joined with actual outcomes.
+4. Model metrics are recalculated.
+5. Performance degradation can trigger investigation or retraining.
 
-13. Explain Relationship to Prediction Monitoring
+Explain that performance monitoring therefore normally has a delay compared with prediction monitoring.
 
-Add Markdown explaining:
+15. Relationship Between Monitoring Types
 
-Prediction Monitoring asks:
+Add a simple Markdown table:
 
-"Has the model output changed?"
+Monitoring Type| Main Question
+Prediction Monitoring| Have model outputs changed?
+Feature Drift Monitoring| Has input data changed?
+Performance Monitoring| Is the model still accurate?
 
-Feature Drift Monitoring asks:
-
-"Has the model input data changed?"
-
-Example:
-
-If predicted churn suddenly increases, feature drift monitoring can help identify whether changes in contribution, withdrawal, tenure, or other input features may be contributing to that change.
-
-14. Explain Production Improvements
-
-Add Markdown explaining that production drift monitoring could later use more robust methods such as:
-
-- Population Stability Index (PSI)
-- Kolmogorov-Smirnov test
-- Jensen-Shannon divergence
-- distribution-based monitoring
-- Databricks monitoring capabilities if available
-
-Do not implement these advanced methods in this notebook.
-
-15. Final Summary
+16. Final Summary
 
 Print:
 
-- reference dataset
-- current dataset
-- number of numeric features checked
-- number of warning features
-- number of high-drift features
-- top 5 drifted features
-- number of categorical features with new categories
+- Champion model version
+- Baseline F1
+- Current F1
+- Baseline Recall
+- Current Recall
+- Baseline ROC AUC
+- Current ROC AUC
+- Number of WARNING metrics
+- Overall model health
 
 Print:
 
-"Step 11 completed successfully. Data and feature drift monitoring has been demonstrated."
+"Step 12 completed successfully. Model performance monitoring has been demonstrated."
 
 Important Requirements
 
 - Do not retrain the model.
-- Do not modify model aliases.
-- Do not create another model version.
-- Do not perform prediction monitoring again.
-- Do not use Hyperopt.
-- Do not install extra libraries.
-- Keep the POC implementation simple.
-- Clearly label all thresholds as POC examples.
-- Add Markdown explanations before every major section.
+- Do not create a new model version.
+- Do not modify Champion/Candidate aliases.
+- Use "@Champion" dynamically.
+- Use actual y_test outcomes for the POC.
+- Do not fabricate baseline metrics.
+- Clearly distinguish POC thresholds from production thresholds.
+- Add simple Markdown explanations before each major section.
