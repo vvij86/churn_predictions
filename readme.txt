@@ -1,1 +1,2 @@
-Review the Databricks MLflow/MLOps POC covering model registration, model promotion/versioning, batch scoring, monitoring, retraining strategy, and rollback. Provide feedback and recommendations for any required changes.
+“Tasks 2889383 and 2889384 related to the Databricks MLOps lifecycle are completed. I’ve also created a review task and assigned it to Sai.
+Currently, I’m working on task 2901214, which is to investigate and set up the Databricks ML runtime environment and check library compatibility. Once that is completed, I’ll resume my work on reviewing the existing propensity procedures and tables from MercerEdge.”
