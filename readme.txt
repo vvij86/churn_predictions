@@ -1,1 +1,1 @@
-“Almost done with my Databricks MLflow POC task. I’m currently working on the documentation. Once that’s completed, I’ll resume my MercerEdge data exploration task. No blockers from my side.”
+Train model → Register it → Approve the best version → Give it customer accounts → Generate risk scores → Run it automatically every month → Watch its predictions → Watch whether customer behaviour changes → Check whether predictions are still accurate → Retrain if needed → Go back to the old model if the new one fails.
