@@ -1,1 +1,1 @@
-Train model → Register it → Approve the best version → Give it customer accounts → Generate risk scores → Run it automatically every month → Watch its predictions → Watch whether customer behaviour changes → Check whether predictions are still accurate → Retrain if needed → Go back to the old model if the new one fails.
+Review the Databricks MLflow/MLOps POC covering model registration, model promotion/versioning, batch scoring, monitoring, retraining strategy, and rollback. Provide feedback and recommendations for any required changes.
