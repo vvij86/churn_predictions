@@ -1,2 +1,11 @@
-“Tasks 2889383 and 2889384 related to the Databricks MLOps lifecycle are completed. I’ve also created a review task and assigned it to Sai.
-Currently, I’m working on task 2901214, which is to investigate and set up the Databricks ML runtime environment and check library compatibility. Once that is completed, I’ll resume my work on reviewing the existing propensity procedures and tables from MercerEdge.”
+Ticket Request: Provision Databricks ML Development Cluster for Mercer Churn Project
+
+[Cluster Specifications]
+- Cluster Type: All-Purpose (Interactive Development)
+- Access Mode: Single User (Data Privacy Isolation Policy)
+- Runtime: Databricks Runtime 18.0 LTS ML (or highest available 17.x LTS ML)
+- Engine: Photon Acceleration Enabled
+- Scaling: Enabled (Minimum 2 Workers / Maximum 8 Workers)
+- Auto-Termination: 30 minutes of inactivity
+- Instance Strategy: Spot Instances for Workers (to optimize cloud budget), On-Demand for Driver.
+- Node Type Requirement: Memory-Optimized (Minimum 16GB RAM per core, r-family or equivalent).
