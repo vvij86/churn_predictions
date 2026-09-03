@@ -68,3 +68,16 @@ To finalize your ticket, let me know:
 
 I can map these structural options directly to the exact vendor-specific codes (e.g., Azure VM series or AWS EC2 codes) you need.
 
+
+
+Runtime: Databricks Runtime 18 LTS ML
+Access mode: Dedicated
+Cluster type: All-purpose development compute
+Hardware: CPU
+Workers: Autoscaling 2–8
+Auto termination: 30–60 minutes
+Unity Catalog enabled: Yes
+MLflow/Model Registry access: Yes
+Library installation: Enabled
+Databricks Jobs access: Yes
+
