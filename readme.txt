@@ -1,3 +1,1 @@
-As part of the upcoming Retention Analytics ML development, could you please confirm whether any existing Databricks ML Runtime cluster/compute is available in the AU or EU workspaces?
-If available, please share the relevant cluster details.
-Thanks.
+Good morning, I’ll be away from 11:00 AM to 12:30 PM IST (3:30 PM to 5:00 PM AEST) today to attend my kid’s school function. I’ll be back online around 12:30 PM IST (5:00 PM AEST).
