@@ -1,16 +1,19 @@
-Got it. Since the user story already exists, you can split the 3-day exploration work into smaller ADO tasks like this:
 
-Task	Description	Estimate
+For the first ML build by the first week of October, you can estimate the stories like this, assuming 1 day = 6 hours:
 
-1. MercerEdgeDB Table & Schema Review	Review the identified MercerEdgeDB tables, understand columns, data types, row volumes, primary/join keys, and table relationships.	6 hrs
-2. MercerEdgeDB Data Quality & Historical Coverage Analysis	Check nulls, duplicates, value distributions, date coverage, and whether the available history is sufficient for churn modelling.	6 hrs
-3. Churn Driver Identification & Documentation	Identify potential churn-driver columns/features from the explored tables and document findings, assumptions, and recommended fields for feature engineering.	6 hrs
+Story	Estimate
+
+Data Exploration & Churn Driver Identification	12 hrs / 2 days
+Churn Target & Modelling Dataset Definition	12 hrs / 2 days
+Feature Engineering & Model Dataset Preparation	24 hrs / 4 days
+Data Validation & Train/Test Preparation	12 hrs / 2 days
+Baseline & Candidate Model Development	18 hrs / 3 days
+Model Evaluation & First Model Selection	12 hrs / 2 days
+First Scoring Output / Churn Prediction Build	12 hrs / 2 days
 
 
-Total = 18 hours = 3 days.
+Total: 102 hours = 17 working days
 
-A simple sequence is:
+This is a reasonable estimate for a first ML build, assuming MercerEdgeDB access is ready and the churn definition/business rules do not require major rework.
 
-Schema/relationships → Data quality/history → Churn-driver identification/documentation
-
-That division is cleaner for ADO than creating one 18-hour task.
+For planning, I would keep hyperparameter tuning, explainability, MLflow registration, production deployment, API endpoint, monitoring, and retraining as later stories rather than including them in the October first-build scope.
