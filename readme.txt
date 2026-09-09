@@ -1,94 +1,59 @@
-The current Phase 3 SQL is excluding accounts where accountSummary.reportingDate is NULL because reportingDate is being used directly as as_of_date.
+Yes, that’s a good idea.
 
-Please correct the existing Phase 3 SQL.
+If the DAAS Data Dictionary contains definitions for ACCOUNT, ACCOUNTSUMMARY, reporting dates, refresh logic, table grain, filters, or source population rules, it may explain why ACCOUNT has ~6.3M accounts while ACCOUNTSUMMARY has only ~1.3M rows/accounts.
 
-Important requirements:
+You can upload the document into VS Code/Copilot and ask something like:
 
-The modelling grain remains: one row per account_id per as_of_date
+> Review this DAAS Data Dictionary and help me understand the population difference between edgeSource.account and edgeSource.accountSummary.
 
-as_of_date must be an explicit modelling snapshot date/parameter and must not depend on reportingDate being non-null.
+I observed approximately:
 
-Build the base account universe from all valid accountID values.
+edgeSource.account = 6,304,028 accounts
 
-Do NOT exclude an account solely because reportingDate is NULL.
-
-
-Use an explicit parameter such as:
-
-DECLARE @as_of_date DATE = '2025-12-31';
-
-For accountSummary attributes:
-
-If reportingDate is available, select the latest valid record on or before @as_of_date.
-
-If multiple records exist for the same account, use ROW_NUMBER() or equivalent logic to select the latest valid snapshot.
-
-Do not use records with reportingDate > @as_of_date.
+edgeSource.accountSummary = about 1,315,100 rows/accounts
 
 
-For accounts where reportingDate is NULL:
+Please search the document specifically for definitions or rules related to:
 
-retain the account in the account universe
+account
 
-do not automatically use the NULL-dated row as a historical snapshot
+accountSummary
 
-first check whether another reliable source/date column can establish when that record was valid
+table grain
 
-if no reliable temporal date exists, keep the account but set affected time-sensitive accountSummary features to NULL
+reportingDate
 
-flag those records/features for business/data validation
+snapshot logic
 
-do not drop the account
+active/current accounts
 
+historical coverage
 
-Do not use a current/null-dated record for a historical as_of_date unless it is proven that the record was available at that time.
+account eligibility
 
-Keep memberNumber/member_id as a reference field only and do not use it as a predictive ML feature.
+fund/product filters
 
-Do not change the account-level grain.
+ETL/loading rules
 
-Update the existing build_account_level_features.sql rather than rebuilding the entire Phase 3 solution.
-
-Also add validation SQL showing:
-
-1. total distinct accounts in the source/base account universe
+exclusions
 
 
-2. total accounts in the final feature dataset
+I want to know whether the document explains why accountSummary contains only a subset of the accounts available in account.
+
+Do not guess. Quote or reference the relevant section/page from the document and clearly separate:
+
+1. what the document explicitly says
 
 
-3. accounts excluded from the final feature dataset
+2. what can reasonably be inferred
 
 
-4. accounts with NULL reportingDate
-
-
-5. accounts with no valid accountSummary snapshot on or before @as_of_date
-
-
-6. duplicate account_id + as_of_date combinations
-
-
-7. null account_id
-
-
-8. null as_of_date
+3. what still requires confirmation from the data/platform team.
 
 
 
-The final feature dataset should still contain:
-
-account_id
-
-related memberNumber/member_id
-
-as_of_date
-
-engineered account-level features
+Also tell me whether account or accountSummary should be treated as the base account universe for an account-level churn modelling dataset.
 
 
-and must contain only one row per:
 
-account_id + as_of_date
-
-Do not add target_churn yet.
+That prompt should keep Copilot focused on finding an actual documented reason rather than inventing one.
