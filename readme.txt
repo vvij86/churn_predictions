@@ -1,1 +1,3 @@
-Hi Hema, could you please share the UK workspace admin contact details as well, so I can reach out to them regarding the required ML cluster setup? Thanks.
+You can add this as a short comment:
+
+I need to coordinate with the UK and AU workspace admins for the ML cluster creation. I’m currently following up with the support team to obtain the UK workspace admin contact details.
