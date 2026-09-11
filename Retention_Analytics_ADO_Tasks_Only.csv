@@ -1,0 +1,69 @@
+﻿Work Item Type,Title,Description,Tags
+Task,Define churn/retention target and eligibility rules,"Confirm the churn/retention definition, eligible population, exclusions and applicable business rules for modelling.",ParentStory-2931287;Story-4.3.1
+Task,"Define as-of date, feature window and outcome window","Document the observation date, historical feature period and future outcome period used to create features and labels.",ParentStory-2931287;Story-4.3.1
+Task,Identify required source fields and approved views,Confirm the Databricks source tables/views and fields required to build the churn modelling dataset.,ParentStory-2931287;Story-4.3.1
+Task,Join and prepare source data,"Join required source datasets, standardise fields and apply agreed preparation and business-rule logic.",ParentStory-2931287;Story-4.3.1
+Task,Build account-level modelling dataset,Create the modelling dataset at one row per account_id per as_of_date with lower-level records aggregated to account level.,ParentStory-2931287;Story-4.3.1
+Task,Validate modelling dataset grain and record counts,"Check uniqueness, row counts, account coverage and expected population after dataset creation.",ParentStory-2931287;Story-4.3.1
+Task,Develop tenure and lifecycle features,"Create account tenure, lifecycle and relevant time-based features available as of the observation date.",ParentStory-2931298;Story-4.3.2
+Task,Develop product and account features,Create approved product and account attributes required for churn modelling and segmentation.,ParentStory-2931298;Story-4.3.2
+Task,Develop transaction and contribution features,"Create account-level transaction and contribution aggregates such as amount, count, frequency and recency.",ParentStory-2931298;Story-4.3.2
+Task,Develop rollover and withdrawal features,"Create account-level rollover and withdrawal behaviour features, including relevant partial/full activity indicators.",ParentStory-2931298;Story-4.3.2
+Task,Develop engagement features,Create account-level engagement features from approved interaction and engagement data sources.,ParentStory-2931298;Story-4.3.2
+Task,Develop trend features,Create trend/change features that capture changes in customer behaviour over agreed historical periods.,ParentStory-2931298;Story-4.3.2
+Task,Implement categorical-value treatment,Apply consistent encoding/grouping logic for categorical features used by the modelling pipeline.,ParentStory-2931298;Story-4.3.2
+Task,Implement missing-value treatment,Apply deterministic missing-value handling appropriate to each feature and document the treatment.,ParentStory-2931298;Story-4.3.2
+Task,Validate feature data quality,"Review feature completeness, ranges, nulls and unexpected values before model development.",ParentStory-2931313;Story-4.3.3
+Task,Validate duplicates and account-level grain,Confirm the feature dataset contains no unintended duplicate account_id/as_of_date records.,ParentStory-2931313;Story-4.3.3
+Task,Perform target-leakage validation,Confirm no feature uses information occurring after the as_of_date or directly reveals the future target.,ParentStory-2931313;Story-4.3.3
+Task,Identify constant and low-value features,Identify features with little or no variation or limited predictive usefulness for potential exclusion.,ParentStory-2931313;Story-4.3.3
+Task,Select final ML feature set,"Select the modelling feature set based on quality, business relevance and modelling suitability.",ParentStory-2931313;Story-4.3.3
+Task,Review features with Business SME,Review identified features and business interpretation with the Business SME and record feedback/sign-off.,ParentStory-2931313;Story-4.3.3
+Task,Document feature and dataset version traceability,Record feature definitions and dataset versions so training and future scoring logic can be reproduced.,ParentStory-2931313;Story-4.3.3
+Task,Prepare modelling features for training,Prepare numeric and categorical inputs in the format required by the candidate model pipelines.,ParentStory-2932042;Story-4.4.1
+Task,"Create temporal train, validation and test split",Split historical observations by time so model development and evaluation reflect future scoring behaviour.,ParentStory-2932042;Story-4.4.1
+Task,Validate class distribution across datasets,"Check churn/non-churn distribution across train, validation and test datasets for material differences.",ParentStory-2932042;Story-4.4.1
+Task,Validate training and test dataset consistency,"Confirm feature schema, transformations and data types are consistent across modelling datasets.",ParentStory-2932042;Story-4.4.1
+Task,Establish baseline model,Train a simple baseline model to provide a minimum benchmark for candidate model performance.,ParentStory-2932048;Story-4.4.2
+Task,Develop Logistic Regression model,Train and track a Logistic Regression candidate using the approved training dataset.,ParentStory-2932048;Story-4.4.2
+Task,Develop Decision Tree model,Train and track a Decision Tree candidate using consistent feature and evaluation logic.,ParentStory-2932048;Story-4.4.2
+Task,Develop Random Forest model,Train and track a Random Forest candidate using consistent feature and evaluation logic.,ParentStory-2932048;Story-4.4.2
+Task,Develop XGBoost or alternative candidate model,Train XGBoost or an agreed alternative candidate model subject to runtime and library availability.,ParentStory-2932048;Story-4.4.2
+Task,Perform hyperparameter tuning,Tune selected candidate-model parameters to improve validated performance; execute only if agreed as required.,ParentStory-2932048;Story-4.4.2
+Task,Track experiments in MLflow,"Log model parameters, metrics, artifacts and runs in MLflow for reproducibility and comparison.",ParentStory-2932048;Story-4.4.2
+Task,Evaluate ROC-AUC and PR-AUC,"Compare candidate models using ROC-AUC and PR-AUC, with emphasis on performance for the churn class.",ParentStory-2932058;Story-4.4.3
+Task,"Evaluate precision, recall and F1","Compare precision, recall and F1 at relevant classification thresholds.",ParentStory-2932058;Story-4.4.3
+Task,Review confusion matrix and lift,Assess prediction errors and model lift to understand practical churn-identification performance.,ParentStory-2932058;Story-4.4.3
+Task,Validate model calibration where applicable,Check whether predicted churn probabilities are suitably calibrated for risk scoring and business use.,ParentStory-2932058;Story-4.4.3
+Task,Compare candidate-model performance,"Compare candidate models consistently across technical metrics, stability and operational considerations.",ParentStory-2932058;Story-4.4.3
+Task,Select preferred final model,Select the preferred model based on agreed technical and business criteria.,ParentStory-2932058;Story-4.4.3
+Task,Document model-selection rationale,Record why the selected model was preferred and note key trade-offs versus alternative candidates.,ParentStory-2932058;Story-4.4.3
+Task,Generate global feature importance,Produce model-level feature importance to identify the strongest overall churn drivers.,ParentStory-2932060;Story-4.4.4
+Task,Implement account-level explainability,Generate account-level explanations showing the main factors influencing each churn-risk prediction.,ParentStory-2932060;Story-4.4.4
+Task,Generate churn and risk drivers,Transform explainability outputs into interpretable churn/risk-driver fields for downstream consumption.,ParentStory-2932060;Story-4.4.4
+Task,Define and validate risk bands,Define churn-risk bands from predicted probabilities and validate their population and observed behaviour.,ParentStory-2932060;Story-4.4.4
+Task,Review model results and drivers with Business SME,"Review model performance, risk bands and key drivers with the Business SME and capture feedback/sign-off.",ParentStory-2932060;Story-4.4.4
+Task,Register approved model in MLflow model registry,Register the selected churn model in the governed MLflow/Unity Catalog model registry.,ParentStory-2932069;Story-4.5.1
+Task,Configure model versioning,Ensure new model registrations create traceable versions with associated experiment and training metadata.,ParentStory-2932069;Story-4.5.1
+Task,Define Champion and Candidate promotion process,Define how model versions are promoted between Candidate and Champion states/aliases.,ParentStory-2932069;Story-4.5.1
+Task,Capture model metadata,"Record model version, training data reference, metrics and other required governance metadata.",ParentStory-2932069;Story-4.5.1
+Task,Validate model promotion,Test that the approved model version can be promoted and resolved correctly for downstream scoring.,ParentStory-2932069;Story-4.5.1
+Task,Define and test model rollback process,Document and test how scoring can revert to a previously approved model version if required.,ParentStory-2932069;Story-4.5.1
+Task,Build batch-scoring pipeline,Build the Databricks batch-scoring workflow using the approved model and latest eligible account-level data.,ParentStory-2932090;Story-4.5.2
+Task,Define scoring output schema,"Define the required account identifier, scoring date, prediction and model metadata fields in the output.",ParentStory-2932090;Story-4.5.2
+Task,Generate churn probability and predicted churn,Generate account-level churn probability and threshold-based predicted churn values.,ParentStory-2932090;Story-4.5.2
+Task,Generate risk bands and risk drivers,Add validated risk bands and account-level risk-driver outputs to the scoring result.,ParentStory-2932090;Story-4.5.2
+Task,Add scoring date and model-version metadata,Add traceability fields identifying when scoring ran and which registered model version produced each result.,ParentStory-2932090;Story-4.5.2
+Task,Validate scoring outputs,"Validate row counts, schema, nulls, probability ranges and account-level uniqueness in scoring results.",ParentStory-2932090;Story-4.5.2
+Task,Configure and schedule scoring job,Configure the Databricks job/workflow to execute scoring according to the approved refresh schedule.,ParentStory-2932090;Story-4.5.2
+Task,Implement prediction monitoring,"Monitor prediction volumes, probability distribution and risk-band distribution across scoring runs.",ParentStory-2932106;Story-4.5.3
+Task,Implement data and feature drift monitoring,Monitor important model inputs for material distribution changes relative to the approved reference data.,ParentStory-2932106;Story-4.5.3
+Task,Implement realised model-performance monitoring,Calculate model performance once actual churn outcomes become available for previously scored observations.,ParentStory-2932106;Story-4.5.3
+Task,Perform backtesting and validation,Backtest the scoring/model logic on suitable historical periods to validate expected behaviour and stability.,ParentStory-2932106;Story-4.5.3
+Task,Define retraining criteria and strategy,"Document when retraining should be considered based on drift, performance deterioration or agreed review cadence.",ParentStory-2932106;Story-4.5.3
+Task,Document monitoring thresholds and actions,"Document alert thresholds, review ownership and expected actions when monitoring detects material changes.",ParentStory-2932106;Story-4.5.3
+Task,Create and publish ML output table or interface,Publish approved account-level churn prediction outputs in the agreed Databricks table/view/interface.,ParentStory-2932115;Story-4.5.4
+Task,Validate downstream output schema,"Confirm required prediction, risk, driver, scoring-date and model-version fields are available and correctly typed.",ParentStory-2932115;Story-4.5.4
+Task,Enable Power BI and downstream consumption,Provide the agreed output source/interface for Power BI and other approved downstream consumers.,ParentStory-2932115;Story-4.5.4
+Task,Validate predictions with downstream team,Validate account-level prediction records and key fields with downstream reporting/consumer teams.,ParentStory-2932115;Story-4.5.4
+Task,Complete deployment and integration validation,"Confirm scheduled outputs are accessible, traceable and suitable for agreed downstream operational use.",ParentStory-2932115;Story-4.5.4
