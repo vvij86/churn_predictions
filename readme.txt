@@ -1,429 +1,287 @@
-Please update the existing Phase 3 SQL in build_account_level_features.sql to fix both the member-number resolution issue and the feature-window parameterization.
+Yes. Based on the 14 activities in your timeline and the three Features your lead created, I would not create one story for every individual activity. Several activities belong naturally together. Create a smaller number of meaningful User Stories, then put your detailed activities as Tasks under those stories.
 
-Do not rebuild the entire Phase 3 solution from scratch. Update the existing SQL in place.
+I would structure them like this.
 
-Critical modelling grain
+Feature 4.3 – Build ML – Feature Engineering
 
-The final modelling grain must remain:
+Story 1 – Define Churn Target and Prepare Modelling Dataset
 
-one row per account_id + as_of_date
+Description:
+Define the churn/retention target, eligible population, observation dates, feature window, outcome window and exclusions. Prepare the historical account-level modelling dataset using the required source data.
 
-Do not allow any join or mapping logic to create duplicate rows for the same account_id + as_of_date.
+Tasks under this story:
 
-member_number_ref must remain a reference/output identifier only and must not be used as a predictive ML feature.
+Data Exploration
 
-Explicit feature window parameters
+Churn Target & Modelling Dataset Definition
 
-Add explicit configurable parameters:
+Data Preparation
 
-DECLARE @feature_start_date DATE = '2025-01-01';
-DECLARE @as_of_date DATE = '2025-12-31';
 
-Use these parameters consistently throughout all time-based feature engineering logic.
+This fits the existing 4.3 acceptance criteria because your lead has already included eligible population, historical observation dates, retention labels and historical training dataset.
 
-For applicable dated source records, use:
 
-source_date >= @feature_start_date
-AND source_date <= @as_of_date
+---
 
-Apply this consistently to:
+Story 2 – Develop Account-Level ML Features
 
-contributions / money inflow
+Description:
+Develop approved customer/account, tenure, product, behavioural, engagement, transaction and trend features for retention modelling. Ensure lower-level source records are aggregated to the required account-level modelling grain.
 
-rollovers / withdrawals
+Tasks:
 
-net money flow
+Feature Engineering
 
-web engagement
+Categorical Treatment
 
-helpline engagement
+Missing Value Treatment
 
-investments
 
-insurance where date-based
+Add this acceptance criterion:
 
-any other behavioural or transaction-based source with a relevant date
+> Feature dataset contains one row per account_id per as_of_date, with lower-level transactional, behavioural and engagement data aggregated to account level.
 
 
-Do not use records before @feature_start_date.
 
-Do not use records after @as_of_date.
 
-Do not rely only on DATEADD(MONTH, -12, @as_of_date) when an explicit @feature_start_date is now available.
+---
 
-For recency features such as:
+Story 3 – Validate and Select ML Features
 
-months_since_last_contribution
+Description:
+Validate engineered features for data quality, missing values, duplicates, leakage, point-in-time correctness and modelling suitability, and identify the final feature set for model development.
 
-days_since_last_web_activity
+Tasks:
 
-days_since_last_helpline_contact
+Feature Validation & Selection
 
-months_since_last_rollover_out
+Target leakage validation
 
+Business SME review/sign-off
 
-use the latest eligible event within the defined feature window unless there is a clearly documented reason to use a longer historical period.
+Feature/version traceability
 
-Base account universe
 
-Use edgeSource.account as the primary base account source where possible because it contains:
+So your timeline activities 1–5 are effectively covered by Feature 4.3.
 
-accountId
 
-fundId
+---
 
-memberNumber
+Feature 4.4 – Build ML – Model Development & Validation
 
+Story 4 – Prepare Training and Validation Datasets
 
-Do not rely on accountSummary to decide whether an account should exist in the final dataset.
+Description:
+Prepare the engineered dataset for modelling, including categorical/numeric treatment and temporal train, validation and test datasets.
 
-All valid accounts should remain in the modelling universe even if:
+Tasks:
 
-accountSummary.reportingDate is NULL
+Train/Test Preparation
 
-there is no valid accountSummary snapshot on or before @as_of_date
+Temporal split validation
 
+Class distribution checks
 
-Do NOT reintroduce:
 
-WHERE has_valid_accountsummary_snapshot = 1
 
-The final dataset must not drop an account only because a valid AccountSummary snapshot is unavailable.
+---
 
-For such accounts:
+Story 5 – Develop and Tune Candidate ML Models
 
-retain account_id
+Description:
+Establish a baseline model and develop candidate machine-learning models for churn prediction. Perform hyperparameter optimisation where required and track experiments using MLflow.
 
-retain as_of_date
+Tasks:
 
-retain member_number_ref where resolvable
+Baseline Model
 
-keep AccountSummary-derived features NULL where no valid historical snapshot is available
+Logistic Regression
 
-keep diagnostic flags showing snapshot availability
+Decision Tree
 
+Random Forest
 
-Member number problem
+XGBoost / other candidate models
 
-After removing the final has_valid_accountsummary_snapshot = 1 filter, many rows have:
+Hyperparameter Tuning
 
-member_number_ref = NULL
+MLflow Experiment Tracking
 
-Please fix this using a robust member-number resolution strategy.
 
-Potential member-number sources include:
+This combines your timeline items 7 and 8.
 
-edgeSource.customerMapping
 
-edgeSource.accountSummary
+---
 
-edgeSource.account
+Story 6 – Evaluate and Select Final Churn Model
 
+Description:
+Evaluate candidate models using agreed technical and business metrics and select the preferred model based on predictive performance, stability, scalability and business suitability.
 
-Use the actual column names available in the existing SQL / Phase 2 workbook.
+Tasks:
 
-Member-number resolution priority
+ROC-AUC
 
-For each account_id, resolve member_number_ref in this order:
+PR-AUC
 
-1. Prefer a valid member number from customerMapping that is valid on or before @as_of_date.
+Precision
 
+Recall
 
-2. Otherwise use accountSummary.memberNumber from the selected valid historical snapshot on or before @as_of_date.
+F1
 
+Confusion Matrix
 
-3. Otherwise fall back to edgeSource.account.memberNumber.
+Lift
 
+Calibration where applicable
 
-4. If still unavailable, leave member_number_ref as NULL and flag it for investigation.
+Model comparison
 
+Final model selection
 
 
-Do not arbitrarily choose a member number when multiple conflicting values exist.
+This covers timeline item 9.
 
-Use deterministic ranking based on valid date/order fields where available.
 
-CustomerMapping date rule
+---
 
-If customerMapping contains an effective/accrual/mapping date such as accurateDate, only use records valid on or before @as_of_date.
+Story 7 – Implement Model Explainability and Risk Drivers
 
-Prefer the latest valid mapping on or before @as_of_date.
+Description:
+Implement model explainability to identify global and account-level churn drivers and explain why individual accounts receive higher or lower churn-risk scores.
 
-If the relevant mapping date is NULL:
+Tasks:
 
-do not automatically treat it as historically valid
+Global feature importance
 
-use it only if business logic clearly supports that interpretation
+Account-level explainability
 
-otherwise fall back to another source and flag the ambiguity
+Churn/risk drivers
 
+Risk-band validation
 
-AccountSummary snapshot rule
+SME review of model results and drivers
 
-For AccountSummary attributes:
 
-select the latest row where reportingDate <= @as_of_date
+This corresponds to your timeline item 10.
 
-do not use reportingDate > @as_of_date
 
-do not automatically use a NULL reportingDate row as a historical snapshot
+---
 
+Feature 4.5 – Build ML – MLOps & Model Operationalisation
 
-If no valid dated AccountSummary snapshot exists:
+Story 8 – Register and Manage Approved ML Model
 
-keep the account
+Description:
+Register the approved churn model in the governed MLflow model registry and establish model versioning, lifecycle and promotion processes.
 
-set AccountSummary-derived fields to NULL
+Tasks:
 
-set has_valid_accountsummary_snapshot = 0
+Model Registration
 
+Model Versioning
 
-Member-number traceability fields
+Champion/Candidate promotion
 
-Add these non-predictive diagnostic/reference fields to the final dataset:
+Model metadata
 
-member_number_ref
+Model rollback
 
-member_number_source
 
-member_number_conflict_flag
+This covers timeline item 11.
 
 
-Populate member_number_source with values such as:
+---
 
-CustomerMapping
+Story 9 – Build and Schedule Churn Scoring Pipeline
 
-AccountSummary
+Description:
+Develop a batch-scoring pipeline using the approved model and latest eligible account data to generate churn probability, predicted churn, risk band and model metadata.
 
-Account
+Tasks:
 
-Unavailable
+Scoring Pipeline
 
+Output Schema
 
-Set:
+Churn Probability
 
-member_number_conflict_flag = 1
+Predicted Churn
 
-when multiple non-null sources provide different member numbers for the same account.
+Risk Band
 
-Otherwise set it to 0.
+Risk Drivers
 
-Do not use:
+Scoring Date
 
-member_number_ref
+Model Version
 
-member_number_source
+Schedule scoring
 
-member_number_conflict_flag
 
+This covers timeline item 12.
 
-as predictive ML features.
 
-They are for traceability and validation only.
+---
 
-Conflict handling
+Story 10 – Implement Model Monitoring and Validation
 
-If one account maps to multiple distinct member numbers:
+Description:
+Implement monitoring for prediction distribution, feature/data drift and realised model performance when outcome labels become available.
 
-do not duplicate the account row
+Tasks:
 
-preserve one row per account_id + as_of_date
+Prediction Monitoring
 
-use a deterministic valid mapping rule only where supported by dates/business logic
+Data/Feature Drift Monitoring
 
-otherwise flag the conflict
+Performance Monitoring
 
-do not silently pick an arbitrary value
+Backtesting
 
+Retraining criteria/strategy
 
-Final dataset requirements
 
-The final #account_level_features dataset must include:
+This maps to your timeline item 13 plus the monitoring requirements already in 4.5.
 
-account_id
 
-member_number_ref
+---
 
-member_number_source
+Story 11 – Publish ML Outputs for Downstream Consumption
 
-member_number_conflict_flag
+Description:
+Publish approved account-level churn prediction outputs for downstream consumption by reporting and business applications such as Power BI and other agreed consumers.
 
-as_of_date
+Tasks:
 
-has_valid_accountsummary_snapshot
+Deployment / Integration
 
-has_null_reportingdate_record
+Output table/interface
 
-account_summary_reporting_date
+Power BI integration
 
-all valid engineered account-level features
+Downstream validation
 
 
-Do not add target_churn yet.
+This covers timeline item 14.
 
-Time-window validation
+So I recommend 11 stories total
 
-Add validation SQL to confirm:
+The hierarchy would look like:
 
-1. @feature_start_date
+4.3 Feature Engineering → Story 1: Define Churn Target and Prepare Modelling Dataset
+→ Story 2: Develop Account-Level ML Features
+→ Story 3: Validate and Select ML Features
 
+4.4 Model Development & Validation → Story 4: Prepare Training and Validation Datasets
+→ Story 5: Develop and Tune Candidate ML Models
+→ Story 6: Evaluate and Select Final Churn Model
+→ Story 7: Implement Model Explainability and Risk Drivers
 
-2. @as_of_date
+4.5 MLOps & Model Operationalisation → Story 8: Register and Manage Approved ML Model
+→ Story 9: Build and Schedule Churn Scoring Pipeline
+→ Story 10: Implement Model Monitoring and Validation
+→ Story 11: Publish ML Outputs for Downstream Consumption
 
-
-3. feature-window duration
-
-
-4. no eligible feature record is earlier than @feature_start_date
-
-
-5. no eligible feature record is later than @as_of_date
-
-
-
-For each major dated feature block, add a concise validation count showing how many source records were included within the feature window.
-
-Account coverage validation
-
-Add validation SQL showing:
-
-1. total distinct accounts in edgeSource.account
-
-
-2. total distinct accounts in the base account universe
-
-
-3. total distinct accounts in the final feature dataset
-
-
-4. accounts missing from the final feature dataset
-
-
-5. duplicate account_id + as_of_date combinations
-
-
-6. null account_id
-
-
-7. null as_of_date
-
-
-
-The duplicate count must be zero.
-
-Member-number validation
-
-Also report:
-
-1. total final accounts
-
-
-2. accounts with non-null member_number_ref
-
-
-3. accounts with null member_number_ref
-
-
-4. member numbers resolved from CustomerMapping
-
-
-5. member numbers resolved from AccountSummary
-
-
-6. member numbers resolved from Account
-
-
-7. unresolved member numbers
-
-
-8. accounts with conflicting member numbers across sources
-
-
-9. accounts mapping to multiple distinct member numbers
-
-
-10. sample unresolved account IDs
-
-
-11. sample conflicting account IDs
-
-
-
-AccountSummary coverage validation
-
-Also report:
-
-1. accounts with a valid AccountSummary snapshot on or before @as_of_date
-
-
-2. accounts without a valid AccountSummary snapshot
-
-
-3. accounts having NULL reportingDate
-
-
-4. accounts having only future AccountSummary records relative to @as_of_date
-
-
-
-Do not exclude these accounts from the final dataset solely because AccountSummary coverage is unavailable.
-
-Important ML rules
-
-Do not use:
-
-account_id
-
-member_number_ref
-
-raw IDs
-
-raw PII
-
-
-as predictive features.
-
-Keep all feature calculations account-level.
-
-Do not use future information.
-
-Do not add target_churn yet.
-
-Final check
-
-After updating the SQL, run the validation and print a summary containing:
-
-feature_start_date
-
-as_of_date
-
-base account count
-
-final account count
-
-duplicate account + as_of_date count
-
-member numbers resolved from each source
-
-unresolved member count
-
-member conflict count
-
-valid AccountSummary snapshot count
-
-accounts without valid AccountSummary snapshot
-
-final SQL status
-
-
-Do not consider the correction complete until:
-
-all valid accounts are retained
-
-member_number_ref is resolved as fully as possible without arbitrary mapping
-
-no duplicate account_id + as_of_date rows exist
-
-all time-based features respect @feature_start_date and @as_of_date
-
-no target_churn column is added.
+This is cleaner than creating 14 separate stories, because things such as hyperparameter tuning, categorical treatment and model registration are better treated as tasks within a larger deliverable-oriented story.
