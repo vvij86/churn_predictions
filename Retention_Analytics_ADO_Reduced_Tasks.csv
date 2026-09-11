@@ -1,0 +1,34 @@
+﻿Work Item Type,Title,Description
+Task,"Define churn target, eligibility, dates and modelling rules","Confirm the churn/retention definition, eligible population, exclusions, as-of date, feature window, outcome window and modelling rules."
+Task,Identify required source data and prepare joins,"Confirm the required Databricks tables/views and fields, then prepare the source joins and transformation logic."
+Task,Build and validate account-level modelling dataset,"Create one row per account_id per as_of_date and validate uniqueness, record counts and population coverage."
+Task,"Develop account, tenure and product features","Create approved account-level tenure, lifecycle, product and related customer/account features."
+Task,"Develop behavioural, transaction, rollover and engagement features","Create approved behavioural, contribution, transaction, rollover, withdrawal, engagement and trend features."
+Task,Implement categorical and missing-value treatment,Apply consistent categorical encoding/grouping and deterministic missing-value treatment for modelling.
+Task,"Validate feature quality, duplicates and leakage","Validate feature completeness, ranges, duplicates, account-level grain and target leakage."
+Task,Select final ML feature set,Identify constant/low-value fields and select the final modelling features based on quality and suitability.
+Task,Review and sign off features with Business SME,Review selected features and business interpretation with the SME and document approval/traceability.
+Task,Prepare modelling inputs,Prepare numeric and categorical modelling inputs using the approved feature logic.
+Task,"Create temporal train, validation and test split","Create time-based train, validation and test datasets suitable for future-like evaluation."
+Task,Validate class distribution and dataset consistency,"Check churn distribution, schema, transformations and data consistency across modelling datasets."
+Task,Develop baseline and candidate models,"Train the baseline and agreed candidate models such as Logistic Regression, Decision Tree, Random Forest and XGBoost/alternative."
+Task,Perform hyperparameter tuning if required,Tune selected model parameters when agreed and validate improvements against the untuned models.
+Task,Track model experiments in MLflow,"Log model runs, parameters, metrics and artifacts in MLflow for comparison and reproducibility."
+Task,Evaluate candidate models using agreed metrics,"Evaluate candidates using ROC-AUC, PR-AUC, precision, recall, F1, confusion matrix, lift and calibration where applicable."
+Task,Compare model performance and business suitability,"Compare models consistently across technical performance, stability and business/operational considerations."
+Task,Select and document final model,Select the preferred churn model and document the rationale and key trade-offs.
+Task,Implement global and account-level explainability,Produce global feature importance and account-level explanations for churn-risk predictions.
+Task,Generate churn drivers and risk bands,Create interpretable churn/risk drivers and define/validate risk bands from model scores.
+Task,Review model results and drivers with Business SME,"Review model performance, explainability outputs and risk bands with the Business SME and capture feedback/sign-off."
+Task,Register and version approved model,Register the selected model in the governed MLflow/Unity Catalog registry with traceable model versions.
+Task,Configure Champion/Candidate promotion and metadata,"Define promotion/aliasing and capture the required model, experiment and training metadata."
+Task,Validate promotion and rollback process,Test model promotion and document/test how scoring can revert to a prior approved model version.
+Task,Build batch-scoring pipeline and output schema,Build the batch-scoring workflow and define the required account-level scoring output schema.
+Task,"Generate predictions, risk bands and model metadata","Generate churn probability, predicted churn, risk bands, risk drivers, scoring date and model-version metadata."
+Task,Validate and schedule scoring job,Validate scoring outputs and configure the Databricks job/workflow according to the approved refresh schedule.
+Task,Implement prediction and feature-drift monitoring,Monitor prediction distributions and important model inputs for material changes over time.
+Task,Implement performance monitoring and backtesting,Backtest the model and calculate realised performance once actual churn outcomes become available.
+Task,Define retraining criteria and monitoring actions,"Document retraining triggers, monitoring thresholds, review ownership and required actions."
+Task,Publish ML output table or interface,Publish approved account-level churn prediction outputs in the agreed Databricks table/view/interface.
+Task,Enable Power BI and downstream consumption,Provide the agreed output source/interface for Power BI and other approved downstream consumers.
+Task,Validate downstream integration,"Validate output schema, account-level predictions, accessibility and downstream operational use."
