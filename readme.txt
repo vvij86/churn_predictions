@@ -1,1 +1,1 @@
-
+Contacted the EU Databricks workspace admin regarding the ML Runtime cluster creation request. Pooja Sharma has acknowledged the request and looped in Mukesh and Hema to review and proceed further. Awaiting their response/update on the cluster provisioning.
