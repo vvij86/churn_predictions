@@ -1,1 +1,1 @@
-I tested the basic MLOps/MLflow functionality in the EU workspace using Serverless compute. Experiment tracking, metric/artifact logging, model logging, and model loading are working successfully. Unity Catalog model registration was not tested as we don’t have a dedicated UC setup there yet.
+
