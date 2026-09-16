@@ -1,1 +1,1 @@
-Data exploration completed for all identified tables except accountEngagementWeb, as no data is currently available in UAT/DEV. Jasna has reached out to Weiming for clarification. Awaiting response before completing the remaining exploration.
+
