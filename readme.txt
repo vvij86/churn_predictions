@@ -1,3 +1,1 @@
-Then update it like this:
-
-> Started working on defining the churn target, eligibility criteria, date parameters, and modelling rules. Currently preparing the list of items/questions for discussion. A call with the Business SME is scheduled for tomorrow to review and confirm the definitions and outstanding items.
+Data exploration completed for all identified tables except accountEngagementWeb, as no data is currently available in UAT/DEV. Jasna has reached out to Weiming for clarification. Awaiting response before completing the remaining exploration.
