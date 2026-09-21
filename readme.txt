@@ -1,16 +1,10 @@
-Description:
-Explore the remaining MercerEdge database tables to identify any additional columns that may be useful for churn/retention analytics. Review data availability, quality, business meaning, and potential ML relevance.
+Yes. Under this story, these two tasks are enough:
 
-Acceptance Criteria:
+1. Perform Data Exploration on Remaining MercerEdge Tables
+Description: Review the remaining in-scope MercerEdge tables and assess all columns for data availability, quality, business meaning, and potential usefulness for churn/retention modelling. Identify useful, maybe-useful, and non-useful columns, including any leakage or data-quality concerns.
 
-Remaining in-scope MercerEdge tables are reviewed.
 
-All columns are assessed for churn relevance.
+2. Document MercerEdge Data Exploration Findings
+Description: Document the data exploration results, including table/column assessment, churn relevance, data-quality observations, identified candidate features, exclusions, and items requiring business clarification. Prepare the findings for team/business review.
 
-Potential columns are classified as Yes / Maybe / No for churn usefulness.
 
-Data-quality and leakage concerns are documented where applicable.
-
-Useful columns and columns requiring business clarification are identified.
-
-Final findings are documented for review.
