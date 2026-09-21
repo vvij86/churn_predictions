@@ -1,1 +1,6 @@
-EU Databricks support confirmed ML Runtime clusters require Dedicated access mode and cannot be shared. Since both Sai and I need access, separate single-user clusters may be required. Following up on the request process.
+SELECT 
+    SCHEMA_NAME(schema_id) AS SchemaName,
+    COUNT(*) AS TableCount
+FROM sys.tables
+GROUP BY schema_id
+ORDER BY SchemaName;
