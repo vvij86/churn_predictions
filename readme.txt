@@ -1,103 +1,65 @@
-Use this prompt in Copilot:
+Please redo the churn-table prioritization using ONLY the 85 tables that came from:
 
-I have completed churn-focused data exploration for 85 MercerEdge tables and generated the workbook:
+All_Other_tables_Not_explored.sql
+
+Do NOT include any of the previously explored 17 tables.
+
+Use only the worksheets/tables that were generated from the 85-table exploration workbook:
 
 MercerEdge_ML_Churn_Driver_EDA_Remaining_Tables.xlsx
 
-Now I want you to identify the MOST IMPORTANT tables for churn / retention modelling.
+I want a shortlist of the most useful tables among these 85 only.
 
-Do not simply rank tables by number of columns. Assess them based on actual churn relevance.
+Assess each table based on:
+- churn/retention relevance
+- behavioural usefulness
+- financial usefulness
+- lifecycle usefulness
+- engagement usefulness
+- account-level usability
+- date coverage
+- null percentage / data quality
+- leakage risk
+- ability to derive meaningful ML features
+- whether the table can join reliably to account_id
 
-Use the workbook contents, especially:
-- Useful for Churn
-- Decision
-- Reason
-- Feature Group
-- Data Quality Notes
-- Null %
-- Date Coverage
-- Leakage Risk
-- Recommended Action
-- Overview sheet
+Please classify the 85 tables into:
 
-Also consider the business context:
-- Modelling grain is account level
-- Final grain will be one row per account_id + as_of_date
-- Features should represent information available on or before as_of_date
-- Avoid target leakage / future information
-- IDs are mainly for joining/reference and are not predictive features
-- We are trying to predict future account churn/retention
+1. High Priority
+2. Medium Priority
+3. Low Priority / Reference Only
+4. Exclude
 
-Identify tables that can provide meaningful churn drivers such as:
-- contributions / money inflow
-- withdrawals / money outflow
-- rollovers
-- account balance / FUM
-- net money flow
-- account tenure / lifecycle
-- investment behaviour
-- web engagement
-- helpline / customer contact
-- communication preferences
-- insurance
-- account/product characteristics
-- behavioural changes / recency / frequency
-- other strong behavioural indicators
-
-Please classify all 85 tables into these groups:
-
-1. High Priority – Strong candidate for churn feature engineering
-2. Medium Priority – Potentially useful, but needs further validation/business clarification
-3. Low Priority – Mainly reference/join/supporting data
-4. Exclude – No meaningful churn value, unusable data, or mainly technical/audit data
-
-For each High Priority table provide:
+For High Priority tables, provide:
 
 - Table Name
-- Why it is important for churn
+- Why useful for churn
 - Important candidate columns
-- Potential feature group
 - Example derived ML features
 - Data quality concern
 - Leakage concern
-- Recommended next action
-
-Example derived features could be:
-
-- contribution_count_3m
-- contribution_amount_12m
-- months_since_last_contribution
-- withdrawal_count_12m
-- rollover_out_amount_12m
-- net_money_flow_12m
-- balance_change_3m
-- web_activity_count_3m
-- days_since_last_web_activity
-- helpline_contact_count_6m
-- investment_activity_count_12m
+- Recommended action
 
 IMPORTANT:
+- Do not mention or compare against the previous 17 explored tables.
+- Do not include any table unless it is present in All_Other_tables_Not_explored.sql.
 - Be selective.
-- Do not call a table High Priority only because it has one potentially useful column.
-- Prefer tables with meaningful account-level behavioural, financial, lifecycle, or engagement information.
-- Consider actual data quality and date coverage.
-- Tables with 100% null / very sparse important columns should be downgraded appropriately.
-- Tables containing outcome/future fields may still be useful for target creation, but clearly mark them as TARGET-SUPPORT / LEAKAGE RISK rather than predictive feature tables.
-- Do not use identifiers alone as a reason to rank a table highly.
-- Avoid duplicate tables providing essentially the same information; explain which one should be preferred.
+- Do not rank a table highly just because it has many columns.
+- IDs/join keys alone do not make a table useful for churn.
+- Tables with mostly null or unusable churn-related fields should be downgraded.
+- Future/outcome fields should be marked as target-support / leakage risk, not predictive features.
+- Prefer tables that can produce account-level behavioural or financial features before as_of_date.
 
 At the end, give me:
 
-1. Top 10 most important tables for churn modelling
-2. Next 10 tables worth investigating
-3. Tables mainly useful for target creation / churn-event identification
-4. Tables mainly useful only for joins/reference
-5. Tables that can safely be excluded from further ML exploration
+1. Top 10 most important tables among these 85 only
+2. Next 10 worth investigating
+3. Target-support / churn-event tables among these 85
+4. Join/reference-only tables among these 85
+5. Tables that can be excluded from further ML work
 
-For the Top 10, provide a short final summary in this format:
+Final Top 10 format:
 
 Table Name | Priority | Main Churn Signal | Key Candidate Columns | Example Features | Main Concern | Recommended Action
 
-Also explain if any table should replace or complement the 17 tables already explored previously.
-
-Do not modify the Excel file yet. First provide the analysis and recommended shortlist for my review.
+Before finalizing, verify that every recommended table exists in All_Other_tables_Not_explored.sql.
