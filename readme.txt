@@ -1,34 +1,35 @@
-You can raise the incident with wording like this:
+Yes — Sai’s message is basically giving you the recommended temporary approach.
 
-Title:
-Create Dedicated Single-User Databricks ML Runtime Cluster – EU/UK Workspace
+He is saying:
 
-Description:
-Please create a Databricks ML Runtime cluster with Dedicated access mode (Single User) for the Member Retention Analytics project in the EU/UK workspace.
+Long term: create a project-specific Okta/Databricks group and use Dedicated access assigned to that group.
 
-Details:
+For now in DEV: use Dedicated access with a single user, until the group is created/enabled.
 
-Project Name: Member Retention Analytics
-
-App Short Key: MSECDP
-
-Owner Email ID: saikumar.beera@marsh.com
-
-Planview Code: 1013599
-
-User Email ID: vijay.vignesh@marsh.com
-
-Workspace ID: 3997133087712069
-
-Access Mode: Dedicated – Single User
-
-Runtime Requirement: Databricks ML Runtime
-
-Environment: DEV
-
-Use Case: ML development for Member Retention Analytics, including model development, experimentation, MLflow tracking, and related ML workloads.
+Once the group is ready, the access should be moved/provided to the group rather than keeping separate single-user access.
 
 
-You can also add:
+His key line is:
 
-> A project-specific group access request will be handled separately. For now, Dedicated Single-User access is required for DEV.
+> “yes only dev... but we need to be given to group”
+
+
+
+So when you reply to Mukesh, you can say something like:
+
+> Hi Mukesh,
+
+Thanks for the clarification.
+
+As per the Databricks documentation, Dedicated access mode supports assignment to either a single user or a group. We are planning to raise a request for a project-specific Okta/Databricks group.
+
+Until the group is created and Dedicated group access is enabled, could we please proceed with Dedicated single-user access for DEV? Once the group is available, we would like the ML compute access to be provided to that group.
+
+Please let us know if this approach is feasible.
+
+Thanks,
+Vijay
+
+
+
+That matches Sai’s direction well.
