@@ -1,3 +1,3 @@
-You can add this as a short Discussion/Status update:
+You can add this short ADO status update:
 
-Status: In progress. Data exploration is ongoing. So far, the below MercerEdge tables have been identified as useful/relevant for the Member Retention Analytics model. Further tables are still being reviewed for data availability, quality, business relevance, and potential churn features.
+Status: In progress. The list of churn definition, eligibility, date parameter, and modelling rule items for discussion has been documented in the Confluence page: [Confluence link]. A few items are still pending confirmation and will be discussed in today’s Business SME meeting.
