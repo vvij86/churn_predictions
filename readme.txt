@@ -1,15 +1,3 @@
-Title:
-4.5.x – Enable Group-Based Dedicated ML Environment
+Yes. You can update it as:
 
-Description:
-Enable a Dedicated ML development environment with project group access so authorised team members can collaboratively perform model development, validation and MLflow activities.
-
-Acceptance Criteria:
-
-Dedicated ML compute available for project group users.
-
-Required team members have access.
-
-Required Unity Catalog permissions are provided.
-
-Notebook, ML Runtime and MLflow access are validated.
+> In Progress – Working on date-related confirmation points for the churn modelling approach, including feature window, as-of date, outcome window, validation and test/holdout periods. Also defining the time-based cross-validation approach and historical training/validation folds for business confirmation.
