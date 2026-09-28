@@ -1,1 +1,1 @@
-
+the ML framework/process can largely be reused (feature definitions, training/validation approach, model evaluation, MLOps/MLflow, scoring, explainability, and monitoring). The main rework will be in the data preparation layer to map the strategic source into the same agreed feature structure and business definitions.
