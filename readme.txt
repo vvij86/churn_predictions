@@ -1,8 +1,6 @@
-4.3.2 – Develop Account-Level ML Features
-Develop agreed ML features at account level.
-Aggregate lower-level data to one row per account per as_of_date.
-Ensure no future information is used.
-4.3.3 – Validate and Select ML Features
-Validate data quality, duplicates and missing values.
-Check point-in-time correctness and target leakage.
-Finalise the feature set for model development.
+Task 1: Configure and Validate Stage ML Environment
+Description: Configure Stage Databricks job compute with Stage service principal for automated validation, integration and pre-production testing.
+Acceptance criteria: Stage compute, permissions, Unity Catalog access and ML/MLflow job execution are validated.
+Task 2: Configure and Validate Production ML Environment
+Description: Configure Production Databricks job compute with Production service principal for automated model training and/or scoring with restricted interactive access.
+Acceptance criteria: Production compute, permissions, Unity Catalog access and scheduled ML/MLflow job execution are validated.
