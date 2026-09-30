@@ -1,1 +1,1 @@
-
+Hi, just a heads-up — since the scrum call has moved an hour earlier due to daylight saving, I may be 10–15 minutes late on some days as I need to drop my kid around 8 AM IST. I’ll join as soon as I’m back.
