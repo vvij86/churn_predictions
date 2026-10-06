@@ -1,303 +1,70 @@
-Please revise the currently open SQL file:
+Before making further changes to the base historical dataset query, I want to verify whether MercerEdge contains a genuine historical account snapshot source.
 
-build_merceredge_base_historical_dataset.sql
+We have confirmed that edgeSource.accountSummary contains only one distinct row per accountID and reportingDate appears to represent the latest/current record. For exited accounts, reportingDate is also equal to exitDate.
 
-I have identified an important issue in edgeSource.accountSummary:
+Therefore, do NOT assume accountSummary is a historical snapshot table.
 
-For exited accounts, reportingDate is effectively updated to the exit date, and in many/all observed cases:
+Please investigate the following 18 in-scope tables using the DDL files and read-only SQL profiling:
 
-reportingDate = exitDate
+1. merceredge.edgeSource.accountSummary
+2. merceredge.edgeSource.accountEngagementWorkflow
+3. merceredge.edgePortalSource.pensionerData
+4. merceredge.edgeSource.accountEngagementHelpline
+5. merceredge.edgeSource.accountEngagementWeb
+6. merceredge.edgeSource.AccountInsuranceCurrent
+7. merceredge.edgeSource.accountInvestments
+8. merceredge.edgeSource.accountMoneyInflow
+9. merceredge.edgeSource.accountNetMoneyFlow
+10. merceredge.edgeSource.accountRolloverPayment
+11. merceredge.edgeSource.campaignEventDetails
+12. merceredge.edgeSource.campaignEvents
+13. merceredge.edgeSource.customerMapping
+14. merceredge.edgeSource.customerSummary
+15. merceredge.edgeSource.thirdPartyAuthority
+16. merceredge.tableau.fundListSource
+17. merceredge.edgeSource.campaign
+18. merceredge.edgeSource.campaignAccountMapping
 
-Because of this, the current logic must carefully separate:
+For each table, determine:
 
-1. historical feature/base snapshot selection
-2. future churn outcome detection
+- Does the same accountID appear multiple times?
+- Is there a genuine historical/snapshot date column?
+- Does that date represent when the account state was valid, or only when an event occurred?
+- Can the table reconstruct the state of an account as of a past @AsOfDate?
+- What important account-level fields are available historically?
+- Is it suitable as:
+  1. historical account snapshot source
+  2. historical event/transaction source
+  3. current/static lookup only
+  4. target/outcome source
 
-Do NOT use a future exit row as the historical snapshot.
+Specifically look for any table that can provide historical values for:
+- account status
+- account balance / FUM
+- account type
+- member/account state
+- other important account-level attributes
 
-IMPORTANT MODELLING RULE
-------------------------
-The model as_of_date must remain the fixed parameter:
+Profile candidate tables using read-only SQL.
 
-@AsOfDate
-
-For example:
-
-DECLARE @AsOfDate DATE = '2025-03-31';
-
-Do NOT derive as_of_date from:
-
-- reportingDate
-- exitDate
-- exitDateRecorded
-- any transaction/event date
-
-The final output must use:
-
-@AsOfDate AS as_of_date
-
-ACCOUNT SUMMARY HISTORICAL SNAPSHOT
------------------------------------
-For the historical/base snapshot:
-
-Use accountSummary.reportingDate only to identify the latest record that was available on or before @AsOfDate.
-
-Conceptually:
-
-reportingDate <= @AsOfDate
-
-Then select the latest record per accountID.
-
-Example:
-
-ROW_NUMBER() OVER (
-    PARTITION BY accountID
-    ORDER BY reportingDate DESC
-)
-
-Keep rn = 1.
-
-This snapshot is the information available at prediction time.
-
-VERY IMPORTANT:
-If an account exits after @AsOfDate and its accountSummary row has:
-
-reportingDate = exitDate
-
-that future row must NOT be included in the historical snapshot because its reportingDate is after @AsOfDate.
-
-FUTURE CHURN OUTCOME
---------------------
-Create a SEPARATE outcome lookup from accountSummary.
-
-Do NOT rely on exitDate from the historical snapshot row to create target_churn.
-
-Instead, independently search accountSummary for future qualifying exits where:
-
-exitDate > @AsOfDate
-AND exitDate <= @OutcomeEndDate
-
-Create a separate CTE/temp table such as:
-
-#future_exit_outcome
-
-or a CTE called:
-
-future_exit_outcome
-
-Suggested structure:
+For candidate historical snapshot tables, check:
 
 SELECT
-    accountID,
-    MIN(exitDate) AS qualifying_exit_date
-FROM edgeSource.accountSummary
-WHERE exitDate > @AsOfDate
-  AND exitDate <= @OutcomeEndDate
-GROUP BY accountID
+    COUNT(*) AS total_rows,
+    COUNT(DISTINCT accountID) AS distinct_accounts
+FROM <table>;
 
-Then join this future outcome result back to the historical base population using accountID.
+Also inspect a few accountIDs that have multiple records and order them by the relevant date column.
 
-TARGET LOGIC
-------------
-Create target_churn only after the historical snapshot and future outcome are separated.
+Produce a summary:
 
-Conceptually:
-
-CASE
-    WHEN is_eligible_for_modelling = 0 THEN NULL
-    WHEN qualifying_exit_date IS NOT NULL
-         AND is_internal_transfer = 0
-         AND is_deceased = 0
-    THEN 1
-    ELSE 0
-END AS target_churn
-
-Important:
-
-- reportingDate is for historical snapshot selection
-- exitDate is for future churn outcome detection
-- @AsOfDate is the modelling cutoff
-- these three must not be treated as interchangeable dates
-
-INTERNAL TRANSFER LOGIC
------------------------
-Internal transfer must still be excluded from churn.
-
-Use:
-
-Primary:
-edgeSource.accountRolloverPayment.internalTransferFlag
-
-Supporting:
-edgeSource.accountSummary.exitType = 'Internal Transfer'
+Table | Rows per Account | Historical Date Column | Historical Snapshot? | Recommended Purpose
 
 IMPORTANT:
-Internal-transfer outcome checks must also respect the outcome window and must not introduce future data into historical feature fields.
+Do not modify the modelling query yet.
 
-DEATH LOGIC
------------
-Death must remain excluded from churn.
+First identify whether a genuine historical account snapshot table exists.
 
-Use accountSummary.dateOfDeath according to the agreed business rule.
+If none of the 18 tables provides historical account snapshots, state that clearly rather than inventing one.
 
-If death occurs in the future outcome period, it can be used for exclusion/target determination but must not become a predictive feature.
-
-ELIGIBILITY
------------
-An account should be eligible at @AsOfDate only if it was part of the valid modelling population at that point.
-
-Please review the logic for accounts where:
-
-exitDate = @AsOfDate
-
-Do not automatically treat these as retained.
-
-Preferred rule unless contradicted by existing business logic:
-
-eligible at as_of_date when:
-exitDate IS NULL
-OR exitDate > @AsOfDate
-
-If exitDate = @AsOfDate, flag/exclude the account from that snapshot because it has already exited on the prediction cutoff date.
-
-However, verify this against the actual available source records and clearly document the assumption.
-
-CURRENT KNOWN ISSUE TO FIX
---------------------------
-Example:
-
-@AsOfDate = '2025-03-31'
-
-Account future row:
-
-reportingDate = '2025-05-15'
-exitDate      = '2025-05-15'
-
-Correct behaviour:
-
-Historical snapshot:
-- do NOT use the 15-May-2025 accountSummary row
-- use the latest valid accountSummary row with reportingDate <= 31-Mar-2025
-
-Future outcome:
-- detect exitDate = 15-May-2025
-- since it falls between 01-Apr-2025 and 30-Jun-2025, target_churn should become 1
-  unless internal transfer/death exclusion applies
-
-Do NOT lose this churn event just because the future row was excluded from the historical snapshot.
-
-KEEP BASE DATASET SCOPE ONLY
-----------------------------
-Do NOT start feature engineering.
-
-Do NOT add behavioural aggregates such as:
-
-- contribution_count_12m
-- rollover_count_12m
-- web_activity_count
-- campaign_open_rate
-- days_since_last_*
-- trend features
-- recency features
-- transaction aggregates
-
-This SQL must remain the BASE HISTORICAL MODELLING DATASET only.
-
-REVIEW CURRENT SQL STRUCTURE
-----------------------------
-Please inspect and revise the existing logic around:
-
-- #account_summary_latest
-- #account_summary_snapshot
-- #base_historical_population
-- #internal_transfer_outcome
-- #base_historical_dataset
-
-Add a clearly separated future outcome CTE/temp table if it does not already exist.
-
-Do not unnecessarily rewrite unrelated working logic.
-
-VALIDATION
-----------
-After modifying the query, add validation queries for the following:
-
-1. Count of historical account snapshots
-2. Count of future qualifying exits
-3. Count where reportingDate = exitDate
-4. Count of churn target = 1
-5. Count of retained target = 0
-6. Count of target_churn IS NULL
-7. Count of eligible rows where target_churn IS NULL
-8. Count of exitDate = @AsOfDate cases
-9. Count of future exits correctly matched back to a historical snapshot
-10. Count of future exits that have no historical snapshot
-11. Count of internal transfers excluded
-12. Count of deceased accounts excluded
-
-Also provide sample rows for validation containing:
-
-accountID
-historical_reporting_date
-@AsOfDate as as_of_date
-qualifying_exit_date
-exitType
-is_internal_transfer
-is_deceased
-is_eligible_for_modelling
-target_churn
-
-Specifically show examples where:
-
-A. reportingDate < @AsOfDate and exitDate is in the future outcome window
-B. reportingDate = exitDate and both are after @AsOfDate
-C. exitDate = @AsOfDate
-D. internal transfer in outcome window
-E. deceased account
-
-EXPECTED DESIGN AFTER REVISION
-------------------------------
-The logic should clearly look like:
-
-STEP 1:
-Define @FeatureStartDate, @AsOfDate, @OutcomeStartDate, @OutcomeEndDate
-
-STEP 2:
-Build historical accountSummary snapshot using:
-
-reportingDate <= @AsOfDate
-
-STEP 3:
-Build future churn outcome separately using:
-
-exitDate > @AsOfDate
-AND exitDate <= @OutcomeEndDate
-
-STEP 4:
-Build internal-transfer/death exclusion logic
-
-STEP 5:
-Join future outcome back to historical population
-
-STEP 6:
-Create is_eligible_for_modelling and target_churn
-
-STEP 7:
-Return final one-row-per-accountID + as_of_date dataset
-
-FINAL GRAIN
------------
-One row per:
-
-account_id + as_of_date
-
-Do not allow the future outcome row to change the historical snapshot.
-
-At the end, explain briefly:
-
-1. what was wrong/risky in the previous date logic
-2. how reportingDate is now used
-3. how exitDate is now used
-4. why future exit rows are separated from historical snapshots
-5. how target_churn is now created
-6. how exitDate = reportingDate cases are handled
-7. whether any unresolved business rule remains
+In that case, explain which parts of the modelling dataset can still be reconstructed reliably from historical event/transaction tables and which account-level attributes cannot be made point-in-time safe.
