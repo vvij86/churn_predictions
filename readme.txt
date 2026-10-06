@@ -1,32 +1,32 @@
-Before making further changes to the base historical modelling dataset query, I want to verify whether MercerEdge contains a genuine historical account snapshot source.
+Please continue from the previous investigation, but DO NOT modify build_merceredge_base_historical_dataset.sql yet.
 
-IMPORTANT CONTEXT
------------------
-We have already confirmed that:
+The previous analysis concluded that no genuine account-level historical snapshot table was identified among the 18 in-scope MercerEdge tables.
 
-- edgeSource.accountSummary contains only one distinct row per accountID
-- there are no duplicate accountIDs in accountSummary
-- for exited accounts, reportingDate appears to be updated to the exit date
-- in observed exited records:
+However, several rows in the investigation were based only on DDL/schema review and were marked as "Not executed here".
 
-  reportingDate = exitDate
+I now want you to VALIDATE the conclusion using actual read-only profiling against the MercerEdge database.
 
-Therefore:
+OBJECTIVE
+---------
+Profile all 18 in-scope tables and confirm:
 
-- do NOT assume accountSummary is a historical snapshot table
-- do NOT use reportingDate as the model as_of_date
-- do NOT use exitDate as the model as_of_date
-- @AsOfDate must remain a fixed modelling cutoff date defined by us
+1. whether accountID exists
+2. total row count
+3. distinct accountID count
+4. whether the same accountID appears multiple times
+5. relevant date column(s)
+6. date coverage / min-max dates
+7. whether rows represent:
+   - historical snapshot/state
+   - transaction/event history
+   - current/latest reference data
+   - target/outcome data
+8. whether the table can be used safely for point-in-time modelling
 
-The current task is ONLY to investigate which table(s), if any, can provide a genuine historical account snapshot.
+DO NOT modify the modelling SQL yet.
 
-Do NOT modify the modelling query yet.
-Do NOT start feature engineering yet.
-
-IN-SCOPE MERCEREDGE TABLES
---------------------------
-Please investigate all of these 18 tables:
-
+IN-SCOPE TABLES
+---------------
 1. merceredge.edgeSource.accountSummary
 2. merceredge.edgeSource.accountEngagementWorkflow
 3. merceredge.edgePortalSource.pensionerData
@@ -48,133 +48,63 @@ Please investigate all of these 18 tables:
 
 IMPORTANT PROJECT FILES
 -----------------------
-Use the following files already available in the workspace:
+Use these workspace files:
 
 1. All_table_scripts.sql
    - main DDL/source structure
-   - use this as a source of truth for actual table and column names
 
 2. All_Other_tables_Not_explored.sql
    - additional DDL/source structure
-   - use this to verify columns for remaining tables
 
 3. MercerEdge_ML_Churn_Driver_EDA_Phase2.xlsx
-   - previous EDA for the initially explored tables
-   - use this for data availability, nulls, date coverage, and ML relevance
+   - previous EDA findings
 
 4. MercerEdge_ML_Churn_Driver_EDA_Remaining_Tables_part2.xlsx
-   - EDA for the remaining MercerEdge tables
-   - use this for historical/date coverage and data quality understanding
+   - remaining-table EDA findings
 
 5. build_merceredge_base_historical_dataset.sql
-   - current generated base historical dataset query
-   - review it only to understand what assumptions it currently makes
-   - do NOT modify it yet
+   - current base historical dataset query
+   - review only, DO NOT modify yet
 
 6. .env
    - database connection values
 
 7. sample.py
-   - known working pyodbc / SQL Server connection example
+   - known working SQL Server/pyodbc connection example
 
-Use the actual DDL files as the source of truth.
-Do NOT guess column names.
+Use the DDL files as the source of truth for actual column names.
+Do not guess column names.
 
 DATABASE ACCESS
 ---------------
 Use read-only SQL only.
 
-Reuse the existing connection approach from:
-
-sample.py
-.env
+Reuse the working connection approach from:
+- .env
+- sample.py
 
 Use:
 - pyodbc
 - python-dotenv
-- trusted connection / Windows authentication if already configured
-- TrustServerCertificate if required
+- existing trusted connection / Windows authentication pattern
+- TrustServerCertificate if already required
 
-Do not create/update/delete anything in MercerEdge.
+Do not create, update, delete, alter, or truncate anything.
 
-PRIMARY INVESTIGATION
----------------------
-For each of the 18 tables, determine:
+PROFILE EACH TABLE
+------------------
+For every table, first inspect whether accountID exists.
 
-1. Does accountID exist?
-2. If yes, can the same accountID appear multiple times?
-3. What date/datetime columns are available?
-4. What is the business meaning of each relevant date column?
-5. Does the date represent:
-   - historical snapshot date
-   - transaction/event date
-   - effective date
-   - created/updated timestamp
-   - outcome date
-   - current/latest record date
-6. Can the table reconstruct what an account looked like at a historical @AsOfDate?
-7. Does the table contain historical account-level attributes?
-8. Is the table suitable as:
-   - historical account snapshot source
-   - historical event/transaction source
-   - current/static lookup
-   - target/outcome source
-   - feature-engineering source only
-
-HISTORICAL SNAPSHOT DEFINITION
-------------------------------
-A genuine historical snapshot table should ideally look conceptually like:
-
-accountID | snapshot_date | account_status | balance | other fields
-A1001     | 2024-03-31    | Active         | ...
-A1001     | 2024-06-30    | Active         | ...
-A1001     | 2024-09-30    | Active         | ...
-A1001     | 2024-12-31    | Active         | ...
-
-The same account should be capable of appearing at multiple historical dates.
-
-Do NOT classify a table as a historical snapshot table just because it has a date column.
-
-For example:
-
-- workflow dates are event dates
-- contribution/payment dates are transaction dates
-- campaign dates are engagement dates
-- exitDate is an outcome date
-
-Those are historical event sources, not necessarily historical account snapshots.
-
-IMPORTANT ACCOUNT-LEVEL FIELDS
-------------------------------
-Specifically investigate whether any table can provide historical values for:
-
-- account status
-- account type
-- account balance
-- FUM
-- member/account state
-- active/inactive state
-- investment value
-- pension status
-- insurance status
-- other important account-level profile attributes
-
-We need to know whether these values existed historically at each @AsOfDate or whether only the latest/current value is available.
-
-PROFILING QUERIES
------------------
-For each table containing accountID, run read-only profiling such as:
+If accountID exists, run:
 
 SELECT
     COUNT(*) AS total_rows,
     COUNT(DISTINCT accountID) AS distinct_accounts
 FROM <table>;
 
-If:
+Then calculate whether multiple rows per account exist.
 
-total_rows > distinct_accounts
-
-then identify sample accountIDs with multiple rows:
+Run:
 
 SELECT TOP 20
     accountID,
@@ -185,184 +115,249 @@ GROUP BY accountID
 HAVING COUNT(*) > 1
 ORDER BY row_count DESC;
 
-For a few accounts with multiple rows, inspect the records ordered by the most relevant date column.
+If no duplicate accountIDs exist, state:
 
-Example pattern:
+one row per accountID observed
+
+If duplicates exist, inspect sample accounts.
+
+DATE PROFILING
+--------------
+For every relevant date/datetime column identified from the DDL:
+
+Run min/max/null profiling such as:
+
+SELECT
+    MIN(<date_column>) AS min_date,
+    MAX(<date_column>) AS max_date,
+    SUM(CASE WHEN <date_column> IS NULL THEN 1 ELSE 0 END) AS null_count,
+    COUNT(*) AS total_rows
+FROM <table>;
+
+For tables with multiple date columns, profile all relevant ones.
+
+Examples conceptually:
+- reportingDate
+- exitDate
+- dateOfDeath
+- jobStartDate
+- callDate
+- requestDate
+- effectiveDateFrom / effectiveDateTo
+- investmentDate
+- inflowDateReceived
+- referenceDate
+- dateOfPayment
+- eventDate
+- accurateDate
+- dateAuthorityRequested
+- terminationDate
+- startDate
+- dateSent
+- openDate
+- clickDate
+
+Use actual DDL column names only.
+
+ACCOUNT SUMMARY DEEP CHECK
+--------------------------
+For edgeSource.accountSummary, explicitly validate:
+
+1. total row count
+2. distinct accountID count
+3. duplicate accountID count
+4. number of rows where reportingDate IS NULL
+5. number of rows where exitDate IS NULL
+6. number of rows where exitDate IS NOT NULL
+7. number of exited rows where reportingDate = exitDate
+8. number of exited rows where reportingDate <> exitDate
+9. min/max reportingDate
+10. min/max exitDate
+11. whether any account has multiple historical rows
+
+Also sample exited accounts:
+
+SELECT TOP 50
+    accountID,
+    reportingDate,
+    exitDate,
+    exitType,
+    dateOfDeath
+FROM edgeSource.accountSummary
+WHERE exitDate IS NOT NULL
+ORDER BY exitDate DESC;
+
+Use actual available columns.
+
+If the evidence confirms:
+- one row per accountID
+- reportingDate = exitDate for most/all exited accounts
+
+then classify accountSummary as:
+
+- current/latest account-level source
+- target/outcome support source
+- NOT a genuine historical snapshot source
+
+Do not classify it as historical snapshot based only on the presence of reportingDate.
+
+MULTI-ROW TABLE VALIDATION
+--------------------------
+For each table where accountID has multiple rows:
+
+Select 3-5 sample accountIDs with multiple records.
+
+For each sample account, inspect rows ordered by the recommended business date.
+
+Example:
 
 SELECT *
 FROM <table>
 WHERE accountID = <sample_account>
-ORDER BY <candidate_date_column>;
+ORDER BY <recommended_date_column>;
 
-Do not assume the date column.
-Choose it only after checking the DDL.
+Determine whether rows look like:
 
-ACCOUNT SUMMARY SPECIFIC CHECK
-------------------------------
-For edgeSource.accountSummary confirm:
+A. repeated account snapshots/state records
+or
+B. distinct transactions/events
 
-- total rows
-- distinct accountIDs
-- duplicate accountID count
-- reportingDate coverage
-- exitDate coverage
-- count where reportingDate = exitDate
-- count where reportingDate <> exitDate
-- count where exitDate IS NULL
-- whether any account has multiple historical records
+Do not infer snapshot capability just because an account has multiple rows.
 
-If only one row per accountID exists, classify accountSummary appropriately as:
+A transaction/event table is NOT a historical snapshot table.
 
-current/latest account-level source
-and/or
-target/outcome source
+SPECIAL PARTIAL POINT-IN-TIME TABLES
+------------------------------------
+Validate whether these provide partial "as-of" state:
 
-but NOT as a historical snapshot source.
+1. AccountInsuranceCurrent
+   - effectiveDateFrom
+   - effectiveDateTo
+   - can it determine whether insurance was active at @AsOfDate?
 
-Also clearly state which fields from accountSummary can still safely be used for:
+2. accountInvestments
+   - investmentDate
+   - does it represent valuation/holding history?
+   - can latest-known investment state before @AsOfDate be reconstructed?
 
-- identifiers
-- churn outcome
-- death exclusion
-- internal transfer support
-- static/reference attributes
+3. thirdPartyAuthority
+   - request/effective/termination dates
+   - can active authority status be reconstructed at @AsOfDate?
 
-and which fields cannot safely be used historically without point-in-time evidence.
+4. customerMapping
+   - accurateDate or equivalent
+   - can member/customer mapping be determined as-of a historical cutoff?
 
-DATE COLUMN REVIEW
-------------------
-For each of the 18 tables, produce:
+5. pensionerData
+   - lifecycle dates
+   - does it provide one current row or historical repeated rows?
 
-Table
-Candidate Date Column(s)
-Recommended Date Column
-Date Meaning
-Historical Snapshot / Event / Lookup / Outcome
-Can Use for Feature Window?
-Can Use for As-of Snapshot?
-Leakage Risk
-Comments
+Clearly distinguish:
+- full account snapshot
+from
+- partial subdomain point-in-time state
 
-Important:
+HISTORICAL EVENT TABLE VALIDATION
+---------------------------------
+For these expected historical event/transaction sources, validate date coverage and multi-row history:
 
-@AsOfDate must remain a manually supplied modelling date.
-
-Do NOT recommend any source-table date column as the model as_of_date unless there is a very strong, verified reason.
-
-The expected modelling concept remains:
-
-@FeatureStartDate
-       ↓
-historical observations/events
-       ↓
-@AsOfDate
-       ↓
-future outcome period
-       ↓
-@OutcomeEndDate
-
-HISTORICAL EVENT TABLES
------------------------
-If a table is not a snapshot table but contains valid history, classify it separately.
-
-Examples could include:
-
+- accountEngagementWorkflow
+- accountEngagementHelpline
+- accountEngagementWeb
 - accountMoneyInflow
 - accountNetMoneyFlow
 - accountRolloverPayment
-- accountEngagementWeb
-- accountEngagementHelpline
-- accountEngagementWorkflow
-- accountInvestments
 - campaignAccountMapping
 - campaignEventDetails
+- accountInvestments if event/valuation based
 
-For such tables, determine the best date column for later feature-window filtering:
+Confirm whether they can safely support:
 
 @FeatureStartDate <= event_date <= @AsOfDate
 
-Do NOT create the features now.
+Do NOT create features yet.
 
-This is only source/date assessment.
+TARGET / OUTCOME VALIDATION
+---------------------------
+Validate that:
 
-TARGET / OUTCOME SOURCES
-------------------------
-Identify which table/date is appropriate for churn outcome creation.
+edgeSource.accountSummary.exitDate
 
-Current expected primary outcome source:
+is appropriate as the primary churn outcome date.
 
-accountSummary.exitDate
+Check whether:
+- exitDate has sufficient historical coverage
+- exitType is available for internal-transfer interpretation
+- dateOfDeath/death indicators are available for death exclusion
 
-The target should later be determined independently from the historical feature snapshot:
+Also inspect accountRolloverPayment for:
+- dateOfPayment
+- internalTransferFlag
+- any full/partial rollover indicators
 
-exitDate > @AsOfDate
-AND exitDate <= @OutcomeEndDate
-
-Do not mix future exit rows into historical feature data.
-
-IMPORTANT:
-Since reportingDate = exitDate for exited accounts, explicitly explain whether this confirms that reportingDate is acting as an update/latest-record date rather than a reliable historical snapshot date.
+Do not use future outcome records as model features.
 
 OUTPUT REQUIRED
 ---------------
-Create a clear summary table with columns:
+Create a profiling summary table with columns:
 
 Table Name
 Has AccountID?
 Total Rows
 Distinct Accounts
-Multiple Rows per Account?
-Candidate Date Columns
-Recommended Date Column
-Date Meaning
+Accounts With Multiple Rows
+Relevant Date Columns
+Min Date
+Max Date
+Date Null %
+Observed Row Grain
 Historical Snapshot Source?
 Historical Event Source?
-Current/Static Lookup?
+Current/Static Source?
 Target/Outcome Source?
-Feature Engineering Later?
+Partial Point-in-Time Source?
 Leakage Risk
 Recommendation
 
-Then create a second shortlist:
+Then provide a second summary grouped as:
 
-A. Best candidate historical snapshot table(s)
+A. Genuine historical account snapshot tables
 
-B. Historical transaction/event tables
+B. Partial point-in-time subdomain tables
 
-C. Current/static/reference tables
+C. Historical transaction/event tables
 
-D. Target/outcome tables
+D. Current/static/reference tables
 
-E. Tables not useful for historical reconstruction
+E. Target/outcome tables
+
+F. Tables not useful for historical reconstruction
+
+IMPORTANT DECISION RULE
+-----------------------
+Only classify a table as a genuine historical account snapshot source if actual profiling shows that:
+
+- the same account can appear at multiple historical dates
+- those rows represent account state at those dates
+- important account-level attributes are persisted historically
+- historical state can be reconstructed for an arbitrary @AsOfDate
+
+Do not classify event/transaction history as an account snapshot.
 
 FINAL CONCLUSION
 ----------------
 At the end, clearly answer:
 
-1. Is there a genuine historical account snapshot table among these 18 tables?
+1. Was the earlier conclusion correct?
+2. Is there any genuine historical account snapshot table among the 18 tables?
+3. Which tables provide partial point-in-time state only?
+4. Which tables provide reliable historical event/transaction history?
+5. Which account-level fields cannot be reconstructed historically?
+6. Can the tactical churn model still be built defensibly using event history?
+7. What exact tactical data limitations should be documented?
+8. What should be solved later in the Silver/Gold strategic layer?
 
-2. If yes:
-   - which table
-   - which snapshot date column
-   - what historical fields it provides
-   - why it is suitable
+DO NOT modify:
+build_merceredge_base_historical_dataset.sql
 
-3. If no:
-   clearly state:
-   "No genuine historical account snapshot table was identified among the 18 in-scope MercerEdge tables."
-
-4. If no historical snapshot exists:
-   explain which parts of the churn modelling dataset can still be reconstructed reliably from event/transaction history.
-
-5. Identify which account-level attributes cannot be made point-in-time safe from the available tactical data.
-
-6. Explain the implications for the tactical churn model.
-
-7. Recommend what should be documented as a tactical data limitation and what should later be solved in the strategic/Silver/Gold data layer.
-
-IMPORTANT:
-Do not change build_merceredge_base_historical_dataset.sql yet.
-
-First complete this investigation and show me the findings.
-
-I will review the findings before we modify the base historical modelling dataset query.
+until the profiling is complete and the findings are shown to me.
