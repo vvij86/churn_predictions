@@ -1,49 +1,100 @@
-Please inspect the current:
+Please perform a read-only churn-event validation across the MercerEdge tactical source.
 
-build_merceredge_base_historical_dataset.sql
+Goal:
+Confirm which actual events in the available MercerEdge data should be classified as:
 
-and explain exactly how the four modelling dates are currently managed:
+1. Primary churn events
+2. Churn-support / exit events
+3. Non-churn exclusions
+4. Risk indicators only
+5. Unclear events requiring business confirmation
 
-- @FeatureStartDate
-- @AsOfDate
-- @OutcomeStartDate
-- @OutcomeEndDate
+Use the following project files as the main reference:
 
-Do not modify the SQL.
+- All_table_scripts.sql
+- All_Other_tables_Not_explored.sql
+- MercerEdge_ML_Churn_Driver_EDA_Phase2.xlsx
+- MercerEdge_ML_Churn_Driver_EDA_Remaining_Tables_part2.xlsx
+- build_merceredge_base_historical_dataset.sql
+- profile_historical_snapshot_sources.py
+- historical_snapshot_profile_results.json
+- .env
+- sample.py
 
-For each date parameter, explain:
+Use read-only SQL only.
 
-1. Is it manually supplied or derived?
-2. What is its purpose?
-3. Which source tables use it?
-4. Which exact source date column is compared against it?
-5. Whether the comparison is for:
-   - account eligibility
-   - historical feature/event window
-   - partial point-in-time state
-   - target/outcome logic
+Review all relevant in-scope MercerEdge tables, especially:
 
-Create a table like:
+- edgeSource.accountSummary
+- edgeSource.accountRolloverPayment
+- edgeSource.accountMoneyInflow
+- edgeSource.accountNetMoneyFlow
+- edgeSource.campaignEventDetails
+- edgeSource.campaignEvents
+- edgeSource.accountEngagementWorkflow
+- edgePortalSource.pensionerData
 
-Source Table | Source Date Column | FeatureStartDate Used? | AsOfDate Used? | Outcome Window Used? | Purpose
+Validate actual values and event patterns for:
 
-Please cover all 18 in-scope MercerEdge tables, but clearly mark tables that are not currently used by the base dataset SQL.
+- exitDate
+- exitType
+- internalTransferFlag
+- dateOfPayment
+- full / partial rollover indicators if available
+- withdrawal / benefit payment indicators
+- account closure / zero-balance exit patterns
+- death indicators / dateOfDeath / deceasedDate
+- MEMBER_EXIT
+- ROLLOVER
+- PAYMENT_MEMBER
+- PAYMENT_EXTERNAL
+- other exit-like event types found in the data
 
-Important:
-- Do not guess column names.
-- Read the current SQL and DDL files.
-- Do not change any code.
-- Clearly distinguish:
-  * manually supplied modelling dates
-  * source event dates
-  * target/outcome dates
-  * join/commencement/effective dates
+Do not assume an event is churn just because the name sounds like churn.
 
-Also explain the first training snapshot:
+For every candidate event, check:
+- which table and column it comes from
+- actual distinct values / event names
+- row counts
+- whether it represents full exit, partial exit, transfer, death, or normal activity
+- whether it occurs before, on, or after exitDate
+- whether it can be used as the churn target
+- whether it should only be used as supporting evidence
+- whether using it as a feature would cause target leakage
 
-FeatureStartDate = 2023-04-01
-AsOfDate = 2024-03-31
-OutcomeStartDate = 2024-04-01
-OutcomeEndDate = 2024-06-30
+Please create a summary table with:
 
-and show exactly which source columns are filtered against those dates.
+Event / Rule
+Source Table
+Source Column(s)
+Observed Values
+Observed Count
+Churn?
+Exclude?
+Risk Indicator Only?
+Target Leakage Risk?
+Recommended Use
+Business Confirmation Needed?
+
+Expected classification to verify, not blindly assume:
+
+- Full rollover out -> likely churn
+- Full withdrawal / full benefit payment -> likely churn
+- Account exit / closure -> likely churn
+- Internal transfer -> not churn
+- Death exit -> exclude from churn modelling
+- Partial rollover / partial withdrawal -> risk indicator, not churn
+- MEMBER_EXIT -> likely outcome/target support, not feature
+
+Also explicitly check whether "account closure", "full withdrawal", and "full rollover" are directly distinguishable in the current MercerEdge data or whether exitDate is the only reliable common churn outcome field.
+
+At the end provide:
+
+1. Final validated churn-event list
+2. Final exclusion list
+3. Final risk-indicator list
+4. Events that should never be used as predictive features due to leakage
+5. Items still requiring business SME confirmation
+
+Do not modify any SQL or Python files.
+Stop after showing the findings.
