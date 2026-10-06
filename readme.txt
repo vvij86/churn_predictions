@@ -1,39 +1,33 @@
-The profiling is now complete and the findings are validated.
+One additional confirmed business requirement:
 
-Please use the validated profiling results to redesign:
+The business has asked us to use historical data starting from 01-Apr-2023 for model training.
 
-build_merceredge_base_historical_dataset.sql
+Please incorporate this into the proposed design before rewriting the SQL.
 
-Important rules:
+Important interpretation:
 
-1. Do not treat edgeSource.accountSummary as a historical snapshot table.
-2. Do not use reportingDate as the model as_of_date.
-3. @AsOfDate must remain a manually supplied modelling cutoff.
-4. accountSummary should be used only for:
-   - account universe / identifiers
-   - target/outcome support using exitDate
-   - death exclusion
-   - internal-transfer support
-   - safe static/reference fields only where justified
-5. Do not use current/latest mutable fields such as current balance, FUM, latest status, current age band, current salary, etc. as historical point-in-time features.
-6. Create target_churn separately using:
-   exitDate > @AsOfDate
-   AND exitDate <= @OutcomeEndDate
-   with internal transfer and death exclusions.
-7. Use the validated historical event/transaction tables only as historical source inputs.
-8. Use partial effective-dated sources only where point-in-time state can be reconstructed safely.
-9. Do not perform full feature engineering yet.
-10. Keep the final grain:
-    one row per account_id + as_of_date.
-11. Add clear comments identifying:
-    - current/static source
-    - target source
-    - historical event source
-    - partial point-in-time source
-12. Handle known sentinel/future dates such as 3999-12-13 explicitly.
-13. Remove any logic that assumes accountSummary has multiple historical snapshots.
-14. Do not use ROW_NUMBER over accountSummary for historical snapshot selection if accountID is already unique.
+- 01-Apr-2023 is the earliest available/in-scope historical source-data date.
+- We are currently planning a 12-month feature window and 3-month outcome window.
+- Therefore, if a complete 12-month feature history is required, the earliest full training snapshot should be:
 
-Before modifying the file, first show me the proposed revised SQL structure/steps only.
+  FeatureStartDate = 2023-04-01
+  AsOfDate         = 2024-03-31
+  OutcomeStartDate = 2024-04-01
+  OutcomeEndDate   = 2024-06-30
 
-Do not write the SQL yet.
+- Subsequent historical training snapshots can move quarterly.
+- Do not interpret "train from 01-Apr-2023" as requiring an AsOfDate of 01-Apr-2023, because there would be no prior 12-month feature history available.
+
+Also review historical eligibility carefully:
+
+- An account must have existed as of the supplied @AsOfDate.
+- Where fundJoinDate/account commencement date is reliable, require it to be <= @AsOfDate.
+- Accounts that exited before or on @AsOfDate should not be treated as active prediction candidates.
+- Future exits after @AsOfDate may be used only for target/outcome creation.
+
+One caution on customerMapping:
+Profiling showed one current row per account. Do not automatically treat accurateDate <= @AsOfDate as proof of a complete historical mapping snapshot. Use it only where point-in-time validity is defensible and document any limitation.
+
+Please update the proposed structure with these requirements only.
+
+Do NOT modify build_merceredge_base_historical_dataset.sql yet.
