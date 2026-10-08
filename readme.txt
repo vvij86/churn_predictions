@@ -1,89 +1,222 @@
-Please update the current:
-
-build_merceredge_base_historical_dataset.sql
-
-Business has now confirmed that:
-
-edgePortalSource.pensionerData
-
-is NOT required for the tactical churn model.
-
-Please remove all logic that depends on pensionerData from this base historical dataset query.
+Please identify candidate churn-prediction features from the MercerEdge tactical source and create a simple Excel workbook that can be understood by both technical and business users.
 
 IMPORTANT:
-Do not redesign unrelated working logic.
-Do not start feature engineering.
-Only remove pensionerData-related logic and simplify the affected sections safely.
+This task is FEATURE IDENTIFICATION ONLY.
 
-Specifically remove:
+Do NOT perform feature engineering.
+Do NOT write feature-generation SQL.
+Do NOT modify build_merceredge_base_historical_dataset.sql.
+Do NOT train any model.
 
-1. #pensioner_reference temp table
-2. Reads from:
-   edgePortalSource.pensionerData
-3. clientCommencementDate
-4. clientEarliestCommencementDate
-5. deceasedDate
-6. pensioner deathIndicatorFlag
-7. pensioner_death_indicator_flag
-8. Any fallback logic that uses pensionerData for commencement date
-9. Any fallback death logic that uses pensionerData
-10. Any joins to #pensioner_reference
-11. Any comments/documentation saying pensionerData is used for commencement/death support
-12. Any validation queries specifically related to pensionerData
+Business has confirmed that:
+edgePortalSource.pensionerData
+is NOT required.
 
-After removing pensionerData, use accountSummary as the source for the remaining relevant account-level fields.
+Exclude pensionerData completely.
 
-For commencement / existence logic:
-- use accountSummary.fundJoinDate where available
-- do not invent another fallback date unless it is already validated elsewhere
-- if fundJoinDate is NULL, preserve the existing conservative eligibility behavior unless business rules require otherwise
+Review these 17 in-scope tables:
 
-For death logic:
-- use accountSummary.dateOfDeath
-- use accountSummary.deathIndicatorFlag if available
-- remove all dependence on pensionerData.deceasedDate and pensionerData.deathIndicatorFlag
+1. merceredge.edgeSource.accountSummary
+2. merceredge.edgeSource.accountEngagementWorkflow
+3. merceredge.edgeSource.accountEngagementHelpline
+4. merceredge.edgeSource.accountEngagementWeb
+5. merceredge.edgeSource.AccountInsuranceCurrent
+6. merceredge.edgeSource.accountInvestments
+7. merceredge.edgeSource.accountMoneyInflow
+8. merceredge.edgeSource.accountNetMoneyFlow
+9. merceredge.edgeSource.accountRolloverPayment
+10. merceredge.edgeSource.campaignEventDetails
+11. merceredge.edgeSource.campaignEvents
+12. merceredge.edgeSource.customerMapping
+13. merceredge.edgeSource.customerSummary
+14. merceredge.edgeSource.thirdPartyAuthority
+15. merceredge.tableau.fundListSource
+16. merceredge.edgeSource.campaign
+17. merceredge.edgeSource.campaignAccountMapping
 
-Review and simplify:
+Use these files as source references:
 
-- #historical_eligibility
-- commencement_date_used
-- normalized_date_of_death
-- death_exclusion_asof_flag
-- death_exclusion_outcome_flag
-- death_exclusion_flag
-- is_eligible_for_modelling
-- historical_eligibility_status
+- All_table_scripts.sql
+- All_Other_tables_Not_explored.sql
+- MercerEdge_ML_Churn_Driver_EDA_Phase2.xlsx
+- MercerEdge_ML_Churn_Driver_EDA_Remaining_Tables_part2.xlsx
+- build_merceredge_base_historical_dataset.sql
+- historical_snapshot_profile_results.json
 
-Make sure target_churn logic still works correctly after the removal.
+Use actual table and column names from the DDL/EDA.
+Do not guess.
 
-Keep these core rules unchanged:
+Create an Excel file named:
 
-- @AsOfDate remains manually supplied
-- fundJoinDate is only used for existence/eligibility
-- exitDate is used for future churn outcome
-- internal transfers remain non-churn/excluded from positive churn
-- death remains excluded from churn
-- one row per account_id + as_of_date
-- no reportingDate snapshot logic
-- no customerSummary current-state features
-- no feature engineering yet
+MercerEdge_Churn_Candidate_Feature_List.xlsx
 
-After the change, run/read-only validate the query and report:
+The Excel should be simple and business-friendly.
 
-1. total account universe
-2. eligible accounts
-3. retained count
-4. churn count
-5. target NULL count
-6. death exclusions
-7. internal-transfer exclusions
-8. duplicate account_id + as_of_date count
-9. NULL account_id count
-10. confirm there are no remaining references to pensionerData anywhere in the SQL
+Sheet 1: Candidate_Features
 
-Also briefly summarize:
-- what pensionerData logic was removed
-- what now replaces the commencement/death fallback logic
-- whether row counts changed materially after removal
+Use these columns:
 
-Do not modify any other project files unless required for validation.
+1. Feature Name
+2. Simple Business Meaning
+3. Feature Category
+4. Source Table
+5. Source Column(s)
+6. Source Reference / File
+7. Why It May Help Predict Churn
+8. Behavioural Feature? Yes/No
+9. Safe Before AsOfDate? Yes/No
+10. Leakage Risk - Low/Medium/High
+11. Business Confirmation Needed? Yes/No
+12. Priority - High/Medium/Low
+13. Recommendation - Use / Consider / Exclude
+
+Keep the wording simple.
+
+Examples of Simple Business Meaning:
+
+- days_since_last_helpline_contact
+  → "How long since the member last contacted the helpline"
+
+- campaign_open_count
+  → "How many campaign emails the member opened"
+
+- contribution_count
+  → "How often money was added to the account"
+
+- negative_net_flow_count
+  → "How often more money left the account than came in"
+
+- partial_rollover_count
+  → "How many times part of the member's money was rolled out"
+
+Do not use highly technical descriptions unless necessary.
+
+FEATURE GROUPS TO REVIEW
+
+A. Behavioural / Engagement
+- helpline activity
+- web activity
+- workflow activity
+- campaign engagement
+- member interaction/event activity
+- recency/frequency of interactions
+
+B. Transaction / Financial Behaviour
+- money inflow
+- contribution behaviour
+- net money flow
+- withdrawal/payment behaviour
+- declining inflow
+- negative cashflow
+
+C. Rollover / Transfer Behaviour
+- rollover activity
+- partial rollover
+- external rollover
+- transfer activity
+
+D. Investment Behaviour
+- investment activity
+- investment changes
+- investment holding/value where historically safe
+
+E. Insurance
+- active insurance
+- cover/premium
+- insurance status
+
+F. Account / Tenure / Product
+- tenure
+- member/account type
+- fund/product information
+- member source
+
+G. Campaign / Communication
+- campaigns sent
+- opens
+- clicks
+- engagement rate
+- time since last interaction
+
+IMPORTANT LEAKAGE RULE
+
+Do not recommend future/outcome information as predictive features.
+
+Clearly mark as EXCLUDE where applicable:
+
+- exitDate
+- MEMBER_EXIT
+- account closure outcome
+- full rollover completion when it represents the churn event
+- future payment/rollover activity after @AsOfDate
+- any field that directly reveals future churn
+
+Sheet 2: Top_Features
+
+Create two simple sections:
+
+A. Top 10 Behavioural Features
+B. Top 10 Overall Churn Features
+
+For each include:
+
+- Rank
+- Feature Name
+- Simple Meaning
+- Source Table
+- Source Column(s)
+- Why Important
+
+Sheet 3: Excluded_Leakage_Features
+
+Include:
+
+- Field/Event
+- Source Table
+- Source Column
+- Reason for Exclusion
+- Leakage Explanation in Simple Terms
+
+Example:
+MEMBER_EXIT
+Reason:
+"Shows that the member has already exited, so the model would be learning the answer instead of predicting it."
+
+Sheet 4: Business_Confirmation
+
+List only features/events where business clarification is still required.
+
+Columns:
+
+- Feature/Event
+- Source
+- Question for Business
+- Why Confirmation Is Needed
+
+Sheet 5: Table_Summary
+
+For all 17 tables show:
+
+- Table Name
+- Main Business Purpose
+- Useful for Churn? Yes/Maybe/No
+- Main Candidate Feature Types
+- Behavioural Value - High/Medium/Low
+- Comments
+
+IMPORTANT:
+The Excel should be concise, clean and easy to review in a meeting.
+
+Use short sentences.
+Avoid ML jargon where possible.
+
+Do not calculate the features.
+Do not create SQL.
+Only identify and document candidate features with clear source references.
+
+At the end, show me:
+- total number of candidate features identified
+- number of behavioural features
+- number marked High priority
+- number excluded due to leakage
+- Excel file location
