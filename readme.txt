@@ -1,1 +1,1 @@
-
+Hi Mukesh, the ML cluster name currently includes "SaiBeera" and "single_user_cluster", which may be confusing since it's intended for group usage. Could you please rename it to a more generic name that reflects its purpose as a shared ML cluster?
