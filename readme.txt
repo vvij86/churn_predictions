@@ -1,210 +1,181 @@
-Yes. Your query is creating 8 temporary tables, each with one clear job. Think of it as progressively cleaning and narrowing the data until you get the final base modelling dataset.
+Once the Bronze views are ready in Databricks, your ML flow can move from direct UAT-table prototyping into a proper repeatable pipeline.
 
-1. #account_universe — Starting population
+At a high level, I would structure it like this:
 
-Source: mainly accountSummary.
+1. Validate Bronze views
 
-Purpose: create the master list of accounts and basic reference fields such as account/member/customer IDs, fundJoinDate, DOB, gender, exitDate, exitType, death fields, etc.
+confirm all required source tables/columns are present
 
-Main filter:
+check row counts, date coverage, keys, nulls, and business-rule fields
 
-accountID IS NOT NULL
+confirm Bronze matches what you already explored in UAT
 
-Layman meaning: “Start with every valid account we know about.”
 
-Important: no historical snapshot logic is used here.
 
+2. Build Silver / cleaned modelling inputs
 
+standardize column names and data types
 
-2. #pensioner_reference — Additional pension/death information
+apply data-quality rules
 
-Source: pensionerData.
+resolve account/member/customer mappings
 
-Purpose: bring in clientCommencementDate, clientEarliestCommencementDate, deceasedDate, death indicator.
+normalize dates and sentinel values
 
-Main filter:
+create reusable cleaned source views
 
-accountID IS NOT NULL
 
-Layman meaning: “If accountSummary doesn't have enough commencement/death information, use pensionerData as supporting information.”
 
-It is not treated as a complete historical snapshot.
+3. Rebuild the base historical dataset on Databricks
 
+one row per account_id + as_of_date
 
+apply eligibility
 
-3. #historical_eligibility — Was this account valid at the AsOfDate?
+death/internal-transfer exclusions
 
-Combines #account_universe + #pensioner_reference.
+create future churn target
 
-Determines a commencement_date_used, generally preferring:
+parameterize FeatureStartDate, AsOfDate, and outcome dates
 
-fundJoinDate
-→ clientCommencementDate
-→ clientEarliestCommencementDate
 
-Main rules are roughly:
 
-commencement_date_used <= @AsOfDate
-exitDate IS NULL OR exitDate > @AsOfDate
-not deceased on/before @AsOfDate
+4. Feature engineering
 
-Creates:
+account/tenure/product features
 
-existed_by_asof_flag
+contribution and money-flow features
 
-exited_on_or_before_asof_flag
+rollover/withdrawal features
 
-death_exclusion_asof_flag
+web/helpline/workflow engagement
 
-is_eligible_for_modelling
+campaign/event features
 
-historical_eligibility_status
+Qualtrics CSAT/VoC features when available
 
+missing-value treatment and feature validation
 
-Layman meaning: “Was this person/account actually active and eligible when we pretend we are standing on the AsOfDate?”
 
 
+5. Generate historical training snapshots
 
-4. #customer_mapping_reference — Find useful member/customer IDs
+run the same logic for quarterly AsOfDates
 
-Source: customerMapping.
+append the snapshots into one historical modelling dataset
 
-Used for customer ID, member number, Salesforce IDs, policy number, etc.
+keep point-in-time safety for every feature
 
-Main filter:
 
-accountID IS NOT NULL
-AND accurateDate <= @AsOfDate
 
-Layman meaning: “Use the best available mapping known by the cutoff date to enrich the account with IDs.”
+6. Train / validation / test split
 
-Very important: if mapping is missing, the account is not automatically excluded.
+use time-based splitting
 
+keep final holdout period untouched
 
+avoid random split as the primary approach
 
-5. #third_party_authority_reference — Historical authority status support
 
-Source: thirdPartyAuthority.
 
-Main filters:
+7. Model development
 
-dateAuthorityRequested <= @AsOfDate
+baseline Logistic Regression
 
-and termination date must be:
+Decision Tree / Random Forest
 
-NULL/open-ended
-OR > @AsOfDate
+HistGradientBoosting / XGBoost if supported
 
-Sentinel future dates like 3999-12-13 are normalized.
+compare AUC, recall, precision, F1, etc.
 
-Layman meaning: “Was a third-party authority active for this account at the cutoff date?”
 
-Currently this is staged for later use; it does not appear to drive your final base population yet.
 
+8. Tune and select the model
 
+hyperparameter tuning
 
-6. #internal_transfer_outcome — Identify non-churn internal transfers
+class-imbalance handling if required
 
-Source: accountRolloverPayment.
+threshold tuning
 
-Looks only in the future outcome window:
+select champion model
 
-dateOfPayment > @AsOfDate
-AND dateOfPayment <= @OutcomeEndDate
 
-Then checks:
 
-internalTransferFlag = 1
+9. Explainability and business validation
 
-Layman meaning: “If the account leaves during the outcome period because it was only an internal transfer, don't call that churn.”
+global feature importance
 
+account-level churn drivers
 
+validate whether drivers make business sense
 
-7. #future_churn_outcome — Create the churn target
+check for leakage
 
-Starts from the eligible historical population.
 
-Future exit condition:
 
-exitDate > @AsOfDate
-AND exitDate <= @OutcomeEndDate
+10. MLflow / MLOps
 
-Then excludes:
 
-internal transfers
 
-death-related exits
+log runs, parameters, features, metrics
 
+register model
 
-Creates:
+version champion/challenger
 
-future_exit_in_outcome_window_flag
-internal_transfer_exclusion_flag
-death_exclusion_outcome_flag
-target_churn
+promote through DEV → Stage → Prod
 
-Conceptually:
 
-eligible + future valid exit = target_churn 1
-eligible + no valid future exit = target_churn 0
-not eligible = NULL
+11. Scoring pipeline
 
-Layman meaning: “Look forward three months and determine whether this account actually churned.”
 
 
+build latest scoring dataset using the same feature definitions
 
-8. #base_historical_dataset — Final modelling base row
+score active accounts
 
-Joins the previous outputs together.
+produce churn probability, risk band, drivers, model version
 
-Keeps one row per:
 
-account_id + as_of_date
+12. Power BI / downstream output
 
-Includes IDs, modelling dates, eligibility flags, exclusion flags and target_churn.
 
-Final fields include things like:
 
-account_id
-as_of_date
-feature_start_date
-outcome_start_date
-outcome_end_date
-fund_join_date
-exit_date
-internal_transfer_exclusion_flag
-death_exclusion_flag
-is_eligible_for_modelling
-target_churn
-retained_flag
-historical_eligibility_status
+publish the agreed scoring output
 
-Layman meaning: “This is the clean base row that will later receive engineered ML features.”
+account/member IDs
 
+churn probability
 
+risk band
 
+primary/additional drivers
 
-The easiest way to remember the whole flow is:
+retention category
 
-All accounts
-   ↓
-Add pension/death support
-   ↓
-Check who was eligible at AsOfDate
-   ↓
-Add reference IDs
-   ↓
-Check internal-transfer outcome
-   ↓
-Check future exit/death outcome
-   ↓
-Create target_churn
-   ↓
-Final base historical dataset
+FUM/business fields
 
-One important point: FeatureStartDate is mostly just carried in this base dataset right now. The behavioural tables such as money inflow, net money flow, workflow, campaign events, etc. will actually use:
+recommended action if required
 
-event_date >= @FeatureStartDate
-AND event_date <= @AsOfDate
 
-in your next feature-engineering step.
+13. Monitoring and retraining
+
+
+
+monitor model performance and data drift
+
+track scoring volumes and feature distributions
+
+define retraining cadence
+
+revalidate when strategic data replaces tactical sources
+
+
+So your immediate sequence after Bronze is ready should basically be:
+
+> Bronze validation → Silver/cleaned inputs → base historical dataset → feature engineering → historical snapshots → model training/validation → MLOps → scoring/output.
+
+
+
+And because you already did a lot of tactical exploration directly on UAT, much of that work should help you validate the Bronze mapping faster rather than starting from zero.
