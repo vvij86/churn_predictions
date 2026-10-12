@@ -1,55 +1,17 @@
-Category: Behavioural Features – Business Confirmation
+1. How much past member behaviour should we use to predict churn?
+   Example: Previous 12 months before the AsOfDate.
 
-Question to Confirm:
+2. At what point in time should we take the member snapshot for prediction — month-end, quarter-end, or year-end?
+   Example: 31-Mar-2024, 30-Jun-2024, or 31-Dec-2024.
 
-Can we confirm whether the following identified behavioural features are sufficient for churn prediction, or whether any additional behavioural features should be considered?
+3. After the prediction date, how long should we observe the member to determine whether they churned?
+   Example: 3 months after the AsOfDate.
 
-Identified Behavioural Features:
+4. Should the churn observation period start from the day after the prediction date?
+   Example: AsOfDate 31-Mar-2024 → Outcome starts 01-Apr-2024.
 
-1. Helpline Engagement
+5. Should newly joined accounts be included even if they have only a short history before the prediction date?
+   Example: Include accounts with 1, 3, or 6 months of history, or allow no minimum tenure.
 
-- Days since last helpline contact
-- Helpline contact count (12 months)
-- Helpline inquiry count (12 months)
-
-2. Website Engagement
-
-- Website visit count (12 months)
-- Days since last website visit
-
-3. Workflow Activity
-
-- Workflow completion count (12 months)
-- Open workflow case count
-- Days since last workflow job
-
-4. Campaign Engagement
-
-- Campaign email open count
-- Campaign email click count
-- Campaign engagement rate
-- Days since last campaign interaction
-
-5. Contribution Behaviour
-
-- Contribution count (12 months)
-- Average monthly inflow amount
-- Negative net flow count
-- Months of declining inflow
-
-6. Rollover Behaviour
-
-- Partial rollover count
-- External rollover count
-- Total rollover amount (12 months)
-
-7. Investment Behaviour
-
-- Investment change count (12 months)
-- Total investment value change
-
-Business Confirmation Required:
-
-Are these features appropriate and sufficient to capture member behaviour for churn prediction? Are there any additional behavioural indicators we should include?
-
-Status: To Confirm
+6. Should an account be included in modelling only when AccountSummary data is available, or should valid accounts without AccountSummary also be included?
+   Example: Account exists but AccountSummary data is missing — include or exclude?
