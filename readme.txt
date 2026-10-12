@@ -18,3 +18,5 @@ You can ask business these in very simple English:
 - How often should the model be retrained?
 
 For your meeting, the most important ones are probably the first 10.
+
+When the Power BI dashboard refreshes, should the ML model score the accounts again each time, or should Power BI use the latest available scoring output from the persisted ML table?
