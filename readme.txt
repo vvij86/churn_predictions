@@ -1,100 +1,20 @@
-Please create a separate SQL validation file for the candidate churn features identified from the 17 in-scope MercerEdge tables.
+You can ask business these in very simple English:
 
-IMPORTANT:
-This is FEATURE VALIDATION ONLY.
+- What should be the AsOfDate / prediction date for each training snapshot — month end, quarter end, or another date?
+- How much past history should we use before each AsOfDate — 12 months, shorter for new members, or something else?
+- How far into the future should we check for churn after each AsOfDate — 3 months or another period?
+- Should OutcomeStartDate always be the next day after AsOfDate?
+- For accounts that joined recently, can we include them with less than 12 months of history?
+- What is the minimum history/tenure required before an account can be included in training?
+- Should accounts that exited on the AsOfDate be excluded from the active population?
+- Should accounts that exit after the AsOfDate but within the outcome window be treated as churn?
+- For model validation, do you agree with using time-based validation instead of randomly splitting accounts?
+- Which periods should be used for training, validation, and final test/holdout?
+- Should the final holdout period be kept completely untouched until the model is finalized?
+- How often should we create historical training snapshots — monthly or quarterly?
+- Business asked to use data from 1-Apr-2023. Should that mean the earliest source-history date, with the first full 12-month snapshot at 31-Mar-2024?
+- Are there any business periods we should exclude because of unusual events, migrations, or data-quality issues?
+- For production scoring, how often should the model score members — weekly, monthly, or quarterly?
+- How often should the model be retrained?
 
-Do NOT perform feature engineering.
-Do NOT build aggregate ML features.
-Do NOT modify build_merceredge_base_historical_dataset.sql.
-Do NOT train any model.
-
-Exclude:
-edgePortalSource.pensionerData
-
-Create a new file:
-
-validate_candidate_churn_features.sql
-
-Purpose:
-Provide simple read-only SQL checks that I can run manually to validate whether the identified candidate churn features have useful data.
-
-For each relevant source table/column, add small profiling queries such as:
-
-1. Row count
-2. Distinct accountID count
-3. NULL count / NULL percentage
-4. Distinct values for categorical columns
-5. MIN/MAX dates for date columns
-6. MIN/MAX/AVG for numeric columns where useful
-7. TOP sample rows
-8. Multiple rows per account check for behavioural/event tables
-9. Date coverage relative to the modelling period
-10. Simple checks for target leakage / future information
-
-Focus especially on behavioural features from:
-
-- accountEngagementWorkflow
-- accountEngagementHelpline
-- accountEngagementWeb
-- accountMoneyInflow
-- accountNetMoneyFlow
-- accountRolloverPayment
-- campaignEventDetails
-- campaignEvents
-- campaignAccountMapping
-- accountInvestments
-- AccountInsuranceCurrent
-
-Also include supporting checks for:
-
-- accountSummary
-- customerMapping
-- customerSummary
-- thirdPartyAuthority
-- fundListSource
-- campaign
-
-Keep each query simple and clearly commented.
-
-Example format:
-
---------------------------------------------------
--- Feature candidate: Helpline contact frequency
--- Business meaning: How often the member contacts the helpline
--- Source: edgeSource.accountEngagementHelpline
--- Columns: accountID, callDate
---------------------------------------------------
-
-SELECT
-    COUNT(*) AS total_rows,
-    COUNT(DISTINCT accountID) AS distinct_accounts,
-    MIN(callDate) AS min_call_date,
-    MAX(callDate) AS max_call_date,
-    SUM(CASE WHEN callDate IS NULL THEN 1 ELSE 0 END) AS null_call_dates
-FROM merceredge.edgeSource.accountEngagementHelpline;
-
-Then add a small sample query if useful.
-
-Do the same for each important candidate feature source.
-
-Do NOT create features such as:
-- helpline_contact_count_12m
-- campaign_open_rate
-- negative_net_flow_count
-- rollover_count
-
-Only validate the raw columns needed to create those features later.
-
-At the top of the SQL file, add a short comment explaining:
-
-"These queries validate candidate feature sources only. They do not perform feature engineering."
-
-At the end, include a compact summary comment listing:
-- feature area
-- source table
-- main source columns
-- what the query validates
-
-Use actual column names from the DDL files.
-Do not guess column names.
-Use read-only SQL only.
+For your meeting, the most important ones are probably the first 10.
