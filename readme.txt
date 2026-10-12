@@ -1,4 +1,1 @@
-Validation Approach: Should we validate the model using time-based validation or a random split?
-Example: Time-based = train on older data and validate on a later period; Random = mix all records and randomly split them into training and validation sets.
-
-Recommended: Timebased
+Campaign Behavioural Features: Can we use member campaign engagement data (emails sent, opened, clicked, engagement rates and last interaction date) as behavioural features for ML churn prediction? Are there any specific campaign types we should include or exclude, such as administrative notifications, financial hardship communications or retention campaigns?
