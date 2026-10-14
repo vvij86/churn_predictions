@@ -1,312 +1,379 @@
-I am currently doing FEATURE ENGINEERING PROTOTYPING in the MercerEdge UAT SQL Server environment.
+Review and correct the existing Step 1 prototype SQL:
 
-IMPORTANT:
+build_merceredge_feature_dataset_step1.sql
+
+Context:
+- This is still only a MercerEdge UAT SQL Server prototype.
 - Do NOT use Databricks.
 - Do NOT use Bronze views.
 - Do NOT use PySpark.
 - Do NOT create notebooks.
-- Work only with the existing 15 approved MercerEdge UAT source tables listed below.
-- This is a prototype dataset query only.
-- Once business confirms the feature logic, I will later convert the approved logic to Databricks views / PySpark.
+- Work only with the existing approved UAT source tables and existing SQL prototype.
+- Do not start Step 2 behavioural feature engineering yet.
 
-Use the existing base historical dataset SQL as the starting point:
+IMPORTANT HISTORICAL SNAPSHOT RULE
+----------------------------------
 
-build_merceredge_base_historical_dataset.sql
+For this prototype, fundJoinDate is the agreed historical account-existence anchor.
 
-The modelling grain must remain:
+Use:
 
-one row per account_id + as_of_date
+fundJoinDate <= @AsOfDate
 
-Do not change:
-- churn target definition
-- eligibility rules
-- death exclusion
-- internal transfer exclusion
-- AsOfDate / outcome window logic
+to determine whether an account existed at a historical snapshot.
 
+Interpretation:
 
-IN-SCOPE UAT TABLES – 15 TABLES ONLY
-------------------------------------
+Example 1:
+fundJoinDate = 2023-08-15
+AsOfDate     = 2024-03-31
 
-1. merceredge.edgeSource.accountSummary
+The account existed by the AsOfDate and can be considered for modelling, subject to the other eligibility rules.
 
-2. merceredge.edgeSource.accountEngagementWorkflow
+Example 2:
+fundJoinDate = 2024-06-01
+AsOfDate     = 2024-03-31
 
-3. merceredge.edgeSource.accountEngagementHelpline
+The account did not exist yet at that historical snapshot and must not be eligible for modelling for that AsOfDate.
 
-4. merceredge.edgeSource.accountEngagementWeb
-
-5. merceredge.edgeSource.AccountInsuranceCurrent
-
-6. merceredge.edgeSource.accountInvestments
-
-7. merceredge.edgeSource.accountMoneyInflow
-
-8. merceredge.edgeSource.accountNetMoneyFlow
-
-9. merceredge.edgeSource.accountRolloverPayment
-
-10. merceredge.edgeSource.campaignEventDetails
-
-11. merceredge.edgeSource.campaignEvents
-
-12. merceredge.edgeSource.customerMapping
-
-13. merceredge.edgeSource.customerSummary
-
-14. merceredge.edgeSource.thirdPartyAuthority
-
-15. merceredge.tableau.fundListSource
+If fundJoinDate is NULL:
+- retain the existing conservative handling unless there is another approved source proving the account did not exist
+- clearly flag/document this assumption
+- do not silently treat NULL fundJoinDate as confirmed historical existence
 
 
-EXCLUDED / NOT IN SCOPE
------------------------
-
-Do not use:
-
-- edgePortalSource.pensionerData
-- edgeSource.campaign
-- edgeSource.campaignAccountMapping
-
-Business has confirmed pensionerData is not required.
-
-The current prototype scope is only the 15 tables listed above.
-
-
-REFERENCE FILES
+AS-OF DATE RULE
 ---------------
 
-Use the following files as supporting references:
+@AsOfDate is the manually supplied historical prediction cutoff.
 
-1. build_merceredge_base_historical_dataset.sql
-   - Current validated base historical dataset query
-   - Use this as the starting point
-   - Do not change the already agreed target / eligibility / exclusion logic unnecessarily
+It is NOT derived from reportingDate or fundJoinDate.
 
-2. All_table_scripts.sql
-   - DDL / CREATE TABLE scripts for the original explored MercerEdge tables
-   - Use this to confirm actual table and column names
-
-3. All_Other_tables_Not_explored.sql
-   - DDL / CREATE TABLE scripts for additional MercerEdge tables
-   - Use only as a schema reference where one of the 15 in-scope tables appears
-
-4. MercerEdge_ML_Churn_Driver_EDA_Phase2.xlsx
-   - Existing EDA for the original explored tables
-   - Use this to understand column availability, nulls, values, and ML relevance
-
-5. MercerEdge_ML_Churn_Driver_EDA_Remaining_Tables_part2.xlsx
-   - EDA for the additional explored tables
-   - Use only for the 15 approved in-scope tables
-
-6. MercerEdge_Churn_Candidate_Feature_List.xlsx
-   - Candidate churn feature inventory, if available
-   - Use as a feature-identification reference only
-   - Validate all source columns before using them
-
-7. validate_candidate_churn_features.sql
-   - Existing read-only profiling / validation queries, if available
-   - Reuse findings where relevant
-
-8. historical_snapshot_profile_results.json
-   - Profiling evidence showing which sources are historical event sources,
-     partial point-in-time sources, current/latest sources, etc.
-   - Use this when deciding whether a field is historically safe
-
-9. profile_historical_snapshot_sources.py
-   - Profiling script used to validate historical source behaviour, if available
-   - Reference only; do not modify unless explicitly required
-
-
-STEP 1 ONLY
------------
-
-Implement only:
-
-ACCOUNT, TENURE AND PRODUCT FEATURES
-
-Do not start behavioural, transaction, rollover, campaign, investment or insurance feature engineering yet unless a field is required purely as a reference for Step 1.
-
-
-CANDIDATE FEATURE AREAS TO REVIEW
----------------------------------
-
-Review only historically defensible account-level features such as:
-
-- account tenure
-- months since fund join / commencement
-- member source
-- super indicator
-- pension indicator
-- fund-related information
-- account/product type where historically safe
-- stable product/reference attributes
-- age / age band only if historically defensible
-- other stable account profile fields already identified during EDA
-
-
-SOURCE SELECTION RULE
----------------------
-
-For every candidate feature:
-
-1. Identify the actual source table.
-2. Identify the actual source column.
-3. Confirm the column exists using the DDL files.
-4. Check the EDA/profile results.
-5. Confirm whether the field is historically safe as of @AsOfDate.
-6. Do not guess column names.
-7. Do not invent business definitions.
-
-
-POINT-IN-TIME RULE
-------------------
-
-Every predictive feature must represent information available on or before @AsOfDate.
-
-Do not use:
-
-- exitDate as a predictive feature
-- future churn / outcome fields
-- MEMBER_EXIT
-- future rollover / withdrawal completion
-- future payment events
-- current/latest mutable fields if they cannot be reconstructed historically
-- any field that directly reveals churn
-
-Current/latest accountSummary or customerSummary fields must only be used where they are defensibly static/reference fields.
-
-If a field cannot be proven historically safe, classify it as:
-
-REVIEW REQUIRED
-
-rather than using it automatically.
-
-
-TENURE RULE
------------
-
-If tenure is derived, calculate it relative to @AsOfDate.
-
-Do NOT use GETDATE() or today's date.
+fundJoinDate is only used to check whether the account existed by @AsOfDate.
 
 Example:
 
-tenure_months =
-months between fundJoinDate / valid commencement date and @AsOfDate
+@AsOfDate = '2024-03-31'
 
-If an account has less than 12 months of history, keep it unless the existing eligibility logic explicitly excludes it.
+FeatureStartDate should remain derived from the agreed lookback period.
 
-Do not artificially require 12 months tenure unless business confirms that rule.
+OutcomeStartDate should remain @AsOfDate + 1 day.
 
-
-DELIVERABLE
------------
-
-Create a new SQL file:
-
-build_merceredge_feature_dataset_step1.sql
-
-The SQL should:
-
-1. Reuse the existing base historical dataset logic.
-2. Add only Step 1 account / tenure / product features.
-3. Preserve:
-   one row per account_id + as_of_date
-4. Keep target creation separate from predictive features.
-5. Use LEFT JOINs / aggregation carefully so joins do not duplicate accounts.
-6. Add clear comments for every engineered feature.
+OutcomeEndDate should remain based on the agreed 3-month outcome window.
 
 
-For every engineered feature, document:
+DO NOT USE REPORTINGDATE AS THE HISTORICAL EXISTENCE ANCHOR
+-----------------------------------------------------------
 
-- Feature Name
-- Simple Business Meaning
-- Source Table
-- Source Column(s)
-- Calculation / derivation
-- Why it may help predict churn
-- Point-in-time safe? Yes / No / Review
-- Recommendation: INCLUDE / REVIEW REQUIRED / EXCLUDE
+Previous profiling showed that edgeSource.accountSummary should not automatically be treated as a reliable historical snapshot series.
 
+Therefore:
 
-VALIDATION REQUIRED
--------------------
+- Do not use accountSummary.reportingDate to determine whether the account existed at @AsOfDate.
+- Do not treat reportingDate <= @AsOfDate plus ROW_NUMBER ranking as proof that accountSummary contains the true historical profile state.
+- Do not create a pseudo-historical account snapshot from accountSummary unless the source profiling genuinely supports that interpretation.
 
-At the end of the SQL file, add read-only validation queries.
+Review the current block:
 
-Validate:
+"Latest accountSummary snapshot as of the as-of date"
 
-1. Total row count before feature engineering
-2. Total row count after feature engineering
-3. Duplicate account_id + as_of_date count
-4. NULL count for each new feature
-5. NULL percentage where useful
-6. Invalid negative tenure
-7. Future fundJoinDate / commencement date relative to @AsOfDate
-8. MIN / MAX / AVG for numeric features
-9. Distinct values and counts for categorical features
-10. Suspicious / unrealistic values
-11. Point-in-time violations
-12. Leakage concerns
-13. Whether the final grain remains one row per account_id + as_of_date
+and determine whether it is actually needed.
+
+If accountSummary is effectively one row per account/current-state data, simplify the logic rather than ranking it by reportingDate for historical reconstruction.
 
 
-VALIDATION RESULT FORMAT
-------------------------
+STEP 1 SCOPE
+------------
 
-At the end, produce a simple summary:
+Only review and correct:
 
-Feature Name
-Source Table
-Source Column
-Validation Result
-Key Observation
-Recommendation
+ACCOUNT / TENURE / PRODUCT FEATURES
 
-Validation Result values:
+Current candidate features include:
 
-- PASS
-- REVIEW REQUIRED
-- FAIL
+- account_tenure_months
+- account_tenure_years
+- member_age_years
+- member_source
+- is_super_flag
+- is_pension_flag
+- benefit_type
+- benefit_class
+- database_code
+- fund_active_flag
+- fund_portal_enabled_flag
+- has_active_third_party_authority_flag
 
-
-EXECUTION / QUERY VALIDATION
-----------------------------
-
-After generating the SQL:
-
-1. Run the read-only validation queries against the MercerEdge UAT database.
-2. Confirm all referenced tables and columns exist.
-3. Fix syntax errors.
-4. Fix incorrect column names using DDL as the source of truth.
-5. Confirm the query executes successfully.
-6. Do not perform INSERT / UPDATE / DELETE / ALTER / DROP on permanent source objects.
-7. Temporary tables are allowed if required for the prototype.
-8. Do not modify the existing source tables.
-
-
-STOP CONDITION
---------------
-
-Stop after Step 1 is completed and validated.
-
-Do NOT continue to:
-
+Do NOT add:
 - behavioural features
 - transaction features
 - rollover features
 - campaign features
 - investment features
 - insurance features
-- model training
+- future churn outcome fields as predictive features
 
-At the end, show me:
 
-- SQL file created
-- total Step 1 features added
-- features marked INCLUDE
-- features marked REVIEW REQUIRED
-- features excluded
-- validation issues found
-- business questions that still need confirmation
+TENURE LOGIC
+------------
+
+Tenure must be calculated relative to @AsOfDate.
+
+Use:
+
+fundJoinDate -> @AsOfDate
+
+Do NOT use GETDATE() or today's date.
+
+Rules:
+
+- fundJoinDate <= @AsOfDate:
+  tenure can be calculated.
+
+- fundJoinDate > @AsOfDate:
+  account was not yet present at that snapshot.
+  tenure must not be calculated as a valid feature.
+  account must not be eligible for modelling for that snapshot.
+
+- fundJoinDate IS NULL:
+  tenure should remain NULL.
+  document the historical-existence assumption separately.
+
+Check both:
+
+account_tenure_months
+account_tenure_years
+
+
+REVIEW CURRENT ELIGIBILITY LOGIC
+--------------------------------
+
+Confirm that:
+
+1. Account must have existed by @AsOfDate.
+2. Account must not have exited on or before @AsOfDate.
+3. Account must not be deceased on or before @AsOfDate.
+4. Internal-transfer and future churn outcome logic remain separate.
+5. Accounts with fundJoinDate > @AsOfDate are not eligible.
+6. Final modelling grain remains:
+   one row per account_id + as_of_date.
+
+Do not change the already agreed churn target definition unless a clear defect is found.
+
+
+REASSESS ACCOUNT SUMMARY FEATURES
+---------------------------------
+
+For every Step 1 field sourced from edgeSource.accountSummary, reassess whether it is historically defensible.
+
+Review:
+
+- fundJoinDate
+- dateOfBirth
+- memberSource
+- isSuperFlag
+- isPensionFlag
+- benefitType
+- benefitClass
+- databaseCode
+- any other Step 1 profile field
+
+For each feature classify as:
+
+1. HISTORICALLY SAFE / STATIC
+2. REFERENCE ONLY
+3. REVIEW REQUIRED
+4. EXCLUDE
+
+Do not mark something historically safe merely because the column exists.
+
+Guidance:
+
+fundJoinDate:
+- generally stable and used for historical existence / tenure.
+
+dateOfBirth:
+- generally stable and can support age derived relative to @AsOfDate.
+
+memberSource:
+- review whether it is stable enough historically.
+
+isSuperFlag / isPensionFlag:
+- confirm whether these are static or could change over time.
+
+benefitType / benefitClass:
+- review carefully because these may represent mutable product/account state.
+
+databaseCode:
+- likely reference/stable identifier, but validate.
+
+If historical safety cannot be demonstrated, change the recommendation to REVIEW REQUIRED rather than INCLUDE.
+
+
+MEMBER AGE
+----------
+
+member_age_years must be calculated from:
+
+dateOfBirth -> @AsOfDate
+
+Do not use currentAge or currentAgeBand as the preferred historical feature unless their historical validity is proven.
+
+Prefer deriving age from static dateOfBirth.
+
+Check:
+- negative ages
+- unrealistic ages
+- future DOB
+- NULL DOB
+
+
+FUND REFERENCE FEATURES
+-----------------------
+
+Review:
+
+fund_active_flag
+fund_portal_enabled_flag
+
+Confirm:
+- source = tableau.fundListSource
+- join does not duplicate account rows
+- whether these are static/reference attributes or current mutable statuses
+
+If the source does not provide historical state as of @AsOfDate, do not automatically mark these as point-in-time safe.
+
+Classify appropriately:
+- INCLUDE only if defensible
+- otherwise REVIEW REQUIRED or REFERENCE ONLY
+
+
+THIRD PARTY AUTHORITY FEATURE
+-----------------------------
+
+Keep:
+
+has_active_third_party_authority_flag
+
+as REVIEW REQUIRED unless there is strong evidence it is suitable as a churn predictor.
+
+Reason:
+It represents a relationship/process status and may not be a simple static profile/product attribute.
+
+Validate its active-as-of-date logic using:
+- dateAuthorityRequested <= @AsOfDate
+- terminationDate > @AsOfDate OR terminationDate IS NULL
+
+Do not use future status information.
+
+
+VALIDATION REQUIRED
+-------------------
+
+Re-run and validate the corrected Step 1 query.
+
+Validation must include:
+
+1. Total row count before feature engineering.
+2. Total row count after feature engineering.
+3. Duplicate account_id + as_of_date count.
+4. Count of accounts where fundJoinDate > @AsOfDate.
+5. Of those future-fundJoinDate accounts:
+   - total count
+   - eligible count
+   - ineligible count
+6. Confirm eligible count must be 0 for:
+   fundJoinDate > @AsOfDate
+7. Count of NULL fundJoinDate.
+8. Tenure NULL count.
+9. Negative tenure count.
+10. Min / max / avg tenure.
+11. Future dateOfBirth count.
+12. Invalid / unrealistic age count.
+13. Null percentages for every Step 1 feature.
+14. Distinct distributions for categorical features.
+15. Point-in-time safety assessment.
+16. Leakage assessment.
+17. Confirmation that one row per account_id + as_of_date is preserved.
+
+
+IMPORTANT CHECK FOR THE PREVIOUS RESULT
+---------------------------------------
+
+The previous validation showed a large number of rows with:
+
+fundJoinDate > @AsOfDate
+
+Investigate this explicitly.
+
+Explain:
+
+- Why these rows remain in the overall account universe.
+- Whether they are correctly marked as:
+  historical_eligibility_status = 'future_commencement'
+- Whether:
+  is_eligible_for_modelling = 0
+- Whether they are excluded from the final eligible modelling population.
+
+It is acceptable for such accounts to exist in an intermediate/account-universe dataset for validation.
+
+It is NOT acceptable for them to be eligible training rows for that historical AsOfDate.
+
+
+VALIDATION SUMMARY OUTPUT
+-------------------------
+
+Produce a final summary table with:
+
+Feature Name
+Source Table
+Source Column
+Business Meaning
+Point-in-Time Status
+Validation Result
+Recommendation
+Reason
+
+Allowed Point-in-Time Status values:
+
+- SAFE
+- REFERENCE ONLY
+- REVIEW REQUIRED
+- NOT SAFE
+
+Allowed Validation Result values:
+
+- PASS
+- REVIEW REQUIRED
+- FAIL
+
+Allowed Recommendation values:
+
+- INCLUDE
+- REVIEW REQUIRED
+- EXCLUDE
+
+
+FINAL OUTPUT
+------------
+
+Update:
+
+build_merceredge_feature_dataset_step1.sql
+
+At the end, clearly report:
+
+1. Whether the query executed successfully.
+2. Total rows before and after feature engineering.
+3. Duplicate count.
+4. Future fundJoinDate count.
+5. Whether any future-join account is incorrectly eligible.
+6. Final INCLUDE feature list.
+7. Final REVIEW REQUIRED feature list.
+8. Final EXCLUDE feature list.
+9. Any remaining business questions.
+10. Whether Step 1 is technically ready to proceed to Step 2.
+
+Do not start Step 2 automatically.
+
+Stop after reviewing, correcting and validating Step 1.
