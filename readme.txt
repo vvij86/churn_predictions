@@ -1,79 +1,65 @@
-I want to continue FEATURE ENGINEERING PROTOTYPING for the MercerEdge churn model.
+Continue FEATURE ENGINEERING PROTOTYPING for the MercerEdge churn model.
 
-This is STEP 2.
+This is STEP 3.
 
 IMPORTANT:
-- Do NOT modify Step 1 SQL.
-- Do NOT overwrite build_merceredge_feature_dataset_step1.sql.
-- Create a separate new SQL file for Step 2.
-- Do NOT use Databricks.
-- Do NOT use Bronze views.
-- Do NOT use PySpark.
-- Work only with the approved MercerEdge UAT SQL Server tables.
-- This is still prototype work before business confirmation.
+- Do NOT modify Step 1 or Step 2 SQL files.
+- Do NOT overwrite:
+  - build_merceredge_feature_dataset_step1.sql
+  - build_merceredge_feature_dataset_step2.sql
+- Create a separate new SQL file:
+  build_merceredge_feature_dataset_step3.sql
 
-Create this new file:
+Environment:
+- MercerEdge UAT SQL Server only
+- No Databricks
+- No Bronze views
+- No PySpark
+- No notebooks
+- Prototype only before business confirmation
+
+Use Step 2 as the starting point:
 
 build_merceredge_feature_dataset_step2.sql
 
-Use the current validated Step 1 output/query as the starting point:
-
-build_merceredge_feature_dataset_step1.sql
-
-The modelling grain must remain:
-
-one row per account_id + as_of_date
-
-Keep the existing:
+Preserve:
+- one row per account_id + as_of_date
 - eligibility logic
 - fundJoinDate historical existence rule
-- AsOfDate logic
-- death exclusion
-- internal transfer exclusion
 - target_churn logic
 - retained_flag
-- outcome-window logic
+- death exclusion
+- internal-transfer exclusion
+- AsOfDate / FeatureStartDate / outcome-window logic
+- all Step 1 and Step 2 features unchanged
 
-Do not change any approved Step 1 logic unless required to fix a clear technical issue.
 
-
-STEP 2 SCOPE
+STEP 3 SCOPE
 ------------
 
 Implement only:
 
-BEHAVIOURAL, TRANSACTION, ROLLOVER AND ENGAGEMENT FEATURES
+CAMPAIGN / EVENT FEATURES
 
-Do not start:
-- campaign features
-- investment features
-- insurance features
-- model training
-- categorical encoding / final preprocessing beyond what is required for validation
+Use these approved UAT tables:
 
+1. edgeSource.campaignEventDetails
+2. edgeSource.campaignEvents
 
-IN-SCOPE TABLES FOR STEP 2
---------------------------
+Do not use:
+- campaign
+- campaignAccountMapping
+- pensionerData
 
-Review only the relevant approved UAT tables from this list:
-
-1. edgeSource.accountEngagementWorkflow
-2. edgeSource.accountEngagementHelpline
-3. edgeSource.accountEngagementWeb
-4. edgeSource.accountMoneyInflow
-5. edgeSource.accountNetMoneyFlow
-6. edgeSource.accountRolloverPayment
-
-You may use accountSummary only as the already established base/account reference.
-
-Do not use pensionerData.
+unless explicitly requested later.
 
 
 REFERENCE FILES
 ---------------
 
-Use these as supporting references:
+Use:
 
+- build_merceredge_feature_dataset_step2.sql
 - build_merceredge_feature_dataset_step1.sql
 - build_merceredge_base_historical_dataset.sql
 - All_table_scripts.sql
@@ -82,254 +68,184 @@ Use these as supporting references:
 - MercerEdge_ML_Churn_Driver_EDA_Remaining_Tables_part2.xlsx
 - MercerEdge_Churn_Candidate_Feature_List.xlsx, if available
 - validate_candidate_churn_features.sql, if available
-- historical_snapshot_profile_results.json, if available
 
-Use the DDL and EDA files to confirm actual source column names.
-
-Do not guess column names.
+Confirm actual table/column names from DDL.
+Do not guess columns.
 
 
 POINT-IN-TIME RULE
 ------------------
 
-Every Step 2 feature must use only information available on or before @AsOfDate.
+Use only campaign/event activity available on or before @AsOfDate.
 
-Do not use:
-- events after @AsOfDate
-- future outcome events
-- exitDate as a predictive feature
-- full rollover completion if it is part of the churn outcome
-- account closure outcome information
-- MEMBER_EXIT or other future churn indicators
-- any post-AsOfDate transaction/payment/workflow activity
+Every source event used as a feature must satisfy:
 
-All event date filters must satisfy:
+eventDate >= @FeatureStartDate
+AND eventDate <= @AsOfDate
 
-event_date <= @AsOfDate
-
-and where relevant:
-
-event_date >= @FeatureStartDate
+Do not use any future event after @AsOfDate.
 
 
-FEATURE WINDOW
---------------
+LEAKAGE RULE
+------------
 
-Use the existing feature window:
+Review event types carefully.
 
-@FeatureStartDate -> @AsOfDate
+Known high-risk / outcome-type events must NOT be used as predictive features.
 
-Use the same agreed lookback period already defined in the prototype.
+Examples include:
+- MEMBER_EXIT
+- full rollover / final exit completion
+- account closure outcome
+- any event that directly confirms churn
+- any event occurring in the future outcome window
 
-Where useful, derive:
-- 12-month counts
-- 12-month amounts
-- recency
-- recent 90-day activity
-- previous 90-day activity
-- trend / decline indicators
+If an event type appears to represent churn or post-churn processing:
+mark it EXCLUDE.
 
-Do not invent windows unless already supported by the existing design.
-
-
-FEATURE GROUP 1 – HELPLINE ENGAGEMENT
--------------------------------------
-
-Review accountEngagementHelpline and derive useful account-level features such as:
-
-- helpline_contact_count_12m
-- helpline_contact_days_12m
-- days_since_last_helpline_contact
-- recent_helpline_contact_count_90d
-- prior_helpline_contact_count_90d
-- repeat_contact_flag or similar, if supported by source data
-
-Use only events on or before @AsOfDate.
+If business meaning is unclear:
+mark it REVIEW REQUIRED.
 
 
-FEATURE GROUP 2 – WEB ENGAGEMENT
---------------------------------
+SAFE EVENT TYPES
+----------------
 
-Review accountEngagementWeb and derive useful features such as:
+Review historical pre-AsOfDate events such as:
 
-- web_activity_count_12m
-- web_active_days_12m
-- days_since_last_web_activity
-- recent_web_activity_count_90d
-- prior_web_activity_count_90d
+- CONTACT_UPDATE
+- INVESTMENT_CHANGE
+- FINANCIAL_ADVICE
+- HELP_DESK_CALL
+- INSURANCE_OPT_IN
+- NOMINATED_BENEFICIARY
+- OUTBOUND_CALL
+- POST_TAX_CONTRIBUTION
+- ROLLIN
 
-Only create features supported by actual source columns.
-
-
-FEATURE GROUP 3 – WORKFLOW / PROCESS ACTIVITY
----------------------------------------------
-
-Review accountEngagementWorkflow.
-
-Potential features may include:
-
-- workflow_count_12m
-- completed_workflow_count_12m
-- open_workflow_count_12m
-- days_since_last_workflow
-- recent_workflow_count_90d
-- prior_workflow_count_90d
-
-IMPORTANT:
-Workflow records that occur after churn/exit or clearly represent downstream operational processing must not be used as predictive features.
-
-Flag high-leakage workflow types as:
-- EXCLUDE
-or
-- REVIEW REQUIRED
+Only include them if:
+- they exist in source data
+- they occur on/before @AsOfDate
+- they are not outcome leakage
+- their business meaning is suitable for churn prediction
 
 
-FEATURE GROUP 4 – MONEY INFLOW
-------------------------------
+POTENTIAL FEATURE TYPES
+-----------------------
 
-Review accountMoneyInflow.
+Create account-level features only where supported by actual data.
 
-Potential features may include:
+Examples:
 
-- contribution_count_12m
-- contribution_amount_12m
-- avg_contribution_amount_12m
-- contribution_active_days_12m
-- days_since_last_contribution
-- recent_contribution_amount_90d
-- prior_contribution_amount_90d
-- contribution_decline_flag
+- campaign_event_count_12m
+- distinct_campaign_event_type_count_12m
+- days_since_last_campaign_event
+- recent_campaign_event_count_90d
+- prior_campaign_event_count_90d
 
-Only use actual historical inflow events up to @AsOfDate.
+Specific behavioural event counts may include:
 
+- contact_update_count_12m
+- investment_change_count_12m
+- financial_advice_count_12m
+- help_desk_event_count_12m
+- outbound_call_count_12m
+- rollin_event_count_12m
 
-FEATURE GROUP 5 – NET MONEY FLOW
---------------------------------
+If eventAmount is meaningful and safe:
+- total_event_amount_12m
+- average_event_amount_12m
 
-Review accountNetMoneyFlow.
-
-Potential features may include:
-
-- net_money_flow_12m
-- negative_net_flow_count_12m
-- outflow_count_12m
-- days_since_last_outflow
-- recent_net_flow_90d
-- prior_net_flow_90d
-- net_flow_decline_flag
-
-Use caution:
-Do not use future churn/exit payments.
-
-If a row cannot be clearly classified as pre-churn behaviour, mark it REVIEW REQUIRED.
-
-
-FEATURE GROUP 6 – ROLLOVER / WITHDRAWAL BEHAVIOUR
--------------------------------------------------
-
-Review accountRolloverPayment.
-
-Potential features may include:
-
-- rollover_count_12m
-- rollover_amount_12m
-- partial_rollover_count_12m
-- partial_rollover_amount_12m
-- days_since_last_rollover
-- recent_rollover_count_90d
-- recent_rollover_amount_90d
-
-IMPORTANT:
-Internal transfers are not churn.
-
-Do not use internal-transfer events as churn indicators.
-
-Do not use full rollover / closure payment events from the future outcome window as predictive features.
-
-Partial rollover may be retained as a risk feature only where it occurs on or before @AsOfDate.
-
-If full vs partial cannot be reliably distinguished from source data, classify the feature as REVIEW REQUIRED.
+Do not create features merely because a column exists.
 
 
 AGGREGATION RULE
 ----------------
 
-All Step 2 source tables may contain multiple rows per account.
+campaignEventDetails may contain multiple rows per account.
 
-Aggregate them to account level before joining.
+Aggregate to:
 
-The final output must remain:
+one row per account_id
+
+before joining to Step 2.
+
+Final grain must remain:
 
 one row per account_id + as_of_date
 
-Do not directly join raw event-level tables in a way that duplicates accounts.
+
+EVENT LOOKUP RULE
+-----------------
+
+Use campaignEvents to map:
+
+eventID -> eventName
+
+Validate that the mapping is correct.
+
+Do not assume campaignID and eventID are the same.
 
 
 VALIDATION REQUIRED
 -------------------
 
-For every feature group, validate:
+Validate:
 
-1. Row count before Step 2 feature joins
-2. Row count after Step 2 feature joins
+1. Row count before Step 3
+2. Row count after Step 3
 3. Duplicate account_id + as_of_date count
-4. NULL count and NULL percentage
-5. MIN / MAX / AVG for numeric features
-6. Distinct values for flags
-7. Negative / impossible values
-8. Event dates after @AsOfDate
-9. Event dates before @FeatureStartDate
-10. Leakage risk
-11. Whether joins created duplicate accounts
-12. Whether target_churn distribution remained unchanged
-13. Whether Step 1 features remained unchanged
-14. Whether the eligible modelling population remained unchanged
+4. target_churn distribution before vs after
+5. Step 1 / Step 2 feature columns remain unchanged
+6. Event rows before FeatureStartDate
+7. Event rows after AsOfDate
+8. Future event rows accidentally included in features
+   - must be 0
+9. Count of MEMBER_EXIT events
+10. Confirm MEMBER_EXIT is excluded from predictive features
+11. Count of each included event type
+12. NULL percentage per new feature
+13. MIN / MAX / AVG for numeric features
+14. Leakage assessment
+15. Point-in-time safety
 
 
-VERY IMPORTANT TARGET CHECK
----------------------------
+FEATURE CLASSIFICATION
+----------------------
 
-Step 2 feature engineering must not alter:
-
-- target_churn
-- retained_flag
-- is_eligible_for_modelling
-- historical_eligibility_status
-- death exclusion flags
-- internal transfer exclusion flags
-
-Validate before vs after counts for:
-
-- total eligible rows
-- target_churn = 1
-- target_churn = 0
-- target_churn IS NULL
-
-These counts should remain unchanged unless there is a clear bug in the existing data logic.
-
-
-FEATURE REVIEW OUTPUT
----------------------
-
-For each Step 2 feature, produce:
+For each Step 3 feature return:
 
 - Feature Name
-- Feature Category
 - Simple Business Meaning
 - Source Table
 - Source Column(s)
+- Event Type
 - Calculation
 - Feature Window
 - Point-in-Time Status
 - Leakage Risk
 - Validation Result
 - Recommendation
+- Reason
 
-Allowed recommendations:
+Recommendation values:
 
 - INCLUDE
 - REVIEW REQUIRED
 - EXCLUDE
+
+
+VERY IMPORTANT
+--------------
+
+Do not change:
+- target_churn
+- retained_flag
+- is_eligible_for_modelling
+- historical_eligibility_status
+- death exclusion
+- internal transfer exclusion
+
+target_churn must remain a label only.
 
 
 FINAL OUTPUT
@@ -337,33 +253,22 @@ FINAL OUTPUT
 
 Create:
 
-build_merceredge_feature_dataset_step2.sql
+build_merceredge_feature_dataset_step3.sql
 
-The final SQL should contain:
+At the end report:
 
-1. Step 1 dataset logic reused as the base
-2. Step 2 behavioural / transaction / rollover / engagement aggregations
-3. Account-level joins
-4. Step 1 features retained
-5. target_churn retained as label only
-6. Validation queries
-7. Final feature review summary
-
-At the end, clearly report:
-
-- SQL file created
-- number of Step 2 features added
-- INCLUDE features
-- REVIEW REQUIRED features
-- EXCLUDE features
-- row count before Step 2
-- row count after Step 2
+- Step 3 feature count
+- INCLUDE count
+- REVIEW REQUIRED count
+- EXCLUDE count
+- row count before and after
 - duplicate count
-- target_churn count before and after
-- any leakage issues found
-- any business questions
-- whether Step 2 is technically ready for review
+- churn/retained counts before and after
+- leakage events found
+- excluded event types
+- business questions
+- whether Step 3 is technically ready
 
-Do not start Step 3 automatically.
+Do not start Step 4 automatically.
 
-Stop after Step 2 is generated and validated.
+Stop after Step 3 is generated and validated.
