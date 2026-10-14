@@ -1,52 +1,75 @@
-Please fix build_merceredge_feature_dataset_step3.sql.
+Review the executed Step 3 validation results in:
 
-Current error:
+build_merceredge_feature_dataset_step3.sql
 
-"Step 2 dataset #step2_feature_dataset is not available"
-"Invalid object name '#step2_feature_dataset'"
+Do NOT start Step 4 yet.
 
-Reason:
-#step2_feature_dataset is a local SQL Server temporary table and Step 3 is being executed independently in another SSMS session/tab.
+The current validation shows:
 
-I want Step 3 SQL to be standalone and executable independently.
+- row_count_before_step3 = 837435
+- row_count_after_step3 = 837435
+- duplicate_account_id_asof_count = 0
+- step2_churn_rows = 15291
+- step3_churn_rows = 15291
+- step2_retained_rows = 822144
+- step3_retained_rows = 822144
+- POINT_IN_TIME_SAFETY = FAIL
+
+Please investigate and fix only the point-in-time validation issue.
 
 Requirements:
 
-1. Do NOT modify:
-   - build_merceredge_feature_dataset_step1.sql
-   - build_merceredge_feature_dataset_step2.sql
+1. Identify exactly why POINT_IN_TIME_SAFETY is FAIL.
 
-2. Modify only:
-   build_merceredge_feature_dataset_step3.sql
+2. For every Step 3 campaign/event feature, prove that only source events satisfying:
 
-3. Do NOT require #step2_feature_dataset to already exist.
+   eventDate >= @FeatureStartDate
+   AND eventDate <= @AsOfDate
 
-4. Reuse/include the approved Step 2 dataset-building logic inside Step 3 so that Step 3 can first recreate the required Step 2 baseline and then add the Step 3 campaign/event features.
+   are used in feature calculations.
 
-5. Preserve exactly:
-   - Step 1 features
-   - Step 2 features
+3. Add explicit validation counts for:
+   - source events before @FeatureStartDate
+   - source events after @AsOfDate
+   - source events within the valid feature window
+   - future events accidentally used in engineered features
+
+4. The count of future events actually contributing to predictive features must be 0.
+
+5. MEMBER_EXIT must not be used as a predictive feature.
+   It may be profiled for validation only.
+
+6. Also review other potentially leakage-prone event types such as:
+   - PAYMENT_EXTERNAL
+   - ROLLOVER
+   - ROLLIN
+   - PENSION
+   - ALLOCATED_PENSION
+   - any event representing exit, closure, final payment, or outcome processing
+
+7. Do not automatically remove these event types unless required.
+   Classify unclear event types as REVIEW REQUIRED.
+
+8. Do not change:
    - target_churn
    - retained_flag
    - eligibility logic
-   - death exclusion
-   - internal-transfer exclusion
-   - AsOfDate / FeatureStartDate / Outcome window logic
-   - one row per account_id + as_of_date
+   - Step 1 features
+   - Step 2 features
+   - row grain
 
-6. Do not redesign or change Step 1/Step 2 feature definitions.
+9. After correction, rerun validation and report:
 
-7. Step 3 should then add only the approved campaign/event features.
+   POINT_IN_TIME_SAFETY = PASS or FAIL
 
-8. The complete build_merceredge_feature_dataset_step3.sql must run by itself in a fresh SSMS query window.
+   future_events_used_in_features = 0
 
-9. Add validation confirming:
-   - Step 2 baseline row count
-   - Step 3 final row count
-   - duplicate account_id + as_of_date = 0
-   - target_churn counts unchanged
-   - Step 1 and Step 2 features retained
+   row_count_before_step3
+   row_count_after_step3
+   duplicate_count
+   churn count before/after
+   retained count before/after
 
-10. Do not start Step 4.
+10. If POINT_IN_TIME_SAFETY still fails, clearly state the exact feature(s), event type(s), and reason.
 
-After updating, clearly confirm that Step 3 no longer depends on a temp table created by another SQL file/session.
+Stop after Step 3 is corrected and validated.
