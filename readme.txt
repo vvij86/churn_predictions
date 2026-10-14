@@ -1,17 +1,12 @@
 Continue FEATURE ENGINEERING PROTOTYPING for the MercerEdge churn model.
 
-This is STEP 4.
+This is STEP 5.
 
 IMPORTANT:
-- Do NOT modify Step 1, Step 2 or Step 3 SQL files.
-- Do NOT overwrite:
-  - build_merceredge_feature_dataset_step1.sql
-  - build_merceredge_feature_dataset_step2.sql
-  - build_merceredge_feature_dataset_step3.sql
+- Do NOT modify Step 1, Step 2, Step 3 or Step 4 SQL files.
+- Create a separate new SQL file:
 
-Create a separate new SQL file:
-
-build_merceredge_feature_dataset_step4.sql
+build_merceredge_feature_dataset_step5.sql
 
 Environment:
 - MercerEdge UAT SQL Server only
@@ -19,304 +14,269 @@ Environment:
 - No Bronze views
 - No PySpark
 - No model training
-- Prototype only
+- No train/validation/test split
 
-Use Step 3 as the starting point:
+Use Step 4 as the starting point:
 
-build_merceredge_feature_dataset_step3.sql
+build_merceredge_feature_dataset_step4.sql
 
-The Step 4 SQL must be standalone and executable in a fresh SSMS window.
+The Step 5 SQL must be standalone and executable in a fresh SSMS window.
 Do not depend on temporary tables created in another SQL file/session.
 
-Rebuild/reuse the approved Step 3 baseline internally if required.
-
-Preserve exactly:
+Preserve:
 - one row per account_id + as_of_date
-- Step 1 features
-- Step 2 features
-- Step 3 features
+- all approved Step 1 features
+- all approved Step 2 features
+- all approved Step 3 features
+- all approved Step 4 features
 - target_churn
 - retained_flag
 - eligibility logic
 - historical_eligibility_status
 - death exclusion
-- internal-transfer exclusion
+- internal transfer exclusion
 - AsOfDate / FeatureStartDate / Outcome window logic
 
-Do not redesign any previously approved logic.
+Do not redesign the target or previously approved feature definitions.
 
 
-STEP 4 SCOPE
+STEP 5 SCOPE
 ------------
 
-Implement only:
+Perform:
 
-INVESTMENT AND INSURANCE FEATURES
+FINAL FEATURE CONSOLIDATION
++
+MISSING VALUE TREATMENT
++
+CATEGORICAL FEATURE PREPARATION
 
-Use only these approved UAT tables:
-
-1. edgeSource.accountInvestments
-2. edgeSource.AccountInsuranceCurrent
-
-Do not start:
-- categorical encoding
-- missing-value treatment across the entire dataset
-- model training
-- feature selection
-- Step 5
+Do not start model training.
 
 
-REFERENCE FILES
----------------
+1. CONSOLIDATE FEATURES
+-----------------------
 
-Use:
+Build one consolidated Step 5 dataset containing all approved Step 1–4 features.
 
-- build_merceredge_feature_dataset_step3.sql
-- build_merceredge_feature_dataset_step2.sql
-- build_merceredge_feature_dataset_step1.sql
-- build_merceredge_base_historical_dataset.sql
-- All_table_scripts.sql
-- All_Other_tables_Not_explored.sql
-- MercerEdge_ML_Churn_Driver_EDA_Phase2.xlsx
-- MercerEdge_ML_Churn_Driver_EDA_Remaining_Tables_part2.xlsx
-- MercerEdge_Churn_Candidate_Feature_List.xlsx, if available
-- validate_candidate_churn_features.sql, if available
-- historical_snapshot_profile_results.json, if available
+Keep:
+- INCLUDE features
+- REVIEW REQUIRED features, but clearly flag them
 
-Use actual DDL/EDA column names.
-Do not guess columns.
+Do not silently use EXCLUDE features as predictive inputs.
+
+Keep target_churn only as the ML label.
 
 
-POINT-IN-TIME SAFETY
---------------------
+2. MISSING VALUE HANDLING
+-------------------------
 
-This is critical.
+Review missing values feature by feature.
 
-Only use a feature if it can reasonably represent information available on or before @AsOfDate.
+Do NOT apply one generic rule to all NULLs.
 
-For tables with transaction/event/history dates:
+Classify NULL meaning as one of:
 
-use only rows where:
+A. NO_ACTIVITY
+Example:
+No transaction/event rows may genuinely mean the member had no activity.
 
-event/effective date >= @FeatureStartDate
-AND event/effective date <= @AsOfDate
+Only where source semantics support this:
+- count fields may be converted to 0
+- amount fields may be converted to 0 if absence truly means no amount/activity
 
-For current-state snapshot tables such as AccountInsuranceCurrent:
+B. UNKNOWN_OR_MISSING
+Keep as NULL or prepare a missing indicator.
 
-do NOT automatically assume the current value was historically true at @AsOfDate.
+C. SOURCE_NOT_AVAILABLE_IN_UAT
+Keep as NULL.
+Do NOT convert to 0.
 
-Classify fields as:
+IMPORTANT UAT RULE:
 
-- POINT_IN_TIME_SAFE
-- REVIEW REQUIRED
-- EXCLUDE
+edgeSource.accountEngagementWeb is known to be empty/not populated in UAT.
 
-depending on whether historical validity can be established.
+Therefore all web-derived features must:
+- remain in scope
+- remain NULL in the UAT prototype
+- NOT be converted to 0
+- NOT be dropped just because they are 100% NULL in UAT
+- be documented as:
+  "UAT source not populated; revalidate against Prod/Databricks source"
 
-Do not create historical values from current-state fields by assumption.
+NULL for web features means:
+"data unavailable in UAT"
 
-
-FEATURE GROUP 1 – INVESTMENT FEATURES
--------------------------------------
-
-Review edgeSource.accountInvestments.
-
-Create only features supported by actual source columns.
-
-Potential features may include:
-
-- investment_option_count
-- distinct_investment_option_count
-- investment_change_count_12m
-- days_since_last_investment_change
-- recent_investment_change_count_90d
-- prior_investment_change_count_90d
-- investment_value_total
-- investment_allocation_count
-- dominant_investment_option
-- investment_diversification_indicator
-
-If values or allocation percentages exist, consider:
-
-- total investment value
-- number of investment options
-- maximum allocation percentage
-- concentration / diversification indicators
-
-Only include value/allocation fields if they are historically valid at @AsOfDate.
-
-Do not use future investment changes.
+It does NOT mean:
+"member had zero web activity"
 
 
-FEATURE GROUP 2 – INSURANCE FEATURES
-------------------------------------
+3. INVESTMENT / INSURANCE NULLS
+-------------------------------
 
-Review edgeSource.AccountInsuranceCurrent.
+Do not automatically convert investment or insurance NULLs to zero.
 
-Potential features may include:
+For investment features:
+- determine whether no source row genuinely means no investment activity
+- otherwise retain NULL
 
-- has_insurance_flag
-- insurance_cover_type
-- insurance_cover_count
-- total_cover_amount
-- premium_amount
-- insurance_status
-- days_since_insurance_start, if start date exists and is historically safe
-- insurance_change / cancellation indicators, only if historical dates exist
+For insurance:
+- because AccountInsuranceCurrent may represent current-state data,
+  retain NULL unless source semantics clearly prove "no insurance"
 
-IMPORTANT:
-
-Because the table name is AccountInsuranceCurrent, treat it carefully.
-
-If the table only represents today's/current insurance status and cannot reconstruct what the member's insurance looked like at the historical @AsOfDate:
-
-- do not automatically mark those fields INCLUDE
-- mark them REVIEW REQUIRED for historical modelling
-- explain why
-
-If effective/start/end dates allow reconstruction of historical status at @AsOfDate, use those dates explicitly.
+Do not infer no insurance from missing data without evidence.
 
 
-AGGREGATION RULE
-----------------
+4. CATEGORICAL FEATURES
+-----------------------
 
-Both investment and insurance sources may contain multiple rows per account.
+Review all categorical features from Steps 1–4.
 
-Aggregate to account level before joining.
+Examples may include:
+- member_source
+- benefit_type
+- benefit_class
+- database_code
+- investment categories
+- insurance categories
+- campaign/event categories
 
-Do not directly join raw records if that can duplicate the base population.
+Do NOT one-hot encode them in SQL unless there is a strong reason.
 
-Final grain must remain:
+For this prototype:
+- retain clean raw categorical values
+- standardize obvious blank/NULL representations
+- optionally create an explicit 'UNKNOWN' category only where appropriate
+- document high-cardinality categorical fields
+- document categories with very low frequency
 
-one row per account_id + as_of_date
-
-
-NULL HANDLING FOR STEP 4
-------------------------
-
-Do not perform full dataset-wide imputation yet.
-
-For Step 4 only:
-
-- retain genuine NULL where source information is unavailable
-- do not automatically convert NULL to zero unless NULL clearly means "no activity/no product"
-- document the interpretation
-
-Examples:
-
-No investment activity row may potentially mean 0 activity only if source semantics confirm this.
-
-Missing current insurance data must not automatically be interpreted as no insurance without confirming source meaning.
+Do not invent category groupings without business support.
 
 
-VALIDATION REQUIRED
--------------------
+5. CONSTANT / LOW-VARIANCE FEATURES
+-----------------------------------
+
+Identify:
+
+- all-NULL features
+- constant features
+- near-constant features
+- extremely sparse features
+
+Do NOT automatically remove web features only because they are all NULL in UAT.
+
+For all other all-NULL or constant features:
+classify as REVIEW REQUIRED or EXCLUDE depending on source/business meaning.
+
+
+6. REVIEW REQUIRED FEATURES
+---------------------------
+
+Keep a clear list of all REVIEW REQUIRED features.
+
+Examples may include:
+- current-state insurance features without historical proof
+- historically uncertain investment fields
+- campaign/event types requiring business confirmation
+- web features not testable in UAT
+
+Do not silently promote these to INCLUDE.
+
+
+7. TARGET / LEAKAGE SAFETY
+--------------------------
+
+target_churn must remain label-only.
+
+Ensure none of these are predictive inputs:
+- target_churn
+- retained_flag
+- future outcome indicators
+- MEMBER_EXIT
+- exitDate
+- future rollover/closure events
+- death outcome indicators
+- any post-AsOfDate data
+
+Validate point-in-time safety again.
+
+
+8. VALIDATION REQUIRED
+----------------------
 
 Validate:
 
-1. row_count_before_step4
-2. row_count_after_step4
-3. duplicate account_id + as_of_date count
-4. Step 3 feature columns retained
-5. target_churn counts before and after
-6. retained counts before and after
-7. eligible population unchanged
-8. NULL count and NULL percentage per Step 4 feature
-9. MIN / MAX / AVG for numeric features
-10. distinct values for categorical/flag features
-11. negative or impossible amounts
-12. future-dated investment rows used in features
-13. future-dated insurance records used in features
-14. point-in-time safety per feature
-15. leakage risk per feature
-16. whether any join increased/decreased the account population
-
-
-TARGET VALIDATION
------------------
-
-Do not change:
-
-- target_churn
-- retained_flag
-- is_eligible_for_modelling
-- historical_eligibility_status
-- death exclusion
-- internal-transfer exclusion
-
-Validate that these remain unchanged:
-
-row count
-churn count
-retained count
-null target count
-
-
-FEATURE REVIEW OUTPUT
----------------------
-
-For each Step 4 feature return:
-
-- Feature Name
-- Feature Category
-- Business Meaning
-- Source Table
-- Source Column(s)
-- Calculation
-- Feature Window / Historical Rule
-- Point-in-Time Status
-- Leakage Risk
-- NULL Percentage
-- Validation Result
-- Recommendation
-- Reason
-
-Recommendation values:
-
-- INCLUDE
-- REVIEW REQUIRED
-- EXCLUDE
-
-
-SPECIAL REVIEW
---------------
-
-Pay particular attention to:
-
-1. Whether accountInvestments is historical/event-based or current-state.
-2. Whether AccountInsuranceCurrent can reconstruct historical status at @AsOfDate.
-3. Whether investment values represent values at the historical date or today's values.
-4. Whether insurance cover/premium/status fields are historically valid.
-5. Whether any fields may change after @AsOfDate and therefore create point-in-time leakage.
-
-Do not mark uncertain current-state fields as INCLUDE merely because the SQL executes successfully.
-
-
-FINAL OUTPUT
-------------
-
-Create:
-
-build_merceredge_feature_dataset_step4.sql
-
-At the end report:
-
-- Step 4 feature count
+- row_count_before_step5
+- row_count_after_step5
+- duplicate account_id + as_of_date count
+- churn count before/after
+- retained count before/after
+- null target count
+- eligible population count
+- feature count before/after consolidation
 - INCLUDE count
 - REVIEW REQUIRED count
 - EXCLUDE count
-- row count before Step 4
-- row count after Step 4
+
+For every feature report:
+
+- Feature Name
+- Feature Category
+- Data Type
+- NULL Count
+- NULL Percentage
+- Distinct Count
+- Constant / Low Variance Flag
+- Missing Value Meaning
+- Missing Value Treatment
+- Point-in-Time Status
+- Leakage Risk
+- Recommendation
+- Reason
+
+
+9. SPECIAL WEB FEATURE VALIDATION
+---------------------------------
+
+Explicitly identify all features derived from:
+
+edgeSource.accountEngagementWeb
+
+For those features return:
+
+source_status = 'UAT_NOT_POPULATED'
+
+missing_value_treatment = 'KEEP_NULL_IN_UAT'
+
+recommendation = 'INCLUDE_PENDING_PROD_VALIDATION'
+
+Do not convert these NULLs to zero.
+
+
+10. FINAL STEP 5 OUTPUT
+-----------------------
+
+Create:
+
+build_merceredge_feature_dataset_step5.sql
+
+At the end report:
+
+- row count before Step 5
+- row count after Step 5
 - duplicate count
-- churn counts before/after
-- retained counts before/after
-- point-in-time safety result
-- investment features added
-- insurance features added
-- current-state/historical-data limitations
+- churn/retained counts before and after
+- total feature count
+- INCLUDE count
+- REVIEW REQUIRED count
+- EXCLUDE count
+- list of features converted from NULL to 0 and why
+- list of features where NULL remains NULL and why
+- categorical fields requiring later encoding
+- web features retained but unavailable in UAT
 - business questions
-- whether Step 4 is technically ready
+- whether Step 5 is technically ready
 
-Do not start Step 5 automatically.
+Do NOT start Step 6 automatically.
 
-Stop after Step 4 is generated and validated.
+Stop after Step 5 is generated and validated.
