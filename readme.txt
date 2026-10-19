@@ -1,5 +1,30 @@
-This Functional Requirements Specification (FRS) defines the tactical Machine Learning requirements for the Member Retention solution. The objective is to identify superannuation accounts that are at risk of churn and provide account-level churn probability, risk classification and key churn drivers for business use.
+For the Risk Bands row, your lead’s review point is essentially asking you to explain what each band means, not just list the thresholds.
 
-The tactical ML solution uses approved MercerEdge/Bronze data to build account-level features, apply churn and eligibility rules, train and validate the model, and generate ML scoring output for Power BI.
+So I’d update that FRS row like this:
 
-The FRS covers modelling grain, churn and retention definitions, feature and outcome windows, behavioural features, validation approach, risk bands and scoring outputs.
+Requirement / Description:
+Risk bands
+
+Business Rule / Current Position:
+The churn probability score will be grouped into risk bands to help business users interpret the level of churn risk.
+
+- High Risk: churn probability >= 0.70 — account has a relatively high likelihood of churn and may require priority attention.
+- Medium Risk: churn probability 0.40–0.69 — account shows moderate churn risk and may require monitoring.
+- Low Risk: churn probability < 0.40 — account currently shows relatively low churn risk.
+
+These are initial thresholds and can be refined based on model validation and business review.
+
+Example:
+0.82 → High Risk — higher likelihood of churn
+0.55 → Medium Risk — moderate likelihood of churn
+0.25 → Low Risk — lower likelihood of churn
+
+If you want it even more FRS-style and concise, use:
+
+> High: ≥0.70 – High likelihood of churn; priority attention
+Medium: 0.40–0.69 – Moderate likelihood; monitor
+Low: <0.40 – Low likelihood; normal monitoring
+
+
+
+That directly addresses your lead’s question.
