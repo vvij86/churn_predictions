@@ -1,183 +1,128 @@
 Read member_retention_ml_copilot_instructions.md and continue from the existing behavioural_features_business_review.sql.
 
-Do not restart from scratch and do not regenerate unrelated sections.
+Do not restart from scratch.
 
-Correction to current scope:
+Update only the existing standalone query for edgeSource.accountEngagementWorkflow.
 
-- edgeSource.campaignEventDetails is in scope
-- edgeSource.campaignEvents is in scope
-- only campaign and campaignAccountMapping are deferred
-- edgeSource.accountNetMoneyFlow is also in scope and must be actively reviewed for useful behavioural features
+Do not modify any other feature query.
 
-Please review the current SQL and identify why these in-scope sources are missing or underused:
+Business feedback is that the workflow table contains a lot of operational/system noise, so the query should not simply count every workflow row. The requirement is to reduce noise and retain only workflow activity that is potentially meaningful for churn prediction.
 
-- edgeSource.accountNetMoneyFlow
-- edgeSource.campaignEventDetails
-- edgeSource.campaignEvents
+First inspect the available workflow fields and distinct values, especially:
 
-1. accountNetMoneyFlow
+- jobCode
+- jobDescription
+- jobSourceDescription
+- jobSourceID
+- jobCompletedFlag
+- jobStartDate
+- jobDueDate
+- jobCompletionDate
 
-Use edgeSource.accountNetMoneyFlow to identify useful standalone behavioural / financial-flow features.
+Use the existing DDL, EDA files and business reference SQL to understand the fields.
 
-From the source, relevant columns include fields such as:
+Before changing the feature logic, profile the workflow categories and identify which records look like:
 
-- accountID
-- amount
-- cashflowDescription
-- cashFlowSign
-- internalTransferFlag
-- referenceDate
-- cashflowtype
+- member-driven/member-service activity
+- genuine account servicing activity
+- unresolved/open member requests
+- follow-up activity
+- administrative processing
+- reconciliation activity
+- batch/system-generated processing
+- reporting/technical jobs
+- other operational noise
 
-Use the actual DDL/reference files to confirm all column names and meanings.
+From the sample data, examples such as:
 
-Do not assume sign or direction semantics unless supported by the business reference SQL.
+- Web Link - Address/Name Change Confirmation
+- Reconciliation - Cashflow Exceptions
 
-Review MemberRetention_03-MemberRetentionMetrics_v005.sql and reuse the approved cash-flow / direction / type logic where applicable.
+should not automatically be treated equally. Review their source/job type and decide whether they represent useful member behaviour or operational noise.
 
-Generate standalone queries for useful features such as:
+Do not invent business exclusions. Where the meaning is uncertain, classify it as:
 
-- net_flow_12m
-- total_positive_flow_12m
-- total_negative_flow_12m
-- negative_net_flow_count_12m
-- negative_net_flow_months_12m
-- avg_monthly_net_flow_12m
-- recent_net_flow_90d
-- prior_net_flow_90d
-- net_flow_decline_flag
-- days_since_last_negative_flow
-- cashflow_active_months_12m
-- contribution-related cash-flow patterns only where supported by the business mapping
+REVIEW REQUIRED
 
-Also inspect whether useful additional patterns can be derived from:
+Required output
 
-- cashflowDescription
-- cashflowtype
-- cashFlowSign
-- internalTransferFlag
+Replace the current broad workflow aggregation with a cleaner standalone query that focuses on meaningful workflow activity.
 
-Do not create redundant features if the same business behaviour is already better represented by accountMoneyInflow or accountRolloverPayment.
+Prefer features such as:
 
-Where two sources overlap, document which source is preferred and why.
+- meaningful_workflow_count_12m
+- completed_meaningful_workflow_count_12m
+- open_meaningful_workflow_count_asof
+- days_since_last_meaningful_workflow
+- recent_meaningful_workflow_count_90d
+- repeat_meaningful_workflow_flag
 
-Each accountNetMoneyFlow feature query must:
+If useful, also create separate counts for a small number of clearly interpretable workflow groups, such as:
 
-- declare its own @AsOfDate
-- declare its own @FeatureStartDate
-- declare recent/prior 90-day parameters if required
-- apply the approved FundScope through accountSummary.databaseCode
-- use fundJoinDate <= @AsOfDate
-- use exitDateRecorded, not exitDate
-- exclude already exited accounts as of AsOfDate
-- apply death exclusion
-- exclude internal transfers where appropriate
-- use only referenceDate <= @AsOfDate
-- remain independently runnable
+- member service / account change
+- advice/support
+- unresolved/open cases
+- other useful member-facing workflows
 
-Use point-in-time logic such as:
+Do not create dozens of job-code dummy features at this stage.
 
-referenceDate >= @FeatureStartDate
-AND referenceDate <= @AsOfDate
+Noise reduction rules
 
-Do not use future rows.
+Exclude or flag for exclusion workflow records that are clearly:
 
-Before each query add:
+- reconciliation-only
+- technical/system processing
+- reporting jobs
+- batch processing
+- purely administrative back-office jobs
+- duplicate/repeated technical records
+- events with no clear member behavioural meaning
 
-/*
-Feature Name:
-Feature Group:
-Business Meaning:
-Source Table(s):
-Source Column(s):
-Reference Mapping Used:
-Included Types:
-Excluded Types:
-Feature Window:
-Point-in-Time Rule:
-Leakage Risk:
-Recommendation:
-Business Confirmation Needed:
-*/
+However, only hard-code exclusions when supported by the observed jobDescription, jobSourceDescription, DDL/EDA or business reference logic.
 
-2. campaignEventDetails and campaignEvents
+For anything ambiguous, document it as:
 
-Review:
+BUSINESS CONFIRMATION REQUIRED
 
-- edgeSource.campaignEventDetails
-- edgeSource.campaignEvents
+Preserve existing controls
 
-These are in scope.
+Keep all existing approved logic unchanged:
 
-Identify standalone behavioural features that can safely be created using only pre-AsOfDate campaign/event activity.
+- standalone independently runnable query
+- own @AsOfDate
+- own @FeatureStartDate
+- own @Recent90Start
+- FundScope through accountSummary.databaseCode
+- fundJoinDate <= @AsOfDate
+- exitDateRecorded, not exitDate
+- death exclusion
+- no post-AsOfDate workflow activity
+- 12-month feature window
+- no target leakage
 
-Possible patterns to assess include:
+Add a workflow profiling section before the final query
 
-- total campaign event count
-- distinct campaign event type count
-- days since last campaign event
-- recent campaign event count
-- engagement/contact/update-type activity
-- event-type-specific counts where supported by source/reference logic
+Add a small review query that outputs:
 
-Important:
+- jobCode
+- jobDescription
+- jobSourceDescription
+- jobCompletedFlag
+- row count
+- distinct account count
+- proposed classification: INCLUDE, EXCLUDE, or REVIEW REQUIRED
+- reason
 
-- MEMBER_EXIT must never be used as a predictive feature
-- exclude outcome-like events
-- exclude post-AsOfDate events
-- do not infer email sent/open/click behaviour unless the actual source fields support it
-- do not use campaign or campaignAccountMapping
-- if campaign event meaning is unclear, mark REVIEW REQUIRED
+This profiling output is for business review only.
 
-3. Avoid duplicate/noisy features
+Then update the actual workflow feature query to use only the categories marked INCLUDE.
 
-For all three sources, compare proposed features against existing standalone queries.
+If there are no categories that can be safely hard-coded as INCLUDE from existing evidence, do not guess. Keep the feature query in REVIEW REQUIRED status and clearly show the proposed categories for business confirmation.
 
-Do not create duplicates just because another table contains similar information.
-
-Where overlapping sources exist, add a note such as:
-
-- Preferred source
-- Supporting source only
-- Duplicate feature - exclude
-
-4. Update the existing file
-
-Add the new standalone queries directly to:
+Update only the workflow section in:
 
 behavioural_features_business_review.sql
 
-Do not create a new consolidated modelling dataset.
+Do not change helpline, website, contribution, money-flow, rollover, investment, insurance, campaign or other feature queries.
 
-Do not start model training.
-
-Do not change unrelated feature logic.
-
-5. Update the final source-usage summary
-
-At the end, update the source table summary and confirm whether these are now used:
-
-- edgeSource.accountNetMoneyFlow
-- edgeSource.campaignEventDetails
-- edgeSource.campaignEvents
-
-Also explicitly confirm that these remain deferred/not used:
-
-- campaign
-- campaignAccountMapping
-
-6. Final validation
-
-Before finishing, verify:
-
-- all accountNetMoneyFlow queries are independently runnable
-- all campaign/event queries are independently runnable
-- FundScope is physically present in executable SQL through accountSummary.databaseCode
-- exitDateRecorded is used instead of exitDate
-- no future events are used
-- MEMBER_EXIT is not a predictive feature
-- internal transfers are excluded where relevant
-- no unsupported source tables were introduced
-- no duplicate/noisy features were added unnecessarily
-
-Stop after updating and validating behavioural_features_business_review.sql.
+Stop after updating and validating the workflow section.
