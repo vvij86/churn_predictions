@@ -1,128 +1,221 @@
-Read member_retention_ml_copilot_instructions.md and continue from the existing behavioural_features_business_review.sql.
+Use this Copilot prompt:
 
-Do not restart from scratch.
+> Read member_retention_ml_copilot_instructions.md first.
 
-Update only the existing standalone query for edgeSource.accountEngagementWorkflow.
+Review the current behavioural_features_business_review.sql and identify all behavioural features that have been defined so far.
 
-Do not modify any other feature query.
+Also use the supporting reference files only where needed to confirm the source/meaning:
 
-Business feedback is that the workflow table contains a lot of operational/system noise, so the query should not simply count every workflow row. The requirement is to reduce noise and retain only workflow activity that is potentially meaningful for churn prediction.
+- MemberRetention_01-AccountBase_v006.sql
+- MemberRetention_03-MemberRetentionMetrics_v005.sql
+- MercerEdge_ML_Churn_Driver_EDA_Phase2.xlsx
+- MercerEdge_ML_Churn_Driver_EDA_Remaining_Tables_part2.xlsx
+- All_table_scripts.sql
+- All_Other_tables_Not_explored.sql
 
-First inspect the available workflow fields and distinct values, especially:
+Create a new Word document:
 
-- jobCode
-- jobDescription
-- jobSourceDescription
-- jobSourceID
-- jobCompletedFlag
-- jobStartDate
-- jobDueDate
-- jobCompletionDate
+Member_Retention_Behavioural_Feature_List.docx
 
-Use the existing DDL, EDA files and business reference SQL to understand the fields.
+Do not modify any existing Word document.
 
-Before changing the feature logic, profile the workflow categories and identify which records look like:
+Objective
 
-- member-driven/member-service activity
-- genuine account servicing activity
-- unresolved/open member requests
-- follow-up activity
-- administrative processing
-- reconciliation activity
-- batch/system-generated processing
-- reporting/technical jobs
-- other operational noise
+Create a simple business-friendly document listing only the behavioural features identified so far.
 
-From the sample data, examples such as:
+This document is for business/team review, so keep the descriptions very high level and easy to understand by a non-technical person.
 
-- Web Link - Address/Name Change Confirmation
-- Reconciliation - Cashflow Exceptions
+Do not include SQL code.
 
-should not automatically be treated equally. Review their source/job type and decide whether they represent useful member behaviour or operational noise.
+Do not include model-development details.
 
-Do not invent business exclusions. Where the meaning is uncertain, classify it as:
+Do not include target/churn label fields.
 
-REVIEW REQUIRED
+Do not include account/tenure/product fields unless they are genuinely behavioural.
 
-Required output
+Document structure
 
-Replace the current broad workflow aggregation with a cleaner standalone query that focuses on meaningful workflow activity.
+Add a short title:
 
-Prefer features such as:
+Member Retention ML – Behavioural Feature List
 
-- meaningful_workflow_count_12m
-- completed_meaningful_workflow_count_12m
-- open_meaningful_workflow_count_asof
-- days_since_last_meaningful_workflow
-- recent_meaningful_workflow_count_90d
-- repeat_meaningful_workflow_flag
+Under the title, add one short sentence:
 
-If useful, also create separate counts for a small number of clearly interpretable workflow groups, such as:
+This document lists the behavioural features identified for the Member Retention ML model for business review and confirmation.
 
-- member service / account change
-- advice/support
-- unresolved/open cases
-- other useful member-facing workflows
+Then create one table with these columns:
 
-Do not create dozens of job-code dummy features at this stage.
+1. S.No
+2. Behaviour Name
+3. Behaviour Type
+4. Description
+5. Sample Value
+6. Source
+7. Comments
 
-Noise reduction rules
+Column guidance
 
-Exclude or flag for exclusion workflow records that are clearly:
+S.No
 
-- reconciliation-only
-- technical/system processing
-- reporting jobs
-- batch processing
-- purely administrative back-office jobs
-- duplicate/repeated technical records
-- events with no clear member behavioural meaning
+Sequential numbering starting from 1.
 
-However, only hard-code exclusions when supported by the observed jobDescription, jobSourceDescription, DDL/EDA or business reference logic.
+Behaviour Name
 
-For anything ambiguous, document it as:
+Use a clean business-friendly name rather than only the technical SQL column name.
 
-BUSINESS CONFIRMATION REQUIRED
+Example:
 
-Preserve existing controls
+Helpline Contact Count - 12 Months
 
-Keep all existing approved logic unchanged:
+instead of:
 
-- standalone independently runnable query
-- own @AsOfDate
-- own @FeatureStartDate
-- own @Recent90Start
-- FundScope through accountSummary.databaseCode
-- fundJoinDate <= @AsOfDate
-- exitDateRecorded, not exitDate
-- death exclusion
-- no post-AsOfDate workflow activity
-- 12-month feature window
-- no target leakage
+helpline_contact_count_12m
 
-Add a workflow profiling section before the final query
+Behaviour Type
 
-Add a small review query that outputs:
+Use simple categories such as:
 
-- jobCode
-- jobDescription
-- jobSourceDescription
-- jobCompletedFlag
-- row count
-- distinct account count
-- proposed classification: INCLUDE, EXCLUDE, or REVIEW REQUIRED
-- reason
+- Helpline Engagement
+- Website Engagement
+- Workflow Activity
+- Contribution Behaviour
+- Money Flow Behaviour
+- Rollover / Withdrawal Behaviour
+- Investment Behaviour
+- Insurance Behaviour
+- Third Party Authority
+- Campaign / Event Behaviour
+- Customer Experience / Qualtrics
 
-This profiling output is for business review only.
+Use only categories actually represented in the current feature list.
 
-Then update the actual workflow feature query to use only the categories marked INCLUDE.
+Description
 
-If there are no categories that can be safely hard-coded as INCLUDE from existing evidence, do not guess. Keep the feature query in REVIEW REQUIRED status and clearly show the proposed categories for business confirmation.
+Write one short sentence in plain English.
 
-Update only the workflow section in:
+Keep it understandable to a layman.
 
-behavioural_features_business_review.sql
+Examples:
 
-Do not change helpline, website, contribution, money-flow, rollover, investment, insurance, campaign or other feature queries.
+- Number of times the member contacted the helpline during the last 12 months.
+- Number of days since the member last contacted the helpline.
+- Shows whether the member’s contribution activity has reduced recently.
+- Number of partial rollover transactions made during the last 12 months.
 
-Stop after updating and validating the workflow section.
+Avoid technical terms such as:
+
+- aggregation
+- CTE
+- point-in-time
+- lag
+- window function
+- feature engineering
+
+unless absolutely necessary.
+
+Sample Value
+
+Give a simple illustrative value based on the feature type.
+
+Examples:
+
+- 5
+- 109 days
+- ₹1,500
+- Yes / No
+- 3 months
+- 2 events
+
+Do not claim sample values are actual production values unless they are directly supported by the SQL output.
+
+If using illustrative values, keep them clearly generic.
+
+Source
+
+Mention the main source table only.
+
+Examples:
+
+- edgeSource.accountEngagementHelpline
+- edgeSource.accountEngagementWorkflow
+- edgeSource.accountMoneyInflow
+- edgeSource.accountNetMoneyFlow
+- edgeSource.accountRolloverPayment
+- edgeSource.accountInvestments
+- edgeSource.AccountInsuranceCurrent
+- edgeSource.thirdPartyAuthority
+- edgeSource.campaignEventDetails / campaignEvents
+
+Where a feature is derived from more than one source, list both briefly.
+
+Comments
+
+Leave this column blank for business comments.
+
+Do not pre-populate comments.
+
+Scope rules
+
+Include only behavioural features already identified in behavioural_features_business_review.sql.
+
+Include:
+
+- helpline features
+- website features
+- workflow features
+- contribution features
+- money-flow features
+- rollover / withdrawal features
+- investment-related behavioural features
+- insurance-related behavioural features if currently included
+- third-party-authority behavioural indicator if currently included
+- campaign/event behavioural features from campaignEventDetails and campaignEvents if they are currently included
+
+Important campaign scope:
+
+- campaignEventDetails and campaignEvents are in scope
+- campaign and campaignAccountMapping are deferred and should not be listed as active behavioural features
+
+Do not include:
+
+- target_churn
+- churn outcome fields
+- exitDateRecorded
+- MEMBER_EXIT
+- eligibility flags
+- fund-scope fields
+- technical validation fields
+- duplicate-count fields
+- model metrics
+- account identifiers
+
+If a candidate feature is still marked REVIEW REQUIRED, it can still be listed, because this document is for business review. Do not remove it just because confirmation is pending.
+
+For website features, if UAT is not populated, still include the feature in the list, because it remains in scope for Prod/Databricks validation.
+
+Formatting
+
+- Use a clean professional Word table.
+- Make the header row bold.
+- Keep descriptions short.
+- Use readable column widths.
+- Do not use excessive colours or graphics.
+- Keep the document easy to print and review.
+- Use landscape orientation if needed to fit all columns cleanly.
+
+Validation before finishing
+
+Confirm that:
+
+- every behavioural feature currently defined in behavioural_features_business_review.sql is represented once
+- there are no duplicate features
+- no target/outcome fields are included
+- descriptions are business-friendly
+- the Comments column is completely blank
+- sources match the SQL/reference files
+
+Save the final output as:
+
+Member_Retention_Behavioural_Feature_List.docx
+
+Stop after creating the Word document.
