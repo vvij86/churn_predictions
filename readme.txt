@@ -1,1 +1,1 @@
-Hi Jasna, could you please share the SQL used to create the Databricks views when available? I want to check how the FundScope/database filtering and transitioned-member exit logic are handled so I can align the ML eligibility and feature logic accordingly.
+
