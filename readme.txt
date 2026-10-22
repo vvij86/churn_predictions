@@ -1,227 +1,131 @@
-Read member_retention_ml_copilot_instructions.md, behavioural_features_business_review.sql, MemberRetention_01-AccountBase_v006.sql, and MemberRetention_03-MemberRetentionMetrics_v005.sql.
+Use this Copilot prompt:
 
-Do not restart from scratch. Continue from the current behavioural_features_business_review.sql and update only the relevant standalone feature sections.
+> Read member_retention_ml_copilot_instructions.md and review the latest behavioural_features_business_review.sql.
 
-Business specifically discussed the following three areas as potentially useful for ML. Review the exact existing logic in MemberRetention_01-AccountBase_v006.sql and add/refine standalone behavioural feature queries where appropriate.
+Open the existing Word document:
 
-1. Rollover Destination Features
+Member_Retention_Behavioural_Feature_List.docx
 
-Review edgeSource.accountRolloverPayment and the business SQL logic around:
+Update the existing behavioural feature table in that document using the latest feature list from behavioural_features_business_review.sql.
 
-- rolloverDestinationName
-- rolloverDestinationType
+Do not create a new Word document.
 
-Assess whether these fields can provide useful behavioural churn-risk features.
+Do not change the document title, introductory text, source table summary, or existing formatting unless required to fit new rows cleanly.
 
-Possible features to consider:
+What to update
 
-- distinct rollover destination count in the last 12 months
-- most recent rollover destination type
-- external rollover destination indicator
-- repeated external rollover destination activity
-- rollover destination type frequency
+Compare the current Word feature table against the latest standalone feature SQL.
 
-Do not use raw rolloverDestinationName directly if it creates high cardinality/noise.
+Add any newly introduced behavioural features that are not already present in the Word document.
 
-Prefer grouped and business-friendly features.
+This includes the recently added/reviewed areas such as:
 
-Keep these behaviours separate:
+- rollover destination behaviour
+- Employer SG baseline/recent/change signals
+- Salary Sacrifice baseline/recent/change signals
+- Member Voluntary baseline/recent/change signals
+- rollover-in related behaviour
+- contribution spike/drop/inactivity signals where actually defined
+- current FY vs previous FY contribution-change features
+- advice engagement features
+- low-balance related feature if currently listed in the SQL
+- any other new behavioural feature added since the Word document was last created
 
-- partial rollover
-- external rollover
-- rollover in
-- internal transfer
+Do not add features that are only discussed as ideas but are not actually present in the latest behavioural_features_business_review.sql.
 
-Internal transfers must not be treated as churn-risk external rollover activity.
+Existing table columns
 
-Any feature that is too close to full account exit/churn must be marked:
+Keep the same columns:
 
-LEAKAGE REVIEW REQUIRED
+1. S.No
+2. Behaviour Name
+3. Behaviour Type
+4. Description
+5. Sample Value
+6. Source
+7. Comments
 
-Use only source columns and mappings supported by the DDL/business SQL.
+Rules for newly added rows
 
-2. Inflow Signals / Contribution Change Patterns
+For every feature that is newly added to the Word document:
 
-Locate and review the section in MemberRetention_01-AccountBase_v006.sql corresponding to:
+- populate the normal feature details
+- set the Comments column exactly to:
 
-12.1 Inflow signals (SG / SalSac / MV / Roll-in)
+Newly added
 
-Review the existing logic for fields such as:
+For features that already existed in the Word document:
 
-- EmployerSG_baseline_amount
-- EmployerSG_recent_amount
-- SalSac_baseline_amount
-- SalSac_recent_amount
-- MemVol_baseline_amount
-- MemVol_recent_amount
-- rollin_amount_12m
-- SalSac_previous_fy_amount
-- SalSac_current_fy_amount
-- MemVol_previous_fy_amount
-- MemVol_current_fy_amount
+- keep the existing row
+- do not mark them as Newly added
+- keep their Comments column unchanged
 
-Trace the exact mappings and filters used by the business SQL.
+Description style
 
-Use MemberRetention_03-MemberRetentionMetrics_v005.sql where required to confirm contribution/flow mappings.
+Keep descriptions very simple and business-friendly.
 
-Create useful standalone feature queries that represent behavioural changes, not just raw totals.
+Use one short sentence in layman English.
 
-Possible features to consider:
+Examples:
 
-- Employer SG recent amount
-- Employer SG baseline amount
-- Employer SG recent-vs-baseline change
-- Salary Sacrifice recent amount
-- Salary Sacrifice baseline amount
-- Salary Sacrifice recent-vs-baseline change
-- Member Voluntary recent amount
-- Member Voluntary baseline amount
-- Member Voluntary recent-vs-baseline change
-- contribution drop signal
-- contribution spike signal
-- contribution inactivity / cessation signal
-- Salary Sacrifice current FY vs previous FY change
-- Member Voluntary current FY vs previous FY change
-- rollover-in amount in the last 12 months
+- Compares recent employer contributions with the member's earlier contribution level.
+- Shows whether salary sacrifice contributions have reduced recently.
+- Shows whether the member had advice-related engagement during the last 12 months.
+- Shows the type of external rollover destination used by the member.
 
-Keep these contribution types separate:
+Do not include SQL logic in the description.
 
-- Employer SG
-- Salary Sacrifice
-- Member Voluntary
-- Rollover In
+Leakage/review features
 
-Do not mix in:
+If a feature is present in the standalone SQL but marked:
 
-- internal transfers
-- insurance claim proceeds
-- adjustments
-- unrelated inflows
-
-Do not invent spike/drop thresholds.
-
-If the business SQL does not already define the threshold, mark:
-
-BUSINESS CONFIRMATION REQUIRED
-
-Prefer useful change/trend signals over creating too many raw features.
-
-3. Low Balance and Advice Engagement
-
-Locate and review the relevant business SQL section around:
-
-12.4 Web login and advice engagement events
-
-Specifically trace the logic for:
-
-- low_balance_flag
-- advice_helpline_engagement_12m_flag
-
-Identify the original physical source tables and source columns used to create these fields.
-
-If the required logic can be reproduced using the approved ML source tables, add standalone queries for:
-
-- low balance indicator
-- advice helpline engagement in the last 12 months
-
-For advice_helpline_engagement_12m_flag, use only activity available on or before @AsOfDate.
-
-If the exact business logic requires a source outside the approved ML table scope, do not invent an alternative.
-
-Mark it clearly as:
-
-REVIEW REQUIRED - ADDITIONAL SOURCE DEPENDENCY
-
-Also check whether the advice-engagement logic overlaps with the existing helpline features. If so, keep only the feature that adds distinct business information and document the relationship.
-
-Standalone Query Requirements
-
-Update only:
-
-behavioural_features_business_review.sql
-
-Each added query must remain independently runnable.
-
-Each standalone query must contain its own required parameters, including:
-
-DECLARE @AsOfDate DATE = '2024-03-31';
-
-and its own feature-window parameters where required.
-
-Do not depend on variables, CTEs or temp tables created by a previous standalone query.
-
-Maintain all current approved controls:
-
-- approved FundScope/databaseCode filtering
-- fundJoinDate <= @AsOfDate
-- use exitDateRecorded, not exitDate
-- exclude accounts already exited as of AsOfDate
-- death exclusion
-- internal-transfer handling
-- point-in-time safety
-- no future events
-- no target leakage
-- default 12-month feature window
-- 36-month overall training history is separate from the feature window
-
-Before each new feature/query block use the existing documentation format:
-
-/*
-Feature Name:
-Feature Group:
-Business Meaning:
-Source Table(s):
-Source Column(s):
-Reference Mapping Used:
-Included Types:
-Excluded Types:
-Feature Window:
-Point-in-Time Rule:
-Leakage Risk:
-Recommendation:
-Business Confirmation Needed:
-*/
-
-Use only these recommendation values:
-
-- INCLUDE
 - REVIEW REQUIRED
-- EXCLUDE
-- INCLUDE PENDING PROD VALIDATION
+- LEAKAGE REVIEW REQUIRED
+- REVIEW REQUIRED - ADDITIONAL SOURCE DEPENDENCY
 
-Noise Reduction
+still include it in the Word document because the document is for business review.
 
-For these new features:
+In those cases, keep Comments = Newly added if it is a new row. Do not replace it with technical leakage notes unless the existing table has another dedicated status column.
 
-- avoid raw high-cardinality fields
-- prefer grouped/interpretable signals
-- avoid duplicate features
-- exclude system/admin noise
-- exclude internal transfers where relevant
-- exclude post-AsOfDate events
-- exclude outcome/target events
-- do not use exit-related information as a predictive feature
-- do not invent business mappings or thresholds
+Source
 
-If logic is uncertain, mark it for business review instead of guessing.
+Use the main business source table only, for example:
 
-Final Validation
+- Edge.accountMoneyInflow
+- Edge.accountNetMoneyFlow
+- Edge.accountRolloverPayment
+- Edge.accountEngagementHelpline
+- Edge.accountEngagementWorkflow
+- Edge.campaignEventDetails / campaignEvents
 
-Before finishing, confirm:
+Follow the existing naming style already used in the Word document.
 
-- rollover destination features were reviewed
-- inflow signal / contribution-change features were reviewed
-- low-balance and advice-engagement features were reviewed
-- all source columns come from the DDL/reference SQL
-- no unsupported table or column was invented
-- no future information is used
-- no target leakage is introduced
-- FundScope filtering is still present in executable SQL
-- unrelated existing feature queries were not changed
-- the final source-usage summary is updated if any new approved source is used
+Sample values
 
-Do not build the final consolidated feature dataset.
+Use simple illustrative values only, such as:
 
-Do not start model training.
+- 1200
+- 25% decrease
+- Yes / No
+- 2 events
+- External
 
-Stop after updating and validating behavioural_features_business_review.sql.
+Do not invent realistic-looking production values.
+
+Final validation
+
+Before saving, confirm:
+
+- all latest behavioural features in behavioural_features_business_review.sql are represented in the Word feature table
+- no duplicate rows exist
+- existing rows are preserved
+- only newly added rows have Comments = Newly added
+- numbering is sequential
+- descriptions remain easy for business users to understand
+- no churn target, exit field, eligibility flag, or technical validation field has been added as a behaviour
+
+Save the updated document using the same filename:
+
+Member_Retention_Behavioural_Feature_List.docx
+
+Stop after updating and validating the existing Word document.
