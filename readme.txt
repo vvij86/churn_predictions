@@ -1,18 +1,28 @@
-# 46. Transitioned Member Exit Exclusion
-
-Business has confirmed that transitioned-member exits must be excluded from normal churn modelling because these exits are caused by transition/migration activity and may skew the churn model.
-
-Reuse the approved `IsTransitionedMemberExit` logic from the business reference SQL.
-
-Rules:
-
-- `IsTransitionedMemberExit = 1` -> exclude from normal churn modelling population / target creation.
-- Do not treat transitioned-member exits as ordinary churn.
-- Do not use `IsTransitionedMemberExit` as a predictive feature.
-- Apply this exclusion together with the existing:
-  - internal transfer exclusion
-  - death-related exit exclusion
-
-Use the exact business reference logic for determining `IsTransitionedMemberExit`.
-
-Do not simplify or invent alternate transition rules unless explicitly confirmed by business.
+Read MemberRetention_01-AccountBase_v006.sql and identify the exact logic used to derive IsTransitionedMemberExit.
+I want to understand whether this exclusion can be implemented using only the approved 15 ML source tables, or whether it depends on any additional tables/columns outside that scope.
+Please do the following:
+Extract the complete IsTransitionedMemberExit logic exactly as used in the business SQL.
+List every table, temp table, alias and source column required to calculate it.
+Trace each required field back to its original physical source table.
+Clearly separate:
+fields available from the approved 15 ML source tables
+fields coming from additional/out-of-scope sources
+fields derived through temp tables or joins
+Specifically identify the source of:
+sub_fund
+ExitDateMetric
+memberSource
+Check whether an equivalent field already exists in any of the approved 15 tables, especially:
+edgeSource.accountSummary
+edgeSource.customerMapping
+edgeSource.customerSummary
+tableau.fundListSource
+Do not invent an alternative implementation. If the exact business rule cannot be reproduced using the approved 15 tables, clearly state which additional source/table is required.
+Explain whether this rule should be applied:
+while building the eligible account population,
+while creating target_churn,
+or both.
+Explain how the transitioned-member exclusion should be applied to the standalone feature queries without using IsTransitionedMemberExit as a predictive feature.
+Keep the response concise and provide a final table with:
+Required Field | Original Source | In Approved 15 Tables? | Alternative Available? | Needed for Exact Rule?
+Do not modify any SQL file. I only need analysis of the existing business SQL.
