@@ -1,6 +1,20 @@
-Hi Ayleen,
+Description:
 
-I was on PTO on October 1st, and October 2nd was a public holiday in India. Hence, no timesheet entries were submitted for these dates.
+The "Edge.AccountEngagementWeb" view contains records, but the following key columns are completely empty (NULL):
 
-Thanks,
-Vijay
+- WebAccountId
+- JobSource
+- JobType
+- JobDescription
+- RequestDate
+- RequestParameters
+- RequestId
+
+Expected Result:
+The key columns should contain relevant data where available from the source.
+
+Actual Result:
+All the above columns contain NULL values across all records.
+
+Impact:
+Missing data in these columns prevents evaluation of account web engagement features for the ML churn prediction model.
