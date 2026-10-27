@@ -1,1 +1,1 @@
-
+Need to assess the suitable validation approach and provide justification for the recommended method, considering the time-based nature of the data, repeated account snapshots, and risk of data leakage.
