@@ -1,1 +1,1 @@
-Hi Jasna, I’ve created Bug 3085738 for the missing data in key columns of the "Edge.AccountEngagementWeb" view in DEV and assigned it to you. I’ve kept it under Iteration 2. Could you please take a look?
+
