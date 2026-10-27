@@ -1,1 +1,6 @@
-Can the business confirm whether the proposed account-level ML scoring output meets the reporting and retention analytics requirements, including primary churn driver, additional churn drivers, retention category (High Risk – At Risk, Medium Risk – Monitor, Low Risk – Retained), model version, and churn probability score? Please confirm if these outputs are sufficient or if any additional fields or changes are required.
+Hi Ayleen,
+
+I was on PTO on October 1st, and October 2nd was a public holiday in India. Hence, no timesheet entries were submitted for these dates.
+
+Thanks,
+Vijay
