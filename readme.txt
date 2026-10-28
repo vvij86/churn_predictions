@@ -1,43 +1,31 @@
 /*
-Feature Name: partial_rollover_behaviour_12m_group
-Feature Group: Partial Rollover / Withdrawal Behaviour
+Feature Name: investment_position_asof_group
+Feature Group: Investment Behaviour / Position
 
 Business Meaning:
-    Captures partial external rollover / withdrawal behaviour that occurred
-    before the AsOfDate.
+    Captures the member's latest known investment position as at AsOfDate.
 
-    Full external rollover features are intentionally excluded because they
-    may occur very close to actual churn / account exit and can introduce
-    target leakage.
+Business Confirmation:
+    - value = value of the investment / stock
+    - use the newest record based on MAX(investmentDate)
 
 Source Table:
-    edgeSource.accountRolloverPayment
+    edgeSource.accountInvestments
 
-Included:
-    Partial rollover / withdrawal activity only
-
-Excluded:
-    Full external rollover
-    Internal transfers
-    Post-AsOfDate activity
-
-Feature Window:
-    Previous 12 months from AsOfDate
-
-Recent Window:
-    Previous 90 days from AsOfDate
+Important:
+    accountInvestments appears to contain periodic investment snapshots.
+    Therefore snapshot row counts are NOT treated as investment-change events.
 
 Point-in-Time Rule:
-    processedDate must be between FeatureStartDate and AsOfDate.
+    Only investment records with investmentDate <= AsOfDate are used.
+
+Final ML Features:
+    investment_option_count_asof
+    total_investment_value_asof
+    direct_investment_flag
 */
 
 DECLARE @AsOfDate DATE = '2024-03-31';
-
-DECLARE @FeatureStartDate DATE =
-    DATEADD(DAY, 1, DATEADD(MONTH, -12, @AsOfDate));
-
-DECLARE @Recent90Start DATE =
-    DATEADD(DAY, -89, @AsOfDate);
 
 
 WITH eligible_accounts AS
@@ -80,102 +68,74 @@ WITH eligible_accounts AS
       )
 ),
 
-partial_rollover_fact AS
+ranked_investments AS
 (
     SELECT
-        arp.accountID,
+        ai.accountID,
+        ai.investmentCode,
+        CAST(ai.investmentDate AS DATE) AS investmentDate,
+        CAST(ai.value AS DECIMAL(18,2)) AS investment_value,
+        ai.directInvestmentFlag,
 
-        CAST(arp.processedDate AS DATE) AS processed_date,
+        ROW_NUMBER() OVER
+        (
+            PARTITION BY
+                ai.accountID,
+                ai.investmentCode
 
-        CAST(arp.paymentAmount AS DECIMAL(18,2)) AS payment_amount
+            ORDER BY
+                ai.investmentDate DESC
+        ) AS rn
 
-    FROM edgeSource.accountRolloverPayment arp
+    FROM edgeSource.accountInvestments ai
 
     INNER JOIN eligible_accounts ea
-        ON ea.accountID = arp.accountID
+        ON ea.accountID = ai.accountID
 
-    WHERE arp.processedDate >= @FeatureStartDate
-      AND arp.processedDate <= @AsOfDate
-
-      /* Partial rollover / withdrawal only */
-      AND arp.paymentType IN
-      (
-          'Rollover to External Fund',
-          'Other',
-          'Rollover/Transfer to Annuity'
-      )
-
-      AND arp.partialWithdrawalFlag = 1
-
-      /* Explicitly exclude internal transfers */
-      AND COALESCE(arp.internalTransferFlag, 0) = 0
-
-      /* Keep genuine payment activity only */
-      AND arp.paymentAmount <> 0
+    WHERE ai.investmentDate <= @AsOfDate
+      AND ai.investmentCode IS NOT NULL
 ),
 
-partial_rollover_summary AS
+latest_investments AS
 (
     SELECT
-        pr.accountID,
+        accountID,
+        investmentCode,
+        investment_value,
+        directInvestmentFlag
 
-        /* Number of partial rollovers during previous 12 months */
-        COUNT(*) AS partial_rollover_count_12m,
+    FROM ranked_investments
 
-
-        /* Total amount partially rolled out during previous 12 months */
-        SUM(pr.payment_amount)
-            AS partial_rollover_amount_12m,
-
-
-        /* How recently the member made a partial rollover */
-        DATEDIFF
-        (
-            DAY,
-            MAX(pr.processed_date),
-            @AsOfDate
-        ) AS days_since_last_partial_rollover,
-
-
-        /* Number of partial rollovers during recent 90 days */
-        SUM
-        (
-            CASE
-                WHEN pr.processed_date >= @Recent90Start
-                THEN 1
-                ELSE 0
-            END
-        ) AS recent_partial_rollover_count_90d,
-
-
-        /* Amount partially rolled out during recent 90 days */
-        SUM
-        (
-            CASE
-                WHEN pr.processed_date >= @Recent90Start
-                THEN pr.payment_amount
-                ELSE 0
-            END
-        ) AS recent_partial_rollover_amount_90d
-
-    FROM partial_rollover_fact pr
-
-    GROUP BY pr.accountID
+    WHERE rn = 1
 )
 
 SELECT
     accountID,
 
-    partial_rollover_count_12m,
+    /* Number of distinct investment options held as at AsOfDate */
+    COUNT(DISTINCT investmentCode)
+        AS investment_option_count_asof,
 
-    partial_rollover_amount_12m,
 
-    days_since_last_partial_rollover,
+    /* Total latest investment value across all investment options */
+    SUM
+    (
+        COALESCE(investment_value, 0)
+    ) AS total_investment_value_asof,
 
-    recent_partial_rollover_count_90d,
 
-    recent_partial_rollover_amount_90d
+    /* Whether account has any direct-investment exposure */
+    MAX
+    (
+        CASE
+            WHEN COALESCE(directInvestmentFlag, 0) = 1
+            THEN 1
+            ELSE 0
+        END
+    ) AS direct_investment_flag
 
-FROM partial_rollover_summary
+FROM latest_investments
+
+GROUP BY accountID
 
 ORDER BY accountID;
