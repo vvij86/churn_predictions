@@ -16,9 +16,9 @@ Contribution Types Included:
 
 Excluded:
     Internal transfers
-    Rollovers in
-    Adjustments
-    Insurance claim proceeds
+    Rollover types I and F
+    Adjustment-related rollover inflows
+    Mercer-related rollover/transfer inflows
     Other unrelated inflows
 
 Feature Window:
@@ -28,11 +28,12 @@ Recent Comparison:
     Recent 90 days vs previous 90 days
 
 Point-in-Time Rule:
-    inflowDateReceived must be <= AsOfDate.
+    inflowDateReceived must be between FeatureStartDate and AsOfDate.
 
 Note:
-    No 30-day contribution window is added initially because contributions
-    may be monthly/fortnightly and a 30-day window can be unnecessarily noisy.
+    30-day contribution features are not added initially because
+    contribution activity can be monthly/fortnightly and a 30-day
+    window may be unnecessarily noisy.
 */
 
 DECLARE @AsOfDate DATE = '2024-03-31';
@@ -99,25 +100,25 @@ contribution_fact AS
 
         CASE
 
-            /* Explicit exclusions */
-
+            /* Internal transfer */
             WHEN ami.inflowInternalTransferFlag = 1
                 THEN 'EXCLUDE'
 
-            WHEN ami.inflowRolloverType IN ('I', 'R')
+            /* Rollover types */
+            WHEN ami.inflowRolloverType IN ('I', 'F')
                 THEN 'EXCLUDE'
 
+            /* Adjustment-related rollover inflow */
             WHEN ami.inflowDescription = 'Rollovers-In'
              AND ami.inflowSourceDescription LIKE '%ADJUSTMENT%'
                 THEN 'EXCLUDE'
 
+            /* Mercer-related rollover / transfer inflow */
             WHEN ami.inflowDescription = 'Rollovers-In'
-             AND ami.inflowSourceDescription LIKE '%Transfer%'
+             AND ami.inflowSourceDescription LIKE '%Mercer %'
                 THEN 'EXCLUDE'
 
-
-            /* Contribution mappings */
-
+            /* Employer SG */
             WHEN ami.inflowDescription IN
             (
                 'Employer',
@@ -125,10 +126,14 @@ contribution_fact AS
             )
                 THEN 'Employer SG'
 
-            WHEN ami.inflowDescription = 'Voluntary Member Salary Sacrifice'
+            /* Salary Sacrifice */
+            WHEN ami.inflowDescription =
+                 'Voluntary Member Salary Sacrifice'
                 THEN 'Salary Sacrifice'
 
-            WHEN ami.inflowDescription = 'Member Voluntary'
+            /* Member Voluntary */
+            WHEN ami.inflowDescription =
+                 'Member Voluntary'
                 THEN 'Post Tax Voluntary'
 
             ELSE 'EXCLUDE'
@@ -168,11 +173,7 @@ contribution_summary AS
     SELECT
         vc.accountID,
 
-
-        /* =====================================================
-           Overall 12-month contribution behaviour
-           ===================================================== */
-
+        /* Overall 12-month behaviour */
         COUNT(*)
             AS contribution_count_12m,
 
@@ -200,10 +201,7 @@ contribution_summary AS
         ) AS days_since_last_contribution,
 
 
-        /* =====================================================
-           Recent 90 days
-           ===================================================== */
-
+        /* Recent 90 days */
         SUM
         (
             CASE
@@ -222,10 +220,7 @@ contribution_summary AS
         ) AS recent_contribution_count_90d,
 
 
-        /* =====================================================
-           Previous 90 days
-           ===================================================== */
-
+        /* Previous 90 days */
         SUM
         (
             CASE
@@ -246,10 +241,7 @@ contribution_summary AS
         ) AS prior_contribution_count_90d,
 
 
-        /* =====================================================
-           Employer SG
-           ===================================================== */
-
+        /* Employer SG */
         SUM
         (
             CASE
@@ -270,10 +262,7 @@ contribution_summary AS
         ) AS employer_sg_amount_90d,
 
 
-        /* =====================================================
-           Salary Sacrifice
-           ===================================================== */
-
+        /* Salary Sacrifice */
         SUM
         (
             CASE
@@ -294,10 +283,7 @@ contribution_summary AS
         ) AS salary_sacrifice_amount_90d,
 
 
-        /* =====================================================
-           Member Voluntary / Post Tax
-           ===================================================== */
-
+        /* Member Voluntary / Post Tax */
         SUM
         (
             CASE
@@ -325,9 +311,7 @@ contribution_summary AS
 SELECT
     cs.accountID,
 
-
-    /* Long-term behaviour */
-
+    /* Long-term contribution behaviour */
     cs.contribution_count_12m,
 
     cs.contribution_amount_12m,
@@ -339,8 +323,7 @@ SELECT
     cs.days_since_last_contribution,
 
 
-    /* Recent vs previous 90 days */
-
+    /* Recent vs previous 90-day behaviour */
     cs.recent_contribution_amount_90d,
 
     cs.prior_contribution_amount_90d,
@@ -350,16 +333,14 @@ SELECT
     cs.prior_contribution_count_90d,
 
 
-    /* Absolute change */
-
+    /* Absolute contribution change */
     (
         cs.recent_contribution_amount_90d
         - cs.prior_contribution_amount_90d
     ) AS contribution_amount_change_90d,
 
 
-    /* Percentage change */
-
+    /* Percentage contribution change */
     CASE
         WHEN cs.prior_contribution_amount_90d > 0
         THEN
@@ -378,11 +359,10 @@ SELECT
 
 
     /*
-       Cessation:
-       Member had contribution activity in previous 90 days
-       but no contribution in recent 90 days.
+      Cessation:
+      Member had contributions in previous 90 days
+      but none in recent 90 days.
     */
-
     CASE
         WHEN cs.prior_contribution_amount_90d > 0
          AND cs.recent_contribution_amount_90d = 0
@@ -392,11 +372,10 @@ SELECT
 
 
     /*
-       Decline flag:
-       Keep as supporting feature.
-       Actual change amount / percentage is more informative.
+      Decline:
+      Recent 90-day contribution amount is lower
+      than previous 90-day contribution amount.
     */
-
     CASE
         WHEN cs.prior_contribution_amount_90d > 0
          AND cs.recent_contribution_amount_90d
@@ -407,25 +386,21 @@ SELECT
 
 
     /* Employer SG */
-
     cs.employer_sg_amount_12m,
 
     cs.employer_sg_amount_90d,
 
 
     /* Salary Sacrifice */
-
     cs.salary_sacrifice_amount_12m,
 
     cs.salary_sacrifice_amount_90d,
 
 
     /* Member Voluntary */
-
     cs.member_voluntary_amount_12m,
 
     cs.member_voluntary_amount_90d
-
 
 FROM contribution_summary cs
 
