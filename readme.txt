@@ -24,15 +24,13 @@ Point-in-Time Rule:
     eventDate must be between FeatureStartDate and AsOfDate.
 
 Leakage Risk:
-    MEMBER_EXIT is excluded.
-    ROLLOVER / PAYMENT_EXTERNAL are retained separately for business/leakage review
-    and are not included in the general behavioural counts.
+    MEMBER_EXIT, ROLLOVER and PAYMENT_EXTERNAL are excluded.
 
 Recommendation:
-    REVIEW REQUIRED
+    INCLUDE / BUSINESS REVIEW FOR EVENT GROUPINGS
 
 Business Confirmation Needed:
-    Confirm grouped event categories and confirm which events represent genuine
+    Confirm grouped event categories and which events represent genuine
     member behaviour versus system/business-generated activity.
 */
 
@@ -101,11 +99,9 @@ event_base AS
             )
             THEN 'ADVICE'
 
-
             /* Digital engagement */
             WHEN ce.eventName = 'WEBSITE_LOGIN'
             THEN 'DIGITAL'
-
 
             /* Member service / contact */
             WHEN ce.eventName IN
@@ -115,11 +111,9 @@ event_base AS
             )
             THEN 'MEMBER_SERVICE'
 
-
             /* Investment behaviour */
             WHEN ce.eventName = 'INVESTMENT_CHANGE'
             THEN 'INVESTMENT'
-
 
             /* Contribution behaviour */
             WHEN ce.eventName IN
@@ -130,13 +124,11 @@ event_base AS
             )
             THEN 'CONTRIBUTION'
 
-
-            /* Roll-in */
+            /* Roll-in / consolidation */
             WHEN ce.eventName = 'ROLLIN'
             THEN 'ROLLIN'
 
-
-            /* Retirement / Pension */
+            /* Retirement / pension */
             WHEN ce.eventName IN
             (
                 'PENSION',
@@ -145,11 +137,9 @@ event_base AS
             )
             THEN 'RETIREMENT_PENSION'
 
-
             /* Insurance */
             WHEN ce.eventName = 'INSURANCE_OPT_IN'
             THEN 'INSURANCE'
-
 
             /* Beneficiary activity */
             WHEN ce.eventName IN
@@ -159,13 +149,11 @@ event_base AS
             )
             THEN 'BENEFICIARY'
 
-
-            /* Business initiated contact - review separately */
+            /* Business initiated contact - review */
             WHEN ce.eventName = 'OUTBOUND_CALL'
             THEN 'OUTBOUND_CONTACT'
 
-
-            /* Payment behaviour - business confirmation needed */
+            /* Payment behaviour */
             WHEN ce.eventName IN
             (
                 'PAYMENT_ATO',
@@ -174,24 +162,9 @@ event_base AS
             )
             THEN 'PAYMENT'
 
-
-            /* Potential near-exit behaviour - do not combine with normal events */
-            WHEN ce.eventName IN
-            (
-                'PAYMENT_EXTERNAL',
-                'ROLLOVER'
-            )
-            THEN 'ROLLOVER_EXIT_REVIEW'
-
-
-            /* Meaning needs confirmation */
+            /* Meaning requires business confirmation */
             WHEN ce.eventName = 'CONSENT_TO_SEARCH'
             THEN 'OTHER_REVIEW'
-
-
-            /* Direct target leakage */
-            WHEN ce.eventName = 'MEMBER_EXIT'
-            THEN 'EXCLUDE_TARGET_LEAKAGE'
 
             ELSE 'OTHER_REVIEW'
 
@@ -208,18 +181,19 @@ event_base AS
     WHERE ced.eventDate >= @FeatureStartDate
       AND ced.eventDate <= @AsOfDate
 
-      /* Explicitly exclude churn outcome */
-      AND ce.eventName <> 'MEMBER_EXIT'
+      /* Exclude target / near-exit events */
+      AND ce.eventName NOT IN
+      (
+          'MEMBER_EXIT',
+          'ROLLOVER',
+          'PAYMENT_EXTERNAL'
+      )
 )
 
 SELECT
     accountID,
 
-
-    /* =========================================================
-       Overall useful campaign/event behaviour
-       ========================================================= */
-
+    /* Overall campaign/event behaviour */
     COUNT(*) AS campaign_event_count_12m,
 
     COUNT(DISTINCT eventName)
@@ -232,7 +206,6 @@ SELECT
         @AsOfDate
     ) AS days_since_last_campaign_event,
 
-
     SUM
     (
         CASE
@@ -243,10 +216,7 @@ SELECT
     ) AS recent_campaign_event_count_90d,
 
 
-    /* =========================================================
-       Advice behaviour
-       ========================================================= */
-
+    /* Advice */
     SUM
     (
         CASE WHEN event_category = 'ADVICE'
@@ -265,21 +235,13 @@ SELECT
     DATEDIFF
     (
         DAY,
-        MAX
-        (
-            CASE
-                WHEN event_category = 'ADVICE'
-                THEN eventDate
-            END
-        ),
+        MAX(CASE WHEN event_category = 'ADVICE'
+                 THEN eventDate END),
         @AsOfDate
     ) AS days_since_last_advice_event,
 
 
-    /* =========================================================
-       Website / Digital behaviour
-       ========================================================= */
-
+    /* Website / digital */
     SUM
     (
         CASE WHEN event_category = 'DIGITAL'
@@ -307,21 +269,13 @@ SELECT
     DATEDIFF
     (
         DAY,
-        MAX
-        (
-            CASE
-                WHEN event_category = 'DIGITAL'
-                THEN eventDate
-            END
-        ),
+        MAX(CASE WHEN event_category = 'DIGITAL'
+                 THEN eventDate END),
         @AsOfDate
     ) AS days_since_last_website_login,
 
 
-    /* =========================================================
-       Member service/contact
-       ========================================================= */
-
+    /* Member service */
     SUM
     (
         CASE WHEN event_category = 'MEMBER_SERVICE'
@@ -338,10 +292,7 @@ SELECT
     ) AS recent_member_service_event_count_90d,
 
 
-    /* =========================================================
-       Investment behaviour
-       ========================================================= */
-
+    /* Investment */
     SUM
     (
         CASE WHEN event_category = 'INVESTMENT'
@@ -360,21 +311,13 @@ SELECT
     DATEDIFF
     (
         DAY,
-        MAX
-        (
-            CASE
-                WHEN event_category = 'INVESTMENT'
-                THEN eventDate
-            END
-        ),
+        MAX(CASE WHEN event_category = 'INVESTMENT'
+                 THEN eventDate END),
         @AsOfDate
     ) AS days_since_last_investment_change_event,
 
 
-    /* =========================================================
-       Contribution behaviour
-       ========================================================= */
-
+    /* Contribution */
     SUM
     (
         CASE WHEN event_category = 'CONTRIBUTION'
@@ -391,10 +334,7 @@ SELECT
     ) AS recent_contribution_event_count_90d,
 
 
-    /* =========================================================
-       Roll-in behaviour
-       ========================================================= */
-
+    /* Roll-in */
     SUM
     (
         CASE WHEN event_category = 'ROLLIN'
@@ -411,10 +351,7 @@ SELECT
     ) AS recent_rollin_event_count_90d,
 
 
-    /* =========================================================
-       Retirement / pension
-       ========================================================= */
-
+    /* Retirement / Pension */
     SUM
     (
         CASE WHEN event_category = 'RETIREMENT_PENSION'
@@ -431,10 +368,7 @@ SELECT
     ) AS recent_retirement_pension_event_count_90d,
 
 
-    /* =========================================================
-       Insurance
-       ========================================================= */
-
+    /* Insurance */
     MAX
     (
         CASE WHEN event_category = 'INSURANCE'
@@ -442,10 +376,7 @@ SELECT
     ) AS insurance_opt_in_12m_flag,
 
 
-    /* =========================================================
-       Beneficiary behaviour
-       ========================================================= */
-
+    /* Beneficiary */
     SUM
     (
         CASE WHEN event_category = 'BENEFICIARY'
@@ -453,10 +384,7 @@ SELECT
     ) AS beneficiary_event_count_12m,
 
 
-    /* =========================================================
-       Business initiated contact - keep separate
-       ========================================================= */
-
+    /* Business initiated contact */
     SUM
     (
         CASE WHEN event_category = 'OUTBOUND_CONTACT'
@@ -464,10 +392,7 @@ SELECT
     ) AS outbound_contact_count_12m,
 
 
-    /* =========================================================
-       Payment events - review meaning with business
-       ========================================================= */
-
+    /* Other payment activity */
     SUM
     (
         CASE WHEN event_category = 'PAYMENT'
@@ -475,23 +400,7 @@ SELECT
     ) AS payment_event_count_12m,
 
 
-    /* =========================================================
-       Potential near-exit / leakage events
-       Keep separate for review - DO NOT mix into total useful
-       behavioural risk features until business confirms
-       ========================================================= */
-
-    SUM
-    (
-        CASE WHEN event_category = 'ROLLOVER_EXIT_REVIEW'
-             THEN 1 ELSE 0 END
-    ) AS rollover_exit_review_event_count_12m,
-
-
-    /* =========================================================
-       Unclassified / business review
-       ========================================================= */
-
+    /* Unclassified / business review */
     SUM
     (
         CASE WHEN event_category = 'OTHER_REVIEW'
@@ -499,7 +408,5 @@ SELECT
     ) AS other_review_event_count_12m
 
 FROM event_base
-
 GROUP BY accountID
-
 ORDER BY accountID;
