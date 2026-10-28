@@ -1,46 +1,43 @@
 /*
-Feature Name: inflow_change_signal_12m_group
-Feature Group: Inflow Signals / Contribution Change
+Feature Name: partial_rollover_behaviour_12m_group
+Feature Group: Partial Rollover / Withdrawal Behaviour
 
 Business Meaning:
-    Compares the previous 12 months with the current 12 months
-    for Employer SG, Salary Sacrifice and Member Voluntary contributions.
+    Captures partial external rollover / withdrawal behaviour that occurred
+    before the AsOfDate.
 
-    Captures:
-    - current contribution amount
-    - previous contribution amount
-    - amount change
-    - percentage change
-    - contribution cessation
-    - contribution increase / decline
+    Full external rollover features are intentionally excluded because they
+    may occur very close to actual churn / account exit and can introduce
+    target leakage.
 
 Source Table:
-    edgeSource.accountMoneyInflow
+    edgeSource.accountRolloverPayment
+
+Included:
+    Partial rollover / withdrawal activity only
+
+Excluded:
+    Full external rollover
+    Internal transfers
+    Post-AsOfDate activity
+
+Feature Window:
+    Previous 12 months from AsOfDate
+
+Recent Window:
+    Previous 90 days from AsOfDate
 
 Point-in-Time Rule:
-    Only data available on or before @AsOfDate is used.
-
-Comparison:
-    Previous 12 months vs Current 12 months
-
-Note:
-    Rollover-in is not included in this query.
-    Rollover behaviour should use the dedicated approved rollover logic/source.
+    processedDate must be between FeatureStartDate and AsOfDate.
 */
-
 
 DECLARE @AsOfDate DATE = '2024-03-31';
 
-/* Current 12-month period */
 DECLARE @FeatureStartDate DATE =
     DATEADD(DAY, 1, DATEADD(MONTH, -12, @AsOfDate));
 
-/* Previous 12-month period */
-DECLARE @BaselineStart DATE =
-    DATEADD(DAY, 1, DATEADD(MONTH, -24, @AsOfDate));
-
-DECLARE @BaselineEnd DATE =
-    DATEADD(DAY, -1, @FeatureStartDate);
+DECLARE @Recent90Start DATE =
+    DATEADD(DAY, -89, @AsOfDate);
 
 
 WITH eligible_accounts AS
@@ -83,347 +80,102 @@ WITH eligible_accounts AS
       )
 ),
 
-inflow_fact AS
+partial_rollover_fact AS
 (
     SELECT
-        ami.accountID,
+        arp.accountID,
 
-        CAST(ami.inflowDateReceived AS DATE) AS event_date,
+        CAST(arp.processedDate AS DATE) AS processed_date,
 
+        CAST(arp.paymentAmount AS DECIMAL(18,2)) AS payment_amount
 
-        /* Employer SG */
-        CASE
-            WHEN ami.inflowDescription IN
-            (
-                'Employer',
-                'Employer Additional Conts',
-                'DB Employer Compulsory'
-            )
-            THEN CAST(ami.inflowAmount AS DECIMAL(18,2))
-
-            ELSE 0.00
-        END AS employer_sg_amount,
-
-
-        /* Salary Sacrifice */
-        CASE
-            WHEN ami.inflowDescription IN
-            (
-                'Voluntary Member Salary Sacrifice',
-                'DB Member Salary Sacrifice Compulsory'
-            )
-            THEN CAST(ami.inflowAmount AS DECIMAL(18,2))
-
-            ELSE 0.00
-        END AS salary_sacrifice_amount,
-
-
-        /* Member Voluntary */
-        CASE
-            WHEN ami.inflowDescription IN
-            (
-                'Member Voluntary',
-                'DB Member Compulsory'
-            )
-            THEN CAST(ami.inflowAmount AS DECIMAL(18,2))
-
-            ELSE 0.00
-        END AS member_voluntary_amount
-
-    FROM edgeSource.accountMoneyInflow ami
+    FROM edgeSource.accountRolloverPayment arp
 
     INNER JOIN eligible_accounts ea
-        ON ea.accountID = ami.accountID
+        ON ea.accountID = arp.accountID
 
-    /*
-      IMPORTANT:
-      Use @BaselineStart here, not @FeatureStartDate.
+    WHERE arp.processedDate >= @FeatureStartDate
+      AND arp.processedDate <= @AsOfDate
 
-      We need both:
-      - previous 12 months
-      - current 12 months
-
-      available inside inflow_fact.
-    */
-    WHERE ami.inflowDateReceived >= @BaselineStart
-      AND ami.inflowDateReceived <= @AsOfDate
-
-      AND ami.inflowAmount > 0
-
-      /*
-        Only retain the approved contribution descriptions.
-        This avoids unrelated inflow records.
-      */
-      AND ami.inflowDescription IN
+      /* Partial rollover / withdrawal only */
+      AND arp.paymentType IN
       (
-          'Employer',
-          'Employer Additional Conts',
-          'DB Employer Compulsory',
-          'Voluntary Member Salary Sacrifice',
-          'DB Member Salary Sacrifice Compulsory',
-          'Member Voluntary',
-          'DB Member Compulsory'
+          'Rollover to External Fund',
+          'Other',
+          'Rollover/Transfer to Annuity'
       )
 
-      /* Exclude internal transfer activity */
-      AND COALESCE(ami.inflowInternalTransferFlag, 0) = 0
+      AND arp.partialWithdrawalFlag = 1
 
-      /* Exclude rollover types */
-      AND
-      (
-          ami.inflowRolloverType IS NULL
-          OR ami.inflowRolloverType NOT IN ('I', 'F')
-      )
+      /* Explicitly exclude internal transfers */
+      AND COALESCE(arp.internalTransferFlag, 0) = 0
+
+      /* Keep genuine payment activity only */
+      AND arp.paymentAmount <> 0
 ),
 
-inflow_summary AS
+partial_rollover_summary AS
 (
     SELECT
-        i.accountID,
+        pr.accountID,
+
+        /* Number of partial rollovers during previous 12 months */
+        COUNT(*) AS partial_rollover_count_12m,
 
 
-        /* =====================================================
-           Employer SG
-           ===================================================== */
+        /* Total amount partially rolled out during previous 12 months */
+        SUM(pr.payment_amount)
+            AS partial_rollover_amount_12m,
 
+
+        /* How recently the member made a partial rollover */
+        DATEDIFF
+        (
+            DAY,
+            MAX(pr.processed_date),
+            @AsOfDate
+        ) AS days_since_last_partial_rollover,
+
+
+        /* Number of partial rollovers during recent 90 days */
         SUM
         (
             CASE
-                WHEN i.event_date >= @FeatureStartDate
-                 AND i.event_date <= @AsOfDate
-                THEN i.employer_sg_amount
+                WHEN pr.processed_date >= @Recent90Start
+                THEN 1
                 ELSE 0
             END
-        ) AS employer_sg_current_amount_12m,
+        ) AS recent_partial_rollover_count_90d,
 
 
+        /* Amount partially rolled out during recent 90 days */
         SUM
         (
             CASE
-                WHEN i.event_date >= @BaselineStart
-                 AND i.event_date <= @BaselineEnd
-                THEN i.employer_sg_amount
+                WHEN pr.processed_date >= @Recent90Start
+                THEN pr.payment_amount
                 ELSE 0
             END
-        ) AS employer_sg_previous_amount_12m,
+        ) AS recent_partial_rollover_amount_90d
 
+    FROM partial_rollover_fact pr
 
-        /* =====================================================
-           Salary Sacrifice
-           ===================================================== */
-
-        SUM
-        (
-            CASE
-                WHEN i.event_date >= @FeatureStartDate
-                 AND i.event_date <= @AsOfDate
-                THEN i.salary_sacrifice_amount
-                ELSE 0
-            END
-        ) AS salary_sacrifice_current_amount_12m,
-
-
-        SUM
-        (
-            CASE
-                WHEN i.event_date >= @BaselineStart
-                 AND i.event_date <= @BaselineEnd
-                THEN i.salary_sacrifice_amount
-                ELSE 0
-            END
-        ) AS salary_sacrifice_previous_amount_12m,
-
-
-        /* =====================================================
-           Member Voluntary
-           ===================================================== */
-
-        SUM
-        (
-            CASE
-                WHEN i.event_date >= @FeatureStartDate
-                 AND i.event_date <= @AsOfDate
-                THEN i.member_voluntary_amount
-                ELSE 0
-            END
-        ) AS member_voluntary_current_amount_12m,
-
-
-        SUM
-        (
-            CASE
-                WHEN i.event_date >= @BaselineStart
-                 AND i.event_date <= @BaselineEnd
-                THEN i.member_voluntary_amount
-                ELSE 0
-            END
-        ) AS member_voluntary_previous_amount_12m
-
-    FROM inflow_fact i
-
-    GROUP BY i.accountID
+    GROUP BY pr.accountID
 )
 
 SELECT
-    s.accountID,
+    accountID,
 
+    partial_rollover_count_12m,
 
-    /* =========================================================
-       Employer SG
-       ========================================================= */
+    partial_rollover_amount_12m,
 
-    s.employer_sg_current_amount_12m,
+    days_since_last_partial_rollover,
 
-    s.employer_sg_previous_amount_12m,
+    recent_partial_rollover_count_90d,
 
-    (
-        s.employer_sg_current_amount_12m
-        - s.employer_sg_previous_amount_12m
-    ) AS employer_sg_change_12m,
+    recent_partial_rollover_amount_90d
 
+FROM partial_rollover_summary
 
-    CASE
-        WHEN s.employer_sg_previous_amount_12m > 0
-        THEN CAST
-        (
-            (
-                s.employer_sg_current_amount_12m
-                - s.employer_sg_previous_amount_12m
-            ) * 100.0
-            / s.employer_sg_previous_amount_12m
-            AS DECIMAL(10,2)
-        )
-        ELSE NULL
-    END AS employer_sg_change_pct_12m,
-
-
-    CASE
-        WHEN s.employer_sg_previous_amount_12m > 0
-         AND s.employer_sg_current_amount_12m = 0
-        THEN 1
-        ELSE 0
-    END AS employer_sg_cessation_flag,
-
-
-    CASE
-        WHEN s.employer_sg_previous_amount_12m > 0
-         AND s.employer_sg_current_amount_12m
-             < s.employer_sg_previous_amount_12m
-        THEN 1
-        ELSE 0
-    END AS employer_sg_decline_flag,
-
-
-    /* =========================================================
-       Salary Sacrifice
-       ========================================================= */
-
-    s.salary_sacrifice_current_amount_12m,
-
-    s.salary_sacrifice_previous_amount_12m,
-
-    (
-        s.salary_sacrifice_current_amount_12m
-        - s.salary_sacrifice_previous_amount_12m
-    ) AS salary_sacrifice_change_12m,
-
-
-    CASE
-        WHEN s.salary_sacrifice_previous_amount_12m > 0
-        THEN CAST
-        (
-            (
-                s.salary_sacrifice_current_amount_12m
-                - s.salary_sacrifice_previous_amount_12m
-            ) * 100.0
-            / s.salary_sacrifice_previous_amount_12m
-            AS DECIMAL(10,2)
-        )
-        ELSE NULL
-    END AS salary_sacrifice_change_pct_12m,
-
-
-    CASE
-        WHEN s.salary_sacrifice_previous_amount_12m > 0
-         AND s.salary_sacrifice_current_amount_12m = 0
-        THEN 1
-        ELSE 0
-    END AS salary_sacrifice_cessation_flag,
-
-
-    CASE
-        WHEN s.salary_sacrifice_current_amount_12m
-             > s.salary_sacrifice_previous_amount_12m
-         AND s.salary_sacrifice_current_amount_12m > 0
-        THEN 1
-        ELSE 0
-    END AS salary_sacrifice_increase_flag,
-
-
-    CASE
-        WHEN s.salary_sacrifice_previous_amount_12m > 0
-         AND s.salary_sacrifice_current_amount_12m
-             < s.salary_sacrifice_previous_amount_12m
-        THEN 1
-        ELSE 0
-    END AS salary_sacrifice_decline_flag,
-
-
-    /* =========================================================
-       Member Voluntary
-       ========================================================= */
-
-    s.member_voluntary_current_amount_12m,
-
-    s.member_voluntary_previous_amount_12m,
-
-    (
-        s.member_voluntary_current_amount_12m
-        - s.member_voluntary_previous_amount_12m
-    ) AS member_voluntary_change_12m,
-
-
-    CASE
-        WHEN s.member_voluntary_previous_amount_12m > 0
-        THEN CAST
-        (
-            (
-                s.member_voluntary_current_amount_12m
-                - s.member_voluntary_previous_amount_12m
-            ) * 100.0
-            / s.member_voluntary_previous_amount_12m
-            AS DECIMAL(10,2)
-        )
-        ELSE NULL
-    END AS member_voluntary_change_pct_12m,
-
-
-    CASE
-        WHEN s.member_voluntary_previous_amount_12m > 0
-         AND s.member_voluntary_current_amount_12m = 0
-        THEN 1
-        ELSE 0
-    END AS member_voluntary_cessation_flag,
-
-
-    CASE
-        WHEN s.member_voluntary_current_amount_12m
-             > s.member_voluntary_previous_amount_12m
-         AND s.member_voluntary_current_amount_12m > 0
-        THEN 1
-        ELSE 0
-    END AS member_voluntary_increase_flag,
-
-
-    CASE
-        WHEN s.member_voluntary_previous_amount_12m > 0
-         AND s.member_voluntary_current_amount_12m
-             < s.member_voluntary_previous_amount_12m
-        THEN 1
-        ELSE 0
-    END AS member_voluntary_decline_flag
-
-
-FROM inflow_summary s
-
-ORDER BY s.accountID;
+ORDER BY accountID;
