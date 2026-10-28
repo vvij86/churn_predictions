@@ -1,352 +1,114 @@
-/*
-Feature Name: account_net_money_flow_12m_group
-Feature Group: Net Money Flow Behaviour
-
-Business Meaning:
-    Measures the overall movement of money into and out of an account
-    during the 12 months before the AsOfDate.
-
-    It also compares the most recent 90 days with the previous 90 days
-    to identify whether net cash flow is declining.
-
-Source Table:
-    edgeSource.accountNetMoneyFlow
-
-Point-in-Time Rule:
-    Only records with:
-        referenceDate >= FeatureStartDate
-        referenceDate <= AsOfDate
-    are used.
-
-Internal Transfers:
-    Excluded because they are movements within the fund rather than
-    genuine external inflow/outflow behaviour.
-
-Final Features:
-    net_flow_12m
-    total_positive_flow_12m
-    total_negative_flow_12m
-    negative_net_flow_months_12m
-    avg_active_monthly_net_flow_12m
-    recent_net_flow_90d
-    prior_net_flow_90d
-    net_flow_decline_flag
-    days_since_last_negative_flow
-    cashflow_active_months_12m
-*/
-
-
-DECLARE @AsOfDate DATE = '2024-03-31';
-
-DECLARE @FeatureStartDate DATE =
-    DATEADD(DAY, 1, DATEADD(MONTH, -12, @AsOfDate));
-
-DECLARE @Recent90Start DATE =
-    DATEADD(DAY, -89, @AsOfDate);
-
-DECLARE @Prior90Start DATE =
-    DATEADD(DAY, -179, @AsOfDate);
-
-DECLARE @Prior90End DATE =
-    DATEADD(DAY, -90, @AsOfDate);
-
-
-WITH eligible_accounts AS
-(
-    SELECT DISTINCT
-        a.accountID
-    FROM edgeSource.accountSummary a
-
-    WHERE a.fundJoinDate <= @AsOfDate
-
-      AND a.databaseCode IN
-      (
-          'MASTA',
-          'MASTP',
-          'MASTR',
-          'MASTS',
-          'MASTM',
-          'MTAPD',
-          'ST000',
-          'MASTR_AP'
-      )
-
-      AND
-      (
-          a.exitDateRecorded IS NULL
-          OR a.exitDateRecorded > @AsOfDate
-      )
-
-      AND
-      (
-          a.dateOfDeath IS NULL
-          OR a.dateOfDeath > @AsOfDate
-      )
-
-      AND
-      (
-          a.deathIndicatorFlag IS NULL
-          OR a.deathIndicatorFlag = 0
-      )
-),
-
-net_flow_fact AS
-(
-    SELECT
-        n.accountID,
-
-        CAST(n.referenceDate AS DATE) AS event_date,
-
-        /*
-        Standardise the direction:
-
-        cashFlowSign =  1 -> positive inflow
-        cashFlowSign = -1 -> negative outflow
-        */
-        CAST
-        (
-            CASE
-                WHEN COALESCE(n.cashFlowSign, 0) = -1
-                    THEN -1 * ABS(CAST(n.amount AS DECIMAL(18,2)))
-
-                WHEN COALESCE(n.cashFlowSign, 0) = 1
-                    THEN ABS(CAST(n.amount AS DECIMAL(18,2)))
-
-                ELSE CAST(n.amount AS DECIMAL(18,2))
-            END
-            AS DECIMAL(18,2)
-        ) AS net_amount,
-
-        n.cashflowtype,
-        n.cashflowDescription
-
-    FROM edgeSource.accountNetMoneyFlow n
-
-    INNER JOIN eligible_accounts ea
-        ON ea.accountID = n.accountID
-
-    WHERE n.referenceDate >= @FeatureStartDate
-      AND n.referenceDate <= @AsOfDate
-
-      -- Ignore zero-value records
-      AND COALESCE(n.amount, 0) <> 0
-
-      -- Exclude internal transfers
-      AND COALESCE(n.internalTransferFlag, 0) = 0
-),
-
-monthly_net_flow AS
-(
-    SELECT
-        nf.accountID,
-
-        DATEFROMPARTS
-        (
-            YEAR(nf.event_date),
-            MONTH(nf.event_date),
-            1
-        ) AS flow_month,
-
-        SUM(nf.net_amount) AS monthly_net_flow
-
-    FROM net_flow_fact nf
-
-    GROUP BY
-        nf.accountID,
-        DATEFROMPARTS
-        (
-            YEAR(nf.event_date),
-            MONTH(nf.event_date),
-            1
-        )
-),
-
-flow_summary AS
-(
-    SELECT
-        nf.accountID,
-
-        /* Overall 12-month net flow */
-        SUM(nf.net_amount)
-            AS net_flow_12m,
-
-
-        /* Total money coming in */
-        SUM
-        (
-            CASE
-                WHEN nf.net_amount > 0
-                    THEN nf.net_amount
-                ELSE 0
-            END
-        ) AS total_positive_flow_12m,
-
-
-        /* Total money going out - stored as positive amount */
-        ABS
-        (
-            SUM
-            (
-                CASE
-                    WHEN nf.net_amount < 0
-                        THEN nf.net_amount
-                    ELSE 0
-                END
-            )
-        ) AS total_negative_flow_12m,
-
-
-        /* Most recent 90 days */
-        SUM
-        (
-            CASE
-                WHEN nf.event_date >= @Recent90Start
-                 AND nf.event_date <= @AsOfDate
-                    THEN nf.net_amount
-                ELSE 0
-            END
-        ) AS recent_net_flow_90d,
-
-
-        /* Previous 90 days */
-        SUM
-        (
-            CASE
-                WHEN nf.event_date >= @Prior90Start
-                 AND nf.event_date <= @Prior90End
-                    THEN nf.net_amount
-                ELSE 0
-            END
-        ) AS prior_net_flow_90d,
-
-
-        /*
-        Has recent net flow decreased compared with
-        the immediately preceding 90 days?
-        */
-        CASE
-            WHEN
-                SUM
-                (
-                    CASE
-                        WHEN nf.event_date >= @Recent90Start
-                         AND nf.event_date <= @AsOfDate
-                            THEN nf.net_amount
-                        ELSE 0
-                    END
-                )
-                <
-                SUM
-                (
-                    CASE
-                        WHEN nf.event_date >= @Prior90Start
-                         AND nf.event_date <= @Prior90End
-                            THEN nf.net_amount
-                        ELSE 0
-                    END
-                )
-            THEN 1
-            ELSE 0
-        END AS net_flow_decline_flag,
-
-
-        /*
-        Exact recency based on the actual negative-flow transaction date.
-        */
-        DATEDIFF
-        (
-            DAY,
-            MAX
-            (
-                CASE
-                    WHEN nf.net_amount < 0
-                        THEN nf.event_date
-                END
-            ),
-            @AsOfDate
-        ) AS days_since_last_negative_flow
-
-    FROM net_flow_fact nf
-
-    GROUP BY nf.accountID
-),
-
-monthly_summary AS
-(
-    SELECT
-        mnf.accountID,
-
-        /*
-        Number of months where the overall monthly
-        net flow was negative.
-        */
-        COUNT
-        (
-            DISTINCT CASE
-                WHEN mnf.monthly_net_flow < 0
-                    THEN mnf.flow_month
-            END
-        ) AS negative_net_flow_months_12m,
-
-
-        /*
-        Average net flow across months with activity.
-        */
-        AVG
-        (
-            CAST(mnf.monthly_net_flow AS DECIMAL(18,2))
-        ) AS avg_active_monthly_net_flow_12m,
-
-
-        /*
-        Number of months with cash-flow activity.
-        */
-        COUNT(DISTINCT mnf.flow_month)
-            AS cashflow_active_months_12m
-
-    FROM monthly_net_flow mnf
-
-    GROUP BY mnf.accountID
-)
-
-SELECT
-    ea.accountID,
-
-    COALESCE(fs.net_flow_12m, 0)
-        AS net_flow_12m,
-
-    COALESCE(fs.total_positive_flow_12m, 0)
-        AS total_positive_flow_12m,
-
-    COALESCE(fs.total_negative_flow_12m, 0)
-        AS total_negative_flow_12m,
-
-    COALESCE(ms.negative_net_flow_months_12m, 0)
-        AS negative_net_flow_months_12m,
-
-    COALESCE(ms.avg_active_monthly_net_flow_12m, 0)
-        AS avg_active_monthly_net_flow_12m,
-
-    COALESCE(fs.recent_net_flow_90d, 0)
-        AS recent_net_flow_90d,
-
-    COALESCE(fs.prior_net_flow_90d, 0)
-        AS prior_net_flow_90d,
-
-    COALESCE(fs.net_flow_decline_flag, 0)
-        AS net_flow_decline_flag,
-
-    fs.days_since_last_negative_flow,
-
-    COALESCE(ms.cashflow_active_months_12m, 0)
-        AS cashflow_active_months_12m
-
-FROM eligible_accounts ea
-
-LEFT JOIN flow_summary fs
-    ON fs.accountID = ea.accountID
-
-LEFT JOIN monthly_summary ms
-    ON ms.accountID = ea.accountID
-
-ORDER BY ea.accountID;
+Please create a new Word document based on the latest standalone feature queries in:
+
+behavioural_features_business_review.sql
+
+The purpose is to prepare a simple business-review document containing all currently identified ML behavioural features.
+
+Important:
+- Use the latest SQL in behavioural_features_business_review.sql as the source of truth.
+- Do NOT rely on older feature lists if they differ from the latest SQL.
+- Extract only the final output features from each standalone query.
+- Do not include temporary CTE columns, helper columns, filter columns, raw source columns, or intermediate calculations.
+- Do not invent any feature that is not present in the latest SQL.
+- If a feature was removed from the latest SQL, do not include it.
+- Include all feature groups currently present in the file, including Helpline, Website, Workflow, Campaign/Event, Contribution/Money Inflow, Rollover, Investment, Insurance, Third Party Authority, accountNetMoneyFlow, and any other final feature group actually present in the SQL.
+- Keep the wording business-friendly and easily understandable by a non-technical business user.
+- Do not use SQL terminology in the Description unless absolutely necessary.
+
+Create one table with these columns:
+
+1. S.No
+2. Behaviour Name
+3. Behaviour Type
+4. Description
+5. Sample Value
+6. Source
+7. Comments
+
+Column guidance:
+
+S.No
+- Sequential number starting from 1.
+
+Behaviour Name
+- Convert the SQL feature name into a readable business name.
+- Example:
+  recent_net_flow_90d -> Recent Net Money Flow – 90 Days
+  days_since_last_negative_flow -> Days Since Last Negative Money Flow
+
+Behaviour Type
+- Use a clear high-level category such as:
+  Helpline Engagement
+  Website Engagement
+  Workflow Activity
+  Campaign / Event Behaviour
+  Contribution Behaviour
+  Rollover / Withdrawal Behaviour
+  Investment Behaviour
+  Insurance Behaviour
+  Third Party Authority
+  Net Money Flow Behaviour
+
+Description
+- Explain what the feature means in one short sentence.
+- Use very simple layman English.
+- Explain the business meaning, not how SQL calculates it.
+- Examples:
+  “Total contribution amount received during the last 12 months.”
+  “Number of days since the member last had a negative net money flow.”
+  “Shows whether net money flow in the latest 90 days is lower than in the previous 90 days.”
+
+Sample Value
+- Provide a realistic illustrative value only.
+- Counts: e.g. 5
+- Amounts: e.g. $12,500
+- Days: e.g. 45 days
+- Flags: Yes / No
+- Percentages if applicable.
+- Sample values are illustrative only and do not need to come from production data.
+
+Source
+- Use the actual source table/view from the SQL.
+- Example:
+  Edge.accountEngagementHelpline
+  Edge.accountEngagementWorkflow
+  Edge.accountMoneyInflow
+  Edge.accountRolloverPayment
+  Edge.accountInvestments
+  Edge.AccountInsuranceCurrent
+  Edge.thirdPartyAuthority
+  Edge.accountNetMoneyFlow
+  Edge.campaignEventDetails / Edge.campaignEvents
+- If a feature uses more than one source, list both.
+
+Comments
+- Leave this column completely blank for business review.
+
+Additional requirements:
+- Remove obsolete features that are no longer present in the latest standalone SQL.
+- For example, if Repeat Helpline Contact Flag has been removed/replaced by inquiry-description-based features, do not keep the old feature.
+- Use the latest refined workflow features based on meaningful/member-driven job descriptions.
+- Use the latest campaign/event features after excluding rollover-related and leakage-prone events.
+- Use the latest contribution and net-money-flow features.
+- Use the latest partial-rollover feature set.
+- Use the latest investment position-as-of features based on the newest investmentDate available on or before AsOfDate.
+- Use the latest insurance features from AccountInsuranceCurrent.
+- Use the latest Third Party Authority features.
+- Ensure 12-month, 90-day, recency and change/decline features are included where they currently exist in the SQL.
+- Do not add a 30-day feature unless it actually exists in the latest SQL.
+
+Document title:
+Member Retention ML – Behavioural Feature List
+
+Suggested filename:
+Member_Retention_ML_Behavioural_Feature_List.docx
+
+Formatting:
+- Landscape orientation if required to fit all columns clearly.
+- Use a professional table style with bold header row.
+- Repeat the header row across pages.
+- Keep font readable.
+- Auto-fit column widths appropriately.
+- Do not create separate tables per feature group. Keep all behavioural features in one continuous table.
+
+Before creating the Word file, first scan the entire behavioural_features_business_review.sql file and identify the complete final feature list. Then create the document from that latest list.
