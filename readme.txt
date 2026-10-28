@@ -1,61 +1,55 @@
 /*
-Feature Name: contribution_behaviour_12m_group
-Feature Group: Contribution Behaviour
+Feature Name: inflow_change_signal_12m_group
+Feature Group: Inflow Signals / Contribution Change
 
 Business Meaning:
-    Captures contribution frequency, amount, recency, recent change,
-    cessation and contribution-type-specific behaviour.
+    Compares the previous 12 months with the current 12 months
+    for Employer SG, Salary Sacrifice and Member Voluntary contributions.
+
+    Captures:
+    - current contribution amount
+    - previous contribution amount
+    - amount change
+    - percentage change
+    - contribution cessation
+    - contribution increase / decline
 
 Source Table:
     edgeSource.accountMoneyInflow
 
-Contribution Types Included:
-    Employer SG
-    Salary Sacrifice
-    Post Tax Voluntary
-
-Excluded:
-    Internal transfers
-    Rollover types I and F
-    Adjustment-related rollover inflows
-    Mercer-related rollover/transfer inflows
-    Other unrelated inflows
-
-Feature Window:
-    Previous 12 months from AsOfDate
-
-Recent Comparison:
-    Recent 90 days vs previous 90 days
-
 Point-in-Time Rule:
-    inflowDateReceived must be between FeatureStartDate and AsOfDate.
+    Only data available on or before @AsOfDate is used.
+
+Comparison:
+    Previous 12 months vs Current 12 months
 
 Note:
-    30-day contribution features are not added initially because
-    contribution activity can be monthly/fortnightly and a 30-day
-    window may be unnecessarily noisy.
+    Rollover-in is not included in this query.
+    Rollover behaviour should use the dedicated approved rollover logic/source.
 */
+
 
 DECLARE @AsOfDate DATE = '2024-03-31';
 
+/* Current 12-month period */
 DECLARE @FeatureStartDate DATE =
     DATEADD(DAY, 1, DATEADD(MONTH, -12, @AsOfDate));
 
-DECLARE @Recent90Start DATE =
-    DATEADD(DAY, -89, @AsOfDate);
+/* Previous 12-month period */
+DECLARE @BaselineStart DATE =
+    DATEADD(DAY, 1, DATEADD(MONTH, -24, @AsOfDate));
 
-DECLARE @Prior90Start DATE =
-    DATEADD(DAY, -179, @AsOfDate);
-
-DECLARE @Prior90End DATE =
-    DATEADD(DAY, -90, @AsOfDate);
+DECLARE @BaselineEnd DATE =
+    DATEADD(DAY, -1, @FeatureStartDate);
 
 
 WITH eligible_accounts AS
 (
     SELECT DISTINCT
         a.accountID
+
     FROM edgeSource.accountSummary a
+
     WHERE a.fundJoinDate <= @AsOfDate
 
       AND a.databaseCode IN
@@ -89,319 +83,347 @@ WITH eligible_accounts AS
       )
 ),
 
-contribution_fact AS
+inflow_fact AS
 (
     SELECT
         ami.accountID,
 
         CAST(ami.inflowDateReceived AS DATE) AS event_date,
 
-        CAST(ami.inflowAmount AS DECIMAL(18,2)) AS amount,
 
+        /* Employer SG */
         CASE
-
-            /* Internal transfer */
-            WHEN ami.inflowInternalTransferFlag = 1
-                THEN 'EXCLUDE'
-
-            /* Rollover types */
-            WHEN ami.inflowRolloverType IN ('I', 'F')
-                THEN 'EXCLUDE'
-
-            /* Adjustment-related rollover inflow */
-            WHEN ami.inflowDescription = 'Rollovers-In'
-             AND ami.inflowSourceDescription LIKE '%ADJUSTMENT%'
-                THEN 'EXCLUDE'
-
-            /* Mercer-related rollover / transfer inflow */
-            WHEN ami.inflowDescription = 'Rollovers-In'
-             AND ami.inflowSourceDescription LIKE '%Mercer %'
-                THEN 'EXCLUDE'
-
-            /* Employer SG */
             WHEN ami.inflowDescription IN
             (
                 'Employer',
-                'Employer Additional Conts'
+                'Employer Additional Conts',
+                'DB Employer Compulsory'
             )
-                THEN 'Employer SG'
+            THEN CAST(ami.inflowAmount AS DECIMAL(18,2))
 
-            /* Salary Sacrifice */
-            WHEN ami.inflowDescription =
-                 'Voluntary Member Salary Sacrifice'
-                THEN 'Salary Sacrifice'
+            ELSE 0.00
+        END AS employer_sg_amount,
 
-            /* Member Voluntary */
-            WHEN ami.inflowDescription =
-                 'Member Voluntary'
-                THEN 'Post Tax Voluntary'
 
-            ELSE 'EXCLUDE'
+        /* Salary Sacrifice */
+        CASE
+            WHEN ami.inflowDescription IN
+            (
+                'Voluntary Member Salary Sacrifice',
+                'DB Member Salary Sacrifice Compulsory'
+            )
+            THEN CAST(ami.inflowAmount AS DECIMAL(18,2))
 
-        END AS contribution_type
+            ELSE 0.00
+        END AS salary_sacrifice_amount,
+
+
+        /* Member Voluntary */
+        CASE
+            WHEN ami.inflowDescription IN
+            (
+                'Member Voluntary',
+                'DB Member Compulsory'
+            )
+            THEN CAST(ami.inflowAmount AS DECIMAL(18,2))
+
+            ELSE 0.00
+        END AS member_voluntary_amount
 
     FROM edgeSource.accountMoneyInflow ami
 
     INNER JOIN eligible_accounts ea
         ON ea.accountID = ami.accountID
 
-    WHERE ami.inflowDateReceived >= @FeatureStartDate
+    /*
+      IMPORTANT:
+      Use @BaselineStart here, not @FeatureStartDate.
+
+      We need both:
+      - previous 12 months
+      - current 12 months
+
+      available inside inflow_fact.
+    */
+    WHERE ami.inflowDateReceived >= @BaselineStart
       AND ami.inflowDateReceived <= @AsOfDate
+
       AND ami.inflowAmount > 0
+
+      /*
+        Only retain the approved contribution descriptions.
+        This avoids unrelated inflow records.
+      */
+      AND ami.inflowDescription IN
+      (
+          'Employer',
+          'Employer Additional Conts',
+          'DB Employer Compulsory',
+          'Voluntary Member Salary Sacrifice',
+          'DB Member Salary Sacrifice Compulsory',
+          'Member Voluntary',
+          'DB Member Compulsory'
+      )
+
+      /* Exclude internal transfer activity */
+      AND COALESCE(ami.inflowInternalTransferFlag, 0) = 0
+
+      /* Exclude rollover types */
+      AND
+      (
+          ami.inflowRolloverType IS NULL
+          OR ami.inflowRolloverType NOT IN ('I', 'F')
+      )
 ),
 
-valid_contributions AS
+inflow_summary AS
 (
     SELECT
-        accountID,
-        event_date,
-        amount,
-        contribution_type
-
-    FROM contribution_fact
-
-    WHERE contribution_type IN
-    (
-        'Employer SG',
-        'Salary Sacrifice',
-        'Post Tax Voluntary'
-    )
-),
-
-contribution_summary AS
-(
-    SELECT
-        vc.accountID,
-
-        /* Overall 12-month behaviour */
-        COUNT(*)
-            AS contribution_count_12m,
-
-        SUM(vc.amount)
-            AS contribution_amount_12m,
-
-        AVG(vc.amount)
-            AS avg_contribution_transaction_amount_12m,
-
-        COUNT
-        (
-            DISTINCT DATEFROMPARTS
-            (
-                YEAR(vc.event_date),
-                MONTH(vc.event_date),
-                1
-            )
-        ) AS contribution_active_months_12m,
-
-        DATEDIFF
-        (
-            DAY,
-            MAX(vc.event_date),
-            @AsOfDate
-        ) AS days_since_last_contribution,
+        i.accountID,
 
 
-        /* Recent 90 days */
-        SUM
-        (
-            CASE
-                WHEN vc.event_date >= @Recent90Start
-                THEN vc.amount
-                ELSE 0
-            END
-        ) AS recent_contribution_amount_90d,
-
-        COUNT
-        (
-            CASE
-                WHEN vc.event_date >= @Recent90Start
-                THEN 1
-            END
-        ) AS recent_contribution_count_90d,
-
-
-        /* Previous 90 days */
-        SUM
-        (
-            CASE
-                WHEN vc.event_date >= @Prior90Start
-                 AND vc.event_date <= @Prior90End
-                THEN vc.amount
-                ELSE 0
-            END
-        ) AS prior_contribution_amount_90d,
-
-        COUNT
-        (
-            CASE
-                WHEN vc.event_date >= @Prior90Start
-                 AND vc.event_date <= @Prior90End
-                THEN 1
-            END
-        ) AS prior_contribution_count_90d,
-
-
-        /* Employer SG */
-        SUM
-        (
-            CASE
-                WHEN vc.contribution_type = 'Employer SG'
-                THEN vc.amount
-                ELSE 0
-            END
-        ) AS employer_sg_amount_12m,
+        /* =====================================================
+           Employer SG
+           ===================================================== */
 
         SUM
         (
             CASE
-                WHEN vc.contribution_type = 'Employer SG'
-                 AND vc.event_date >= @Recent90Start
-                THEN vc.amount
+                WHEN i.event_date >= @FeatureStartDate
+                 AND i.event_date <= @AsOfDate
+                THEN i.employer_sg_amount
                 ELSE 0
             END
-        ) AS employer_sg_amount_90d,
+        ) AS employer_sg_current_amount_12m,
 
-
-        /* Salary Sacrifice */
-        SUM
-        (
-            CASE
-                WHEN vc.contribution_type = 'Salary Sacrifice'
-                THEN vc.amount
-                ELSE 0
-            END
-        ) AS salary_sacrifice_amount_12m,
 
         SUM
         (
             CASE
-                WHEN vc.contribution_type = 'Salary Sacrifice'
-                 AND vc.event_date >= @Recent90Start
-                THEN vc.amount
+                WHEN i.event_date >= @BaselineStart
+                 AND i.event_date <= @BaselineEnd
+                THEN i.employer_sg_amount
                 ELSE 0
             END
-        ) AS salary_sacrifice_amount_90d,
+        ) AS employer_sg_previous_amount_12m,
 
 
-        /* Member Voluntary / Post Tax */
-        SUM
-        (
-            CASE
-                WHEN vc.contribution_type = 'Post Tax Voluntary'
-                THEN vc.amount
-                ELSE 0
-            END
-        ) AS member_voluntary_amount_12m,
+        /* =====================================================
+           Salary Sacrifice
+           ===================================================== */
 
         SUM
         (
             CASE
-                WHEN vc.contribution_type = 'Post Tax Voluntary'
-                 AND vc.event_date >= @Recent90Start
-                THEN vc.amount
+                WHEN i.event_date >= @FeatureStartDate
+                 AND i.event_date <= @AsOfDate
+                THEN i.salary_sacrifice_amount
                 ELSE 0
             END
-        ) AS member_voluntary_amount_90d
+        ) AS salary_sacrifice_current_amount_12m,
 
-    FROM valid_contributions vc
 
-    GROUP BY vc.accountID
+        SUM
+        (
+            CASE
+                WHEN i.event_date >= @BaselineStart
+                 AND i.event_date <= @BaselineEnd
+                THEN i.salary_sacrifice_amount
+                ELSE 0
+            END
+        ) AS salary_sacrifice_previous_amount_12m,
+
+
+        /* =====================================================
+           Member Voluntary
+           ===================================================== */
+
+        SUM
+        (
+            CASE
+                WHEN i.event_date >= @FeatureStartDate
+                 AND i.event_date <= @AsOfDate
+                THEN i.member_voluntary_amount
+                ELSE 0
+            END
+        ) AS member_voluntary_current_amount_12m,
+
+
+        SUM
+        (
+            CASE
+                WHEN i.event_date >= @BaselineStart
+                 AND i.event_date <= @BaselineEnd
+                THEN i.member_voluntary_amount
+                ELSE 0
+            END
+        ) AS member_voluntary_previous_amount_12m
+
+    FROM inflow_fact i
+
+    GROUP BY i.accountID
 )
 
 SELECT
-    cs.accountID,
-
-    /* Long-term contribution behaviour */
-    cs.contribution_count_12m,
-
-    cs.contribution_amount_12m,
-
-    cs.avg_contribution_transaction_amount_12m,
-
-    cs.contribution_active_months_12m,
-
-    cs.days_since_last_contribution,
+    s.accountID,
 
 
-    /* Recent vs previous 90-day behaviour */
-    cs.recent_contribution_amount_90d,
+    /* =========================================================
+       Employer SG
+       ========================================================= */
 
-    cs.prior_contribution_amount_90d,
+    s.employer_sg_current_amount_12m,
 
-    cs.recent_contribution_count_90d,
+    s.employer_sg_previous_amount_12m,
 
-    cs.prior_contribution_count_90d,
-
-
-    /* Absolute contribution change */
     (
-        cs.recent_contribution_amount_90d
-        - cs.prior_contribution_amount_90d
-    ) AS contribution_amount_change_90d,
+        s.employer_sg_current_amount_12m
+        - s.employer_sg_previous_amount_12m
+    ) AS employer_sg_change_12m,
 
 
-    /* Percentage contribution change */
     CASE
-        WHEN cs.prior_contribution_amount_90d > 0
-        THEN
-            CAST
+        WHEN s.employer_sg_previous_amount_12m > 0
+        THEN CAST
+        (
             (
-                (
-                    cs.recent_contribution_amount_90d
-                    - cs.prior_contribution_amount_90d
-                ) * 100.0
-                / cs.prior_contribution_amount_90d
-
-                AS DECIMAL(10,2)
-            )
+                s.employer_sg_current_amount_12m
+                - s.employer_sg_previous_amount_12m
+            ) * 100.0
+            / s.employer_sg_previous_amount_12m
+            AS DECIMAL(10,2)
+        )
         ELSE NULL
-    END AS contribution_change_pct_90d,
+    END AS employer_sg_change_pct_12m,
 
 
-    /*
-      Cessation:
-      Member had contributions in previous 90 days
-      but none in recent 90 days.
-    */
     CASE
-        WHEN cs.prior_contribution_amount_90d > 0
-         AND cs.recent_contribution_amount_90d = 0
+        WHEN s.employer_sg_previous_amount_12m > 0
+         AND s.employer_sg_current_amount_12m = 0
         THEN 1
         ELSE 0
-    END AS contribution_ceased_90d_flag,
+    END AS employer_sg_cessation_flag,
 
 
-    /*
-      Decline:
-      Recent 90-day contribution amount is lower
-      than previous 90-day contribution amount.
-    */
     CASE
-        WHEN cs.prior_contribution_amount_90d > 0
-         AND cs.recent_contribution_amount_90d
-             < cs.prior_contribution_amount_90d
+        WHEN s.employer_sg_previous_amount_12m > 0
+         AND s.employer_sg_current_amount_12m
+             < s.employer_sg_previous_amount_12m
         THEN 1
         ELSE 0
-    END AS contribution_decline_flag,
+    END AS employer_sg_decline_flag,
 
 
-    /* Employer SG */
-    cs.employer_sg_amount_12m,
+    /* =========================================================
+       Salary Sacrifice
+       ========================================================= */
 
-    cs.employer_sg_amount_90d,
+    s.salary_sacrifice_current_amount_12m,
+
+    s.salary_sacrifice_previous_amount_12m,
+
+    (
+        s.salary_sacrifice_current_amount_12m
+        - s.salary_sacrifice_previous_amount_12m
+    ) AS salary_sacrifice_change_12m,
 
 
-    /* Salary Sacrifice */
-    cs.salary_sacrifice_amount_12m,
+    CASE
+        WHEN s.salary_sacrifice_previous_amount_12m > 0
+        THEN CAST
+        (
+            (
+                s.salary_sacrifice_current_amount_12m
+                - s.salary_sacrifice_previous_amount_12m
+            ) * 100.0
+            / s.salary_sacrifice_previous_amount_12m
+            AS DECIMAL(10,2)
+        )
+        ELSE NULL
+    END AS salary_sacrifice_change_pct_12m,
 
-    cs.salary_sacrifice_amount_90d,
+
+    CASE
+        WHEN s.salary_sacrifice_previous_amount_12m > 0
+         AND s.salary_sacrifice_current_amount_12m = 0
+        THEN 1
+        ELSE 0
+    END AS salary_sacrifice_cessation_flag,
 
 
-    /* Member Voluntary */
-    cs.member_voluntary_amount_12m,
+    CASE
+        WHEN s.salary_sacrifice_current_amount_12m
+             > s.salary_sacrifice_previous_amount_12m
+         AND s.salary_sacrifice_current_amount_12m > 0
+        THEN 1
+        ELSE 0
+    END AS salary_sacrifice_increase_flag,
 
-    cs.member_voluntary_amount_90d
 
-FROM contribution_summary cs
+    CASE
+        WHEN s.salary_sacrifice_previous_amount_12m > 0
+         AND s.salary_sacrifice_current_amount_12m
+             < s.salary_sacrifice_previous_amount_12m
+        THEN 1
+        ELSE 0
+    END AS salary_sacrifice_decline_flag,
 
-ORDER BY cs.accountID;
+
+    /* =========================================================
+       Member Voluntary
+       ========================================================= */
+
+    s.member_voluntary_current_amount_12m,
+
+    s.member_voluntary_previous_amount_12m,
+
+    (
+        s.member_voluntary_current_amount_12m
+        - s.member_voluntary_previous_amount_12m
+    ) AS member_voluntary_change_12m,
+
+
+    CASE
+        WHEN s.member_voluntary_previous_amount_12m > 0
+        THEN CAST
+        (
+            (
+                s.member_voluntary_current_amount_12m
+                - s.member_voluntary_previous_amount_12m
+            ) * 100.0
+            / s.member_voluntary_previous_amount_12m
+            AS DECIMAL(10,2)
+        )
+        ELSE NULL
+    END AS member_voluntary_change_pct_12m,
+
+
+    CASE
+        WHEN s.member_voluntary_previous_amount_12m > 0
+         AND s.member_voluntary_current_amount_12m = 0
+        THEN 1
+        ELSE 0
+    END AS member_voluntary_cessation_flag,
+
+
+    CASE
+        WHEN s.member_voluntary_current_amount_12m
+             > s.member_voluntary_previous_amount_12m
+         AND s.member_voluntary_current_amount_12m > 0
+        THEN 1
+        ELSE 0
+    END AS member_voluntary_increase_flag,
+
+
+    CASE
+        WHEN s.member_voluntary_previous_amount_12m > 0
+         AND s.member_voluntary_current_amount_12m
+             < s.member_voluntary_previous_amount_12m
+        THEN 1
+        ELSE 0
+    END AS member_voluntary_decline_flag
+
+
+FROM inflow_summary s
+
+ORDER BY s.accountID;
