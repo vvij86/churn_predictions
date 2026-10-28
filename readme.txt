@@ -1,153 +1,327 @@
-Yes — then simplify the Copilot task. Ask it to keep only strong candidates and exclude anything uncertain instead of carrying REVIEW REQUIRED items forward.
+/*
+Feature Name: workflow_member_behaviour_12m_group
+Feature Group: Workflow Behaviour
 
-Use this prompt:
+Business Meaning:
+    Captures strong member-driven workflow activity only.
+    jobDescription is used to determine the business meaning.
+    jobSourceDescription is used mainly as supporting/source information.
 
-Read the latest behavioural_features_business_review.sql, member_retention_ml_copilot_instructions.md, and inspect edgeSource.accountEngagementWorkflow.
+Included behaviour groups:
+    - Member Inquiry / Service
+    - Complaint / Escalation
+    - Member Detail / Contact Change
+    - Beneficiary Activity
 
-I want to improve the workflow feature logic using jobDescription.
+Excluded:
+    - RF-Processor
+    - SUPERFACTS / SUPERFACTSS
+    - Transaction Reports
+    - DigitalCardBatchLoad
+    - Transition Fail
+    - Internal Transfer
+    - rollover / transfer / payment activity
+    - contribution processing
+    - investment processing already covered by dedicated source
+    - insurance claims / death / TPD / SCI processing
+    - generic or unidentified Inquiry IDs
+    - technical/admin workflow
 
-Business has already confirmed:
+Feature Window:
+    Previous 12 months from AsOfDate
 
-- Exclude RF-Processor
-- Exclude SUPERFACTS / SUPERFACTSS
-- Include Internet
-- Include E-mail
+Recent Windows:
+    90 days
+    30 days
 
-However, jobDescription contains richer business meaning than jobSourceDescription.
+Point-in-Time Rule:
+    jobStartDate must be on or before AsOfDate.
+    jobCompletionDate is used only when <= AsOfDate.
+*/
 
-Do not modify any files yet.
+DECLARE @AsOfDate DATE = '2024-03-31';
 
-Objective
+DECLARE @FeatureStartDate DATE =
+    DATEADD(DAY, 1, DATEADD(MONTH, -12, @AsOfDate));
 
-Identify only strong, clearly meaningful member-behaviour candidates from jobDescription that are suitable for churn prediction.
+DECLARE @Recent90Start DATE =
+    DATEADD(DAY, -89, @AsOfDate);
 
-Do not keep uncertain or ambiguous items.
+DECLARE @Recent30Start DATE =
+    DATEADD(DAY, -29, @AsOfDate);
 
-If the business meaning is unclear, treat it as:
 
-EXCLUDE FOR NOW
+WITH eligible_accounts AS
+(
+    SELECT DISTINCT
+        a.accountID
+    FROM edgeSource.accountSummary a
+    WHERE a.fundJoinDate <= @AsOfDate
+      AND a.databaseCode IN
+      (
+          'MASTA',
+          'MASTP',
+          'MASTR',
+          'MASTS',
+          'MASTM',
+          'MTAPD',
+          'ST000',
+          'MASTR_AP'
+      )
+      AND
+      (
+          a.exitDateRecorded IS NULL
+          OR a.exitDateRecorded > @AsOfDate
+      )
+      AND
+      (
+          a.dateOfDeath IS NULL
+          OR a.dateOfDeath > @AsOfDate
+      )
+      AND
+      (
+          a.deathIndicatorFlag IS NULL
+          OR a.deathIndicatorFlag = 0
+      )
+),
 
-instead of REVIEW REQUIRED.
+workflow_base AS
+(
+    SELECT
+        wf.accountID,
+        CAST(wf.jobStartDate AS DATE) AS jobStartDate,
+        CAST(wf.jobCompletionDate AS DATE) AS jobCompletionDate,
+        wf.jobCompletedFlag,
+        wf.jobSourceDescription,
+        wf.jobDescription,
 
-Step 1 – Profile jobDescription
+        CASE
 
-Analyze distinct combinations of:
+            /* Complaint / Escalation */
+            WHEN
+                LOWER(wf.jobDescription) LIKE '%complaint%'
+                OR LOWER(wf.jobDescription) LIKE '%escalation%'
+            THEN 'COMPLAINT_ESCALATION'
 
-- jobSourceDescription
-- jobDescription
 
-Include:
+            /* Member Detail / Contact Change */
+            WHEN
+                LOWER(wf.jobDescription) LIKE '%update contact%'
+                OR LOWER(wf.jobDescription) LIKE '%address change%'
+                OR LOWER(wf.jobDescription) LIKE '%update basic detail%'
+                OR LOWER(wf.jobDescription) LIKE '%communication preference%'
+            THEN 'MEMBER_DETAIL_CHANGE'
 
-- row count
-- distinct account count
 
-Focus on high-frequency descriptions first, but also identify lower-frequency descriptions that clearly represent meaningful member behaviour.
+            /* Beneficiary Activity */
+            WHEN
+                LOWER(wf.jobDescription) LIKE '%beneficiar%'
+            THEN 'BENEFICIARY_ACTIVITY'
 
-Step 2 – Keep only strong candidates
 
-Classify each relevant jobDescription as:
+            /* Strong Member Inquiry / Service */
+            WHEN
+                wf.jobDescription IN
+                (
+                    'Inquiry - Website',
+                    'Inquiry - General',
+                    'Inquiry - Contribution',
+                    'Inquiry - Pension',
+                    'Inquiry - Insurance',
+                    'Inquiry - Investment Performance',
+                    'Member Contact'
+                )
+                OR LOWER(wf.jobDescription) LIKE '%online enquiry form%'
+            THEN 'MEMBER_INQUIRY_SERVICE'
 
-- INCLUDE
-- EXCLUDE FOR NOW
 
-INCLUDE only when the description clearly represents member behaviour such as:
+            ELSE NULL
 
-- member inquiry/service request
-- complaint/escalation
-- member profile/contact-detail change
-- beneficiary activity
-- member-initiated insurance activity
-- member-initiated investment activity
-- member correspondence/contact
-- advice-related activity
+        END AS workflow_category
 
-EXCLUDE FOR NOW when it is:
+    FROM edgeSource.accountEngagementWorkflow wf
 
-- ambiguous
-- system-generated
-- processor-generated
-- batch activity
-- reporting/reconciliation
-- admin/back-office activity
-- technical/error handling
-- operational processing
-- claim/death processing
-- rollover/payment activity already covered by dedicated sources
-- contribution activity already better represented by dedicated contribution tables
-- potentially target-leaking
-- too unclear to confidently interpret
+    INNER JOIN eligible_accounts ea
+        ON ea.accountID = wf.accountID
 
-Do not retain uncertain features just for completeness.
+    WHERE wf.jobStartDate >= @FeatureStartDate
+      AND wf.jobStartDate <= @AsOfDate
 
-Step 3 – Group strong candidates
+      AND
+      (
+          wf.jobSourceDescription IS NULL
+          OR wf.jobSourceDescription NOT IN
+          (
+              'RF-Processor',
+              'SUPERFACTS',
+              'SUPERFACTSS',
+              'Transaction Reports',
+              'DigitalCardBatchLoad',
+              'Transition Fail',
+              'Internal Transfer'
+          )
+      )
+),
 
-Do not create one feature per jobDescription.
+meaningful_workflow AS
+(
+    SELECT
+        accountID,
+        jobStartDate,
+        jobCompletionDate,
+        jobCompletedFlag,
+        jobSourceDescription,
+        jobDescription,
+        workflow_category
+    FROM workflow_base
+    WHERE workflow_category IS NOT NULL
+),
 
-Group only the strong included descriptions into a small number of categories such as:
+workflow_features AS
+(
+    SELECT
+        mw.accountID,
 
-- MEMBER_INQUIRY_SERVICE
-- COMPLAINT_ESCALATION
-- MEMBER_DETAIL_CHANGE
-- BENEFICIARY_ACTIVITY
-- INSURANCE_ACTIVITY
-- INVESTMENT_ACTIVITY
-- MEMBER_CORRESPONDENCE
-- ADVICE_ACTIVITY
+        /* Overall meaningful workflow activity */
+        COUNT(*) AS meaningful_workflow_count_12m,
 
-Create a group only when the actual data clearly supports it.
+        COUNT(DISTINCT mw.jobStartDate)
+            AS meaningful_workflow_active_days_12m,
 
-Step 4 – Avoid duplication
+        DATEDIFF
+        (
+            DAY,
+            MAX(mw.jobStartDate),
+            @AsOfDate
+        ) AS days_since_last_meaningful_workflow,
 
-Check whether a workflow candidate duplicates a stronger dedicated source.
+        SUM
+        (
+            CASE
+                WHEN mw.jobStartDate >= @Recent90Start
+                THEN 1
+                ELSE 0
+            END
+        ) AS recent_meaningful_workflow_count_90d,
 
-Examples:
+        SUM
+        (
+            CASE
+                WHEN mw.jobStartDate >= @Recent30Start
+                THEN 1
+                ELSE 0
+            END
+        ) AS recent_meaningful_workflow_count_30d,
 
-- rollover/payment → prefer accountRolloverPayment
-- contribution behaviour → prefer accountMoneyInflow / accountNetMoneyFlow
-- investment behaviour → compare with accountInvestments
-- insurance behaviour → compare with AccountInsuranceCurrent
 
-If the dedicated source provides a clearer and more reliable signal, exclude the workflow version.
+        /* Completed / Open workflow */
+        SUM
+        (
+            CASE
+                WHEN mw.jobCompletedFlag = 1
+                 AND mw.jobCompletionDate IS NOT NULL
+                 AND mw.jobCompletionDate <= @AsOfDate
+                THEN 1
+                ELSE 0
+            END
+        ) AS completed_meaningful_workflow_count_12m,
 
-Step 5 – Output shortlist
+        SUM
+        (
+            CASE
+                WHEN
+                (
+                    mw.jobCompletedFlag = 0
+                    OR mw.jobCompletionDate IS NULL
+                    OR mw.jobCompletionDate > @AsOfDate
+                )
+                THEN 1
+                ELSE 0
+            END
+        ) AS open_meaningful_workflow_count_asof,
 
-Return a table:
 
-S.No | jobSourceDescription | jobDescription / Pattern | Suggested Group | INCLUDE / EXCLUDE FOR NOW | Reason
+        /* Member Inquiry / Service */
+        SUM
+        (
+            CASE
+                WHEN mw.workflow_category = 'MEMBER_INQUIRY_SERVICE'
+                THEN 1
+                ELSE 0
+            END
+        ) AS member_inquiry_service_count_12m,
 
-Then provide a separate final list containing only:
+        SUM
+        (
+            CASE
+                WHEN mw.workflow_category = 'MEMBER_INQUIRY_SERVICE'
+                 AND mw.jobStartDate >= @Recent90Start
+                THEN 1
+                ELSE 0
+            END
+        ) AS recent_member_inquiry_service_count_90d,
 
-Strong workflow candidates recommended for ML
 
-Do not include ambiguous items in that final list.
+        /* Complaint / Escalation */
+        SUM
+        (
+            CASE
+                WHEN mw.workflow_category = 'COMPLAINT_ESCALATION'
+                THEN 1
+                ELSE 0
+            END
+        ) AS complaint_escalation_count_12m,
 
-Step 6 – Recommend final workflow features
+        SUM
+        (
+            CASE
+                WHEN mw.workflow_category = 'COMPLAINT_ESCALATION'
+                 AND mw.jobStartDate >= @Recent90Start
+                THEN 1
+                ELSE 0
+            END
+        ) AS recent_complaint_escalation_count_90d,
 
-From the strong candidates only, recommend a compact feature set such as:
 
-- meaningful_workflow_count_12m
-- recent_meaningful_workflow_count_90d
-- recent_meaningful_workflow_count_30d
-- days_since_last_meaningful_workflow
-- meaningful_workflow_active_days_12m
-- inquiry_service_count_12m
-- complaint_escalation_count_12m
-- recent_complaint_escalation_count_90d
-- member_detail_change_count_12m
-- beneficiary_workflow_count_12m
+        /* Member Detail Change */
+        SUM
+        (
+            CASE
+                WHEN mw.workflow_category = 'MEMBER_DETAIL_CHANGE'
+                THEN 1
+                ELSE 0
+            END
+        ) AS member_detail_change_count_12m,
 
-Only recommend features actually supported by the strong jobDescription candidates found in the data.
 
-Important
+        /* Beneficiary Activity */
+        SUM
+        (
+            CASE
+                WHEN mw.workflow_category = 'BENEFICIARY_ACTIVITY'
+                THEN 1
+                ELSE 0
+            END
+        ) AS beneficiary_change_count_12m
 
-- jobDescription should determine business meaning.
-- jobSourceDescription should mainly indicate channel/source.
-- Do not include a workflow just because its source is Internet or E-mail if the description is operational/admin.
-- Do not exclude a strong member behaviour just because its source is Written Request or another channel.
-- Avoid leakage.
-- Avoid duplicate signals.
-- Prefer fewer strong features over many uncertain ones.
+    FROM meaningful_workflow mw
+    GROUP BY mw.accountID
+)
 
-Do not modify SQL or Word documents yet.
-
-Stop after identifying and recommending the strong candidates.
+SELECT
+    accountID,
+    meaningful_workflow_count_12m,
+    meaningful_workflow_active_days_12m,
+    days_since_last_meaningful_workflow,
+    recent_meaningful_workflow_count_90d,
+    recent_meaningful_workflow_count_30d,
+    completed_meaningful_workflow_count_12m,
+    open_meaningful_workflow_count_asof,
+    member_inquiry_service_count_12m,
+    recent_member_inquiry_service_count_90d,
+    complaint_escalation_count_12m,
+    recent_complaint_escalation_count_90d,
+    member_detail_change_count_12m,
+    beneficiary_change_count_12m
+FROM workflow_features
+ORDER BY accountID;
