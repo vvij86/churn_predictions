@@ -1,42 +1,38 @@
 /*
-Feature Name: workflow_member_behaviour_12m_group
-Feature Group: Workflow Behaviour
+Feature Name: contribution_behaviour_12m_group
+Feature Group: Contribution Behaviour
 
 Business Meaning:
-    Captures strong member-driven workflow activity only.
-    jobDescription is used to determine the business meaning.
-    jobSourceDescription is used mainly as supporting/source information.
+    Captures contribution frequency, amount, recency, recent change,
+    cessation and contribution-type-specific behaviour.
 
-Included behaviour groups:
-    - Member Inquiry / Service
-    - Complaint / Escalation
-    - Member Detail / Contact Change
-    - Beneficiary Activity
+Source Table:
+    edgeSource.accountMoneyInflow
+
+Contribution Types Included:
+    Employer SG
+    Salary Sacrifice
+    Post Tax Voluntary
 
 Excluded:
-    - RF-Processor
-    - SUPERFACTS / SUPERFACTSS
-    - Transaction Reports
-    - DigitalCardBatchLoad
-    - Transition Fail
-    - Internal Transfer
-    - rollover / transfer / payment activity
-    - contribution processing
-    - investment processing already covered by dedicated source
-    - insurance claims / death / TPD / SCI processing
-    - generic or unidentified Inquiry IDs
-    - technical/admin workflow
+    Internal transfers
+    Rollovers in
+    Adjustments
+    Insurance claim proceeds
+    Other unrelated inflows
 
 Feature Window:
     Previous 12 months from AsOfDate
 
-Recent Windows:
-    90 days
-    30 days
+Recent Comparison:
+    Recent 90 days vs previous 90 days
 
 Point-in-Time Rule:
-    jobStartDate must be on or before AsOfDate.
-    jobCompletionDate is used only when <= AsOfDate.
+    inflowDateReceived must be <= AsOfDate.
+
+Note:
+    No 30-day contribution window is added initially because contributions
+    may be monthly/fortnightly and a 30-day window can be unnecessarily noisy.
 */
 
 DECLARE @AsOfDate DATE = '2024-03-31';
@@ -47,8 +43,11 @@ DECLARE @FeatureStartDate DATE =
 DECLARE @Recent90Start DATE =
     DATEADD(DAY, -89, @AsOfDate);
 
-DECLARE @Recent30Start DATE =
-    DATEADD(DAY, -29, @AsOfDate);
+DECLARE @Prior90Start DATE =
+    DATEADD(DAY, -179, @AsOfDate);
+
+DECLARE @Prior90End DATE =
+    DATEADD(DAY, -90, @AsOfDate);
 
 
 WITH eligible_accounts AS
@@ -57,6 +56,7 @@ WITH eligible_accounts AS
         a.accountID
     FROM edgeSource.accountSummary a
     WHERE a.fundJoinDate <= @AsOfDate
+
       AND a.databaseCode IN
       (
           'MASTA',
@@ -68,16 +68,19 @@ WITH eligible_accounts AS
           'ST000',
           'MASTR_AP'
       )
+
       AND
       (
           a.exitDateRecorded IS NULL
           OR a.exitDateRecorded > @AsOfDate
       )
+
       AND
       (
           a.dateOfDeath IS NULL
           OR a.dateOfDeath > @AsOfDate
       )
+
       AND
       (
           a.deathIndicatorFlag IS NULL
@@ -85,243 +88,345 @@ WITH eligible_accounts AS
       )
 ),
 
-workflow_base AS
+contribution_fact AS
 (
     SELECT
-        wf.accountID,
-        CAST(wf.jobStartDate AS DATE) AS jobStartDate,
-        CAST(wf.jobCompletionDate AS DATE) AS jobCompletionDate,
-        wf.jobCompletedFlag,
-        wf.jobSourceDescription,
-        wf.jobDescription,
+        ami.accountID,
+
+        CAST(ami.inflowDateReceived AS DATE) AS event_date,
+
+        CAST(ami.inflowAmount AS DECIMAL(18,2)) AS amount,
 
         CASE
 
-            /* Complaint / Escalation */
-            WHEN
-                LOWER(wf.jobDescription) LIKE '%complaint%'
-                OR LOWER(wf.jobDescription) LIKE '%escalation%'
-            THEN 'COMPLAINT_ESCALATION'
+            /* Explicit exclusions */
+
+            WHEN ami.inflowInternalTransferFlag = 1
+                THEN 'EXCLUDE'
+
+            WHEN ami.inflowRolloverType IN ('I', 'R')
+                THEN 'EXCLUDE'
+
+            WHEN ami.inflowDescription = 'Rollovers-In'
+             AND ami.inflowSourceDescription LIKE '%ADJUSTMENT%'
+                THEN 'EXCLUDE'
+
+            WHEN ami.inflowDescription = 'Rollovers-In'
+             AND ami.inflowSourceDescription LIKE '%Transfer%'
+                THEN 'EXCLUDE'
 
 
-            /* Member Detail / Contact Change */
-            WHEN
-                LOWER(wf.jobDescription) LIKE '%update contact%'
-                OR LOWER(wf.jobDescription) LIKE '%address change%'
-                OR LOWER(wf.jobDescription) LIKE '%update basic detail%'
-                OR LOWER(wf.jobDescription) LIKE '%communication preference%'
-            THEN 'MEMBER_DETAIL_CHANGE'
+            /* Contribution mappings */
 
+            WHEN ami.inflowDescription IN
+            (
+                'Employer',
+                'Employer Additional Conts'
+            )
+                THEN 'Employer SG'
 
-            /* Beneficiary Activity */
-            WHEN
-                LOWER(wf.jobDescription) LIKE '%beneficiar%'
-            THEN 'BENEFICIARY_ACTIVITY'
+            WHEN ami.inflowDescription = 'Voluntary Member Salary Sacrifice'
+                THEN 'Salary Sacrifice'
 
+            WHEN ami.inflowDescription = 'Member Voluntary'
+                THEN 'Post Tax Voluntary'
 
-            /* Strong Member Inquiry / Service */
-            WHEN
-                wf.jobDescription IN
-                (
-                    'Inquiry - Website',
-                    'Inquiry - General',
-                    'Inquiry - Contribution',
-                    'Inquiry - Pension',
-                    'Inquiry - Insurance',
-                    'Inquiry - Investment Performance',
-                    'Member Contact'
-                )
-                OR LOWER(wf.jobDescription) LIKE '%online enquiry form%'
-            THEN 'MEMBER_INQUIRY_SERVICE'
+            ELSE 'EXCLUDE'
 
+        END AS contribution_type
 
-            ELSE NULL
-
-        END AS workflow_category
-
-    FROM edgeSource.accountEngagementWorkflow wf
+    FROM edgeSource.accountMoneyInflow ami
 
     INNER JOIN eligible_accounts ea
-        ON ea.accountID = wf.accountID
+        ON ea.accountID = ami.accountID
 
-    WHERE wf.jobStartDate >= @FeatureStartDate
-      AND wf.jobStartDate <= @AsOfDate
-
-      AND
-      (
-          wf.jobSourceDescription IS NULL
-          OR wf.jobSourceDescription NOT IN
-          (
-              'RF-Processor',
-              'SUPERFACTS',
-              'SUPERFACTSS',
-              'Transaction Reports',
-              'DigitalCardBatchLoad',
-              'Transition Fail',
-              'Internal Transfer'
-          )
-      )
+    WHERE ami.inflowDateReceived >= @FeatureStartDate
+      AND ami.inflowDateReceived <= @AsOfDate
+      AND ami.inflowAmount > 0
 ),
 
-meaningful_workflow AS
+valid_contributions AS
 (
     SELECT
         accountID,
-        jobStartDate,
-        jobCompletionDate,
-        jobCompletedFlag,
-        jobSourceDescription,
-        jobDescription,
-        workflow_category
-    FROM workflow_base
-    WHERE workflow_category IS NOT NULL
+        event_date,
+        amount,
+        contribution_type
+
+    FROM contribution_fact
+
+    WHERE contribution_type IN
+    (
+        'Employer SG',
+        'Salary Sacrifice',
+        'Post Tax Voluntary'
+    )
 ),
 
-workflow_features AS
+contribution_summary AS
 (
     SELECT
-        mw.accountID,
+        vc.accountID,
 
-        /* Overall meaningful workflow activity */
-        COUNT(*) AS meaningful_workflow_count_12m,
 
-        COUNT(DISTINCT mw.jobStartDate)
-            AS meaningful_workflow_active_days_12m,
+        /* =====================================================
+           Overall 12-month contribution behaviour
+           ===================================================== */
+
+        COUNT(*)
+            AS contribution_count_12m,
+
+        SUM(vc.amount)
+            AS contribution_amount_12m,
+
+        AVG(vc.amount)
+            AS avg_contribution_transaction_amount_12m,
+
+        COUNT
+        (
+            DISTINCT DATEFROMPARTS
+            (
+                YEAR(vc.event_date),
+                MONTH(vc.event_date),
+                1
+            )
+        ) AS contribution_active_months_12m,
 
         DATEDIFF
         (
             DAY,
-            MAX(mw.jobStartDate),
+            MAX(vc.event_date),
             @AsOfDate
-        ) AS days_since_last_meaningful_workflow,
+        ) AS days_since_last_contribution,
+
+
+        /* =====================================================
+           Recent 90 days
+           ===================================================== */
 
         SUM
         (
             CASE
-                WHEN mw.jobStartDate >= @Recent90Start
-                THEN 1
+                WHEN vc.event_date >= @Recent90Start
+                THEN vc.amount
                 ELSE 0
             END
-        ) AS recent_meaningful_workflow_count_90d,
+        ) AS recent_contribution_amount_90d,
+
+        COUNT
+        (
+            CASE
+                WHEN vc.event_date >= @Recent90Start
+                THEN 1
+            END
+        ) AS recent_contribution_count_90d,
+
+
+        /* =====================================================
+           Previous 90 days
+           ===================================================== */
 
         SUM
         (
             CASE
-                WHEN mw.jobStartDate >= @Recent30Start
-                THEN 1
+                WHEN vc.event_date >= @Prior90Start
+                 AND vc.event_date <= @Prior90End
+                THEN vc.amount
                 ELSE 0
             END
-        ) AS recent_meaningful_workflow_count_30d,
+        ) AS prior_contribution_amount_90d,
 
-
-        /* Completed / Open workflow */
-        SUM
+        COUNT
         (
             CASE
-                WHEN mw.jobCompletedFlag = 1
-                 AND mw.jobCompletionDate IS NOT NULL
-                 AND mw.jobCompletionDate <= @AsOfDate
+                WHEN vc.event_date >= @Prior90Start
+                 AND vc.event_date <= @Prior90End
                 THEN 1
-                ELSE 0
             END
-        ) AS completed_meaningful_workflow_count_12m,
-
-        SUM
-        (
-            CASE
-                WHEN
-                (
-                    mw.jobCompletedFlag = 0
-                    OR mw.jobCompletionDate IS NULL
-                    OR mw.jobCompletionDate > @AsOfDate
-                )
-                THEN 1
-                ELSE 0
-            END
-        ) AS open_meaningful_workflow_count_asof,
+        ) AS prior_contribution_count_90d,
 
 
-        /* Member Inquiry / Service */
-        SUM
-        (
-            CASE
-                WHEN mw.workflow_category = 'MEMBER_INQUIRY_SERVICE'
-                THEN 1
-                ELSE 0
-            END
-        ) AS member_inquiry_service_count_12m,
+        /* =====================================================
+           Employer SG
+           ===================================================== */
 
         SUM
         (
             CASE
-                WHEN mw.workflow_category = 'MEMBER_INQUIRY_SERVICE'
-                 AND mw.jobStartDate >= @Recent90Start
-                THEN 1
+                WHEN vc.contribution_type = 'Employer SG'
+                THEN vc.amount
                 ELSE 0
             END
-        ) AS recent_member_inquiry_service_count_90d,
-
-
-        /* Complaint / Escalation */
-        SUM
-        (
-            CASE
-                WHEN mw.workflow_category = 'COMPLAINT_ESCALATION'
-                THEN 1
-                ELSE 0
-            END
-        ) AS complaint_escalation_count_12m,
+        ) AS employer_sg_amount_12m,
 
         SUM
         (
             CASE
-                WHEN mw.workflow_category = 'COMPLAINT_ESCALATION'
-                 AND mw.jobStartDate >= @Recent90Start
-                THEN 1
+                WHEN vc.contribution_type = 'Employer SG'
+                 AND vc.event_date >= @Recent90Start
+                THEN vc.amount
                 ELSE 0
             END
-        ) AS recent_complaint_escalation_count_90d,
+        ) AS employer_sg_amount_90d,
 
 
-        /* Member Detail Change */
+        /* =====================================================
+           Salary Sacrifice
+           ===================================================== */
+
         SUM
         (
             CASE
-                WHEN mw.workflow_category = 'MEMBER_DETAIL_CHANGE'
-                THEN 1
+                WHEN vc.contribution_type = 'Salary Sacrifice'
+                THEN vc.amount
                 ELSE 0
             END
-        ) AS member_detail_change_count_12m,
+        ) AS salary_sacrifice_amount_12m,
 
-
-        /* Beneficiary Activity */
         SUM
         (
             CASE
-                WHEN mw.workflow_category = 'BENEFICIARY_ACTIVITY'
-                THEN 1
+                WHEN vc.contribution_type = 'Salary Sacrifice'
+                 AND vc.event_date >= @Recent90Start
+                THEN vc.amount
                 ELSE 0
             END
-        ) AS beneficiary_change_count_12m
+        ) AS salary_sacrifice_amount_90d,
 
-    FROM meaningful_workflow mw
-    GROUP BY mw.accountID
+
+        /* =====================================================
+           Member Voluntary / Post Tax
+           ===================================================== */
+
+        SUM
+        (
+            CASE
+                WHEN vc.contribution_type = 'Post Tax Voluntary'
+                THEN vc.amount
+                ELSE 0
+            END
+        ) AS member_voluntary_amount_12m,
+
+        SUM
+        (
+            CASE
+                WHEN vc.contribution_type = 'Post Tax Voluntary'
+                 AND vc.event_date >= @Recent90Start
+                THEN vc.amount
+                ELSE 0
+            END
+        ) AS member_voluntary_amount_90d
+
+    FROM valid_contributions vc
+
+    GROUP BY vc.accountID
 )
 
 SELECT
-    accountID,
-    meaningful_workflow_count_12m,
-    meaningful_workflow_active_days_12m,
-    days_since_last_meaningful_workflow,
-    recent_meaningful_workflow_count_90d,
-    recent_meaningful_workflow_count_30d,
-    completed_meaningful_workflow_count_12m,
-    open_meaningful_workflow_count_asof,
-    member_inquiry_service_count_12m,
-    recent_member_inquiry_service_count_90d,
-    complaint_escalation_count_12m,
-    recent_complaint_escalation_count_90d,
-    member_detail_change_count_12m,
-    beneficiary_change_count_12m
-FROM workflow_features
-ORDER BY accountID;
+    cs.accountID,
+
+
+    /* Long-term behaviour */
+
+    cs.contribution_count_12m,
+
+    cs.contribution_amount_12m,
+
+    cs.avg_contribution_transaction_amount_12m,
+
+    cs.contribution_active_months_12m,
+
+    cs.days_since_last_contribution,
+
+
+    /* Recent vs previous 90 days */
+
+    cs.recent_contribution_amount_90d,
+
+    cs.prior_contribution_amount_90d,
+
+    cs.recent_contribution_count_90d,
+
+    cs.prior_contribution_count_90d,
+
+
+    /* Absolute change */
+
+    (
+        cs.recent_contribution_amount_90d
+        - cs.prior_contribution_amount_90d
+    ) AS contribution_amount_change_90d,
+
+
+    /* Percentage change */
+
+    CASE
+        WHEN cs.prior_contribution_amount_90d > 0
+        THEN
+            CAST
+            (
+                (
+                    cs.recent_contribution_amount_90d
+                    - cs.prior_contribution_amount_90d
+                ) * 100.0
+                / cs.prior_contribution_amount_90d
+
+                AS DECIMAL(10,2)
+            )
+        ELSE NULL
+    END AS contribution_change_pct_90d,
+
+
+    /*
+       Cessation:
+       Member had contribution activity in previous 90 days
+       but no contribution in recent 90 days.
+    */
+
+    CASE
+        WHEN cs.prior_contribution_amount_90d > 0
+         AND cs.recent_contribution_amount_90d = 0
+        THEN 1
+        ELSE 0
+    END AS contribution_ceased_90d_flag,
+
+
+    /*
+       Decline flag:
+       Keep as supporting feature.
+       Actual change amount / percentage is more informative.
+    */
+
+    CASE
+        WHEN cs.prior_contribution_amount_90d > 0
+         AND cs.recent_contribution_amount_90d
+             < cs.prior_contribution_amount_90d
+        THEN 1
+        ELSE 0
+    END AS contribution_decline_flag,
+
+
+    /* Employer SG */
+
+    cs.employer_sg_amount_12m,
+
+    cs.employer_sg_amount_90d,
+
+
+    /* Salary Sacrifice */
+
+    cs.salary_sacrifice_amount_12m,
+
+    cs.salary_sacrifice_amount_90d,
+
+
+    /* Member Voluntary */
+
+    cs.member_voluntary_amount_12m,
+
+    cs.member_voluntary_amount_90d
+
+
+FROM contribution_summary cs
+
+ORDER BY cs.accountID;
