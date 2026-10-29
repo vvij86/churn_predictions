@@ -1,28 +1,43 @@
-Please make one small correction to the current reduced version of "behavioural_features_business_review.sql".
+Do not make any further SQL changes.
 
-Retain the following two feature areas that were removed in the reduction pass:
+The feature count appears inconsistent.
 
-1. Website login behaviour from campaign/event source
-   
-   - Keep the previously existing "website_login_*" features that were removed.
-   - Preserve their existing 12-month / 90-day / 30-day windows exactly as implemented before removal.
-   - Do not change their original source mapping or business logic.
-   - These should remain because website-login behaviour is a useful digital engagement signal.
+Before restoring the requested features, the retained feature count was reported as 108.
 
-2. Insurance opt-in behaviour
-   
-   - Restore "insurance_opt_in_12m_flag".
-   - Preserve its existing campaign/event source logic exactly as before.
-   - Keep it because insurance opt-in represents a distinct member action/engagement signal, which is different from simply having active insurance cover.
+Only these 5 features were restored:
+
+- website_login_count_12m
+- website_login_count_90d
+- website_login_count_30d
+- days_since_last_website_login
+- insurance_opt_in_12m_flag
+
+Therefore, if no other feature was restored or added, the expected final feature count should be 113, not 124.
+
+Please re-check the feature count.
 
 Important:
 
-- Do not make any other feature changes.
-- Do not restore any other removed features.
-- Do not change contribution, rollover, workflow, investment, insurance-as-of, third-party-authority or net-money-flow logic.
-- Preserve all existing AsOfDate, point-in-time and leakage protections.
-- Preserve 30-day / 90-day / 12-month windows already implemented.
-- Recalculate and report:
-  - final retained feature count
-  - updated feature count by group
-- Confirm only these two feature areas were restored.
+- Count ONLY the final feature columns returned by the final SELECT of each standalone feature query.
+- Do NOT count:
+  - CTE columns
+  - intermediate/helper aliases
+  - source columns
+  - eligibility columns
+  - calculated fields used only internally
+  - accountID
+  - AsOfDate
+  - duplicated aliases appearing in multiple CTEs
+  - comments/documentation feature names
+
+For every standalone query, identify its final SELECT feature columns and count them exactly once.
+
+Then provide:
+
+1. Total final retained feature count
+2. Feature count by feature group
+3. List of final feature names under each group
+4. Confirm whether the only restored features compared with the 108-feature version are the 5 listed above
+5. If the total is not 113, explain exactly which additional final features account for the difference.
+
+Do not edit "behavioural_features_business_review.sql" during this verification. This is a count/validation exercise only.
