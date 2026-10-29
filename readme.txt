@@ -1,27 +1,33 @@
-Using only the attached "behavioural_features_business_review.sql", create a new Word document for business review.
+Validate the attached Word document against "behavioural_features_business_review.sql".
 
-Important:
+The SQL file is the source of truth.
 
-- Treat the SQL file as the only source of truth.
-- For each standalone query, include only the columns returned in its final "SELECT".
-- Do not invent, rename incorrectly, omit, or add features.
-- Do not use CTE/helper/intermediate columns.
-- Ensure every Word table feature exactly matches the corresponding final SQL output column.
+For each standalone query:
 
-Create separate tables by behaviour group with these columns only:
+- identify only the columns returned in the final "SELECT"
+- exclude SQL syntax, functions, parameters, helper columns and intermediate expressions
+- do not include values such as "(", "DAY", "@AsOfDate", CASE expressions, CTE fields, accountID or AsOfDate unless they are actual intended behavioural features
 
-"S.No | Behaviour Name | Description | Sample Value | Source | Comments"
+Check every row in the Word document against the corresponding final SQL output.
 
-Requirements:
+Fix any incorrect, missing or extra rows.
 
-- Remove the Behaviour Type column.
-- Use one table per behaviour group.
-- Keep Comments blank.
-- Use simple business-friendly descriptions.
-- Use realistic sample values based on the feature meaning.
-- Use the actual source table(s) from the SQL.
-- Keep continuous S.No numbering across the full document.
-- Before creating the Word file, verify every listed feature against the SQL final SELECT output.
-- If there is any mismatch or uncertainty, do not guess; use the exact SQL output name and logic.
+For each valid feature, ensure:
 
-Create the document only after the feature list has been validated against the SQL.
+- Behaviour Name = exact final SQL feature alias
+- Description = simple business-friendly meaning
+- Sample Value = realistic example
+- Source = actual source table/view used by that feature
+- Comments = blank
+
+Keep the current document structure:
+
+- separate table for each behaviour group
+- columns:
+  "S.No | Behaviour Name | Description | Sample Value | Source | Comments"
+
+Do not add a Behaviour Type column.
+
+Do not invent any feature.
+
+Before saving the corrected Word file, perform a final validation that every row in every table maps to a real final "SELECT" feature in the SQL.
