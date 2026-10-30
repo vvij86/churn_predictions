@@ -3,45 +3,53 @@ DECLARE @AsOfDate DATE = '2026-10-20';
 DECLARE @FeatureStartDate DATE =
     DATEADD(DAY, 1, DATEADD(MONTH, -12, @AsOfDate));
 
+WITH account_exit AS
+(
+    SELECT
+        accountID,
+        MIN(CAST(exitDate AS DATE)) AS exitDate
+    FROM edgeSource.accountSummary
+    WHERE exitDate IS NOT NULL
+    GROUP BY accountID
+)
 SELECT
-    ce.eventID,
-    ce.eventName,
+    CASE
+        WHEN a.exitDate IS NULL
+            THEN 'No recorded exit'
 
-    COUNT(*) AS total_events,
+        WHEN CAST(ced.eventDate AS DATE) < a.exitDate
+            THEN 'Before exit'
 
-    SUM(CASE
-        WHEN a.exitDate IS NOT NULL
-         AND CAST(ced.eventDate AS DATE) =
-             CAST(a.exitDate AS DATE)
-        THEN 1 ELSE 0
-    END) AS events_on_exit_date,
+        WHEN CAST(ced.eventDate AS DATE) = a.exitDate
+            THEN 'On exit date'
 
-    SUM(CASE
-        WHEN a.exitDate IS NOT NULL
-         AND ced.eventDate < a.exitDate
-        THEN 1 ELSE 0
-    END) AS events_before_exit,
+        ELSE 'After exit'
+    END AS event_timing,
 
-    SUM(CASE
-        WHEN a.exitDate IS NOT NULL
-         AND ced.eventDate > a.exitDate
-        THEN 1 ELSE 0
-    END) AS events_after_exit
+    COUNT(*) AS event_count,
+
+    COUNT(DISTINCT ced.accountID) AS account_count,
+
+    SUM(ced.eventAmount) AS total_amount
 
 FROM edgeSource.campaignEventDetails ced
 
-INNER JOIN edgeSource.campaignEvents ce
-    ON ced.eventID = ce.eventID
-
-LEFT JOIN edgeSource.accountSummary a
+LEFT JOIN account_exit a
     ON ced.accountID = a.accountID
 
-WHERE ce.eventID IN (14, 27, 28)
+WHERE ced.eventID = 28
   AND ced.eventDate >= @FeatureStartDate
   AND ced.eventDate < DATEADD(DAY, 1, @AsOfDate)
 
 GROUP BY
-    ce.eventID,
-    ce.eventName
+    CASE
+        WHEN a.exitDate IS NULL
+            THEN 'No recorded exit'
+        WHEN CAST(ced.eventDate AS DATE) < a.exitDate
+            THEN 'Before exit'
+        WHEN CAST(ced.eventDate AS DATE) = a.exitDate
+            THEN 'On exit date'
+        ELSE 'After exit'
+    END
 
-ORDER BY ce.eventID;
+ORDER BY event_count DESC;
