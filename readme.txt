@@ -1,30 +1,32 @@
-Using the validated standalone feature queries in "behavioural_features_business_review.sql", prepare a consolidated feature dataset SQL query for review/readiness purposes only.
+Validate "consolidated_behavioural_feature_dataset_review.sql" against "behavioural_features_business_review.sql".
 
-This is not the start of model development or production implementation.
+Do not modify either file during this validation.
 
-The purpose is to have a review-ready SQL that shows how the approved standalone feature groups can be combined into one account-level feature dataset.
+Check and report:
 
-Requirements:
+- final grain is exactly one row per "accountID + @AsOfDate"
+- every consolidated feature exists in the validated standalone SQL
+- no approved feature is missing
+- no duplicate or unintended feature columns are added
+- each feature block returns at most one row per "accountID" before joining
+- no join can multiply account rows
+- all source-date filters are point-in-time safe ("<= @AsOfDate")
+- no post-AsOfDate or outcome-window data is used
+- no "target_churn", exit outcome, or leakage field is used as a predictive feature
+- internal-transfer and full/external-rollover exclusions are preserved
+- website NULL handling is preserved
+- "current_account_fum_amount" is derived from the validated "accountInvestments" as-of logic
+- "total_investment_value_asof" is not duplicated if it represents the same FUM calculation
+- final output contains "accountID", member reference/ID, "as_of_date", and all retained feature columns
 
-- Grain: one row per "accountID + @AsOfDate"
-- Reuse the existing validated standalone feature logic without redesigning it
-- Use the eligible account population from "accountSummary" as the base
-- Combine these groups:
-  - Account / Tenure / Product
-  - Helpline
-  - Website
-  - Workflow
-  - Campaign / Event
-  - Contribution
-  - Partial Rollover
-  - Investment / FUM
-  - Insurance
-  - Third Party Authority
-  - Net Money Flow
-- Preserve existing AsOfDate, point-in-time and leakage rules
-- Keep "current_account_fum_amount" from the validated accountInvestments as-of logic
-- Do not add "target_churn"
-- Do not add model training, validation, scoring, MLOps or deployment logic
-- Do not overwrite the standalone query file
+Also provide:
 
-Create a new SQL file containing the consolidated feature dataset query so it is ready for technical/business review before development starts.
+1. total final feature count
+2. feature count by group
+3. any missing features
+4. any extra features
+5. any duplicate-risk joins
+6. any point-in-time or leakage issues
+7. PASS / FAIL summary with exact issues if any
+
+Do not change the SQL. This is validation only.
