@@ -1,36 +1,28 @@
-Rework only the standalone "accountEngagementWeb" feature query.
+Review "AccountEngagementWeb_Standalone.sql".
 
-Important: do not use generic keyword assumptions or reuse workflow-style filters.
+Keep the existing generic web features:
 
-First inspect both Excel files and derive the logic only from the actual values present in:
+- "web_activity_count_12m"
+- "web_active_days_12m"
+- "days_since_last_web_activity"
+- "recent_web_activity_count_90d"
 
-- "jobSource"
-- "jobTypeDescription"
-- "requestDate"
-- "requestParameters"
+Using only the "jobTypeDescription" values already selected in this SQL from the production Excel samples, add only a small number of strong grouped behavioural features.
 
-Files:
+Suggested groups:
 
-- AccountEngagementWeb_RandomSample_2026-10-29_NoSuperFacts.xlsx
-- AccountEngagementWeb_RandomSample_2026-10-29_WithSuperFacts.xlsx
+- retirement/planning activity
+- profile/detail update activity
+- investment activity
+- beneficiary/TFN/communication update activity, only if meaningful
 
-Before writing SQL:
+Requirements:
 
-1. Extract the distinct "jobTypeDescription" values separately for MEMBERONLINE and SUPERFACTS.
-2. Inspect "requestParameters" patterns for those values.
-3. Decide which actual values appear member-driven, system-generated, or unclear based only on the Excel samples.
+- Do not create one feature per "jobTypeDescription".
+- Do not introduce any new job types that are not already present in this SQL.
+- Keep the existing eligible-account logic, 12-month window, 90-day logic and point-in-time rules unchanged.
+- Keep one row per "accountID".
+- Do not add training, target or scoring logic.
+- Avoid weak or redundant features.
 
-Then recreate only the standalone "accountEngagementWeb" SQL using those observed values/patterns.
-
-Do not introduce generic filters such as "%member%", "%account%", "%contact%", "%login%", "%profile%", "%portfolio%" unless those patterns are clearly supported by the Excel sample data.
-
-Preserve:
-
-- existing eligible account logic
-- 12-month window
-- recent 90-day feature
-- days-since-last activity
-- one row per accountID
-- no post-AsOfDate data
-
-Output only the final standalone "accountEngagementWeb" SQL query.
+Update only "AccountEngagementWeb_Standalone.sql" and return the final revised standalone query.
