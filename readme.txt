@@ -1,23 +1,35 @@
-Investigate why "current_account_fum_amount" is NULL for 90,929 eligible accounts in "consolidated_behavioural_feature_dataset_review.sql".
+Review these two production sample Excel files:
 
-Do not modify the feature logic yet.
+- AccountEngagementWeb_RandomSample_2026-10-29_NoSuperFacts.xlsx
+- AccountEngagementWeb_RandomSample_2026-10-29_WithSuperFacts.xlsx
 
-Classify the NULL FUM accounts into clear reason groups:
+Excel password: "M4rsh_AiD4t4#"
 
-- no "edgeSource.accountInvestments" record exists for the account
-- investment records exist, but only after "@AsOfDate"
-- investment records exist on/before "@AsOfDate" but are excluded by the current as-of logic
-- join/mapping mismatch
-- any other identifiable reason
+Also use the existing "accountEngagementWeb" standalone feature query in "behavioural_features_business_review.sql" as the base.
 
-For each reason group, provide:
+Focus only on:
 
-- account count
-- percentage of the 90,929 NULL-FUM accounts
-- a few sample "accountID"s
+- jobSource
+- jobTypeDescription
+- requestDate
+- requestParameters
 
-Also confirm whether any of these NULLs are genuine zero-balance accounts.
+Analyse MEMBERONLINE and SUPERFACTS separately and identify only meaningful member-driven web behaviour.
 
-Do not replace NULL with 0 and do not change the SQL. This is investigation only.
+Then update/recreate only the standalone "accountEngagementWeb" feature query.
 
-Return a short summary with the main cause and whether the current FUM logic needs correction or the NULLs are expected from source data availability.
+Requirements:
+
+- Preserve the existing eligible account logic and fund/database scope.
+- Preserve the 12-month feature window.
+- Preserve useful 90-day recent behaviour and recency features.
+- Use "requestDate" for point-in-time filtering and do not use any post-AsOfDate data.
+- Exclude clearly backend/system-generated activity where identified from the samples.
+- Include SUPERFACTS only where the sample data indicates meaningful member-driven behaviour.
+- Use "jobTypeDescription" and, only where useful, "requestParameters" to create meaningful grouped web behaviour features.
+- Avoid creating too many weak or highly specific features.
+- Keep one row per "accountID".
+- Do not modify any other standalone feature query.
+- Do not create training, target, scoring or model logic.
+
+Output only the final updated standalone SQL query for "accountEngagementWeb", ready to replace the existing web feature block in "behavioural_features_business_review.sql".
