@@ -1,35 +1,36 @@
-Review these two production sample Excel files:
+Rework only the standalone "accountEngagementWeb" feature query.
+
+Important: do not use generic keyword assumptions or reuse workflow-style filters.
+
+First inspect both Excel files and derive the logic only from the actual values present in:
+
+- "jobSource"
+- "jobTypeDescription"
+- "requestDate"
+- "requestParameters"
+
+Files:
 
 - AccountEngagementWeb_RandomSample_2026-10-29_NoSuperFacts.xlsx
 - AccountEngagementWeb_RandomSample_2026-10-29_WithSuperFacts.xlsx
 
-Excel password: "M4rsh_AiD4t4#"
+Before writing SQL:
 
-Also use the existing "accountEngagementWeb" standalone feature query in "behavioural_features_business_review.sql" as the base.
+1. Extract the distinct "jobTypeDescription" values separately for MEMBERONLINE and SUPERFACTS.
+2. Inspect "requestParameters" patterns for those values.
+3. Decide which actual values appear member-driven, system-generated, or unclear based only on the Excel samples.
 
-Focus only on:
+Then recreate only the standalone "accountEngagementWeb" SQL using those observed values/patterns.
 
-- jobSource
-- jobTypeDescription
-- requestDate
-- requestParameters
+Do not introduce generic filters such as "%member%", "%account%", "%contact%", "%login%", "%profile%", "%portfolio%" unless those patterns are clearly supported by the Excel sample data.
 
-Analyse MEMBERONLINE and SUPERFACTS separately and identify only meaningful member-driven web behaviour.
+Preserve:
 
-Then update/recreate only the standalone "accountEngagementWeb" feature query.
+- existing eligible account logic
+- 12-month window
+- recent 90-day feature
+- days-since-last activity
+- one row per accountID
+- no post-AsOfDate data
 
-Requirements:
-
-- Preserve the existing eligible account logic and fund/database scope.
-- Preserve the 12-month feature window.
-- Preserve useful 90-day recent behaviour and recency features.
-- Use "requestDate" for point-in-time filtering and do not use any post-AsOfDate data.
-- Exclude clearly backend/system-generated activity where identified from the samples.
-- Include SUPERFACTS only where the sample data indicates meaningful member-driven behaviour.
-- Use "jobTypeDescription" and, only where useful, "requestParameters" to create meaningful grouped web behaviour features.
-- Avoid creating too many weak or highly specific features.
-- Keep one row per "accountID".
-- Do not modify any other standalone feature query.
-- Do not create training, target, scoring or model logic.
-
-Output only the final updated standalone SQL query for "accountEngagementWeb", ready to replace the existing web feature block in "behavioural_features_business_review.sql".
+Output only the final standalone "accountEngagementWeb" SQL query.
