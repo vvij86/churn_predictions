@@ -1,21 +1,23 @@
-Run "consolidated_behavioural_feature_dataset_review.sql" for one sample "@AsOfDate" and validate the actual output.
+Investigate why "current_account_fum_amount" is NULL for 90,929 eligible accounts in "consolidated_behavioural_feature_dataset_review.sql".
 
-Do not change the feature logic unless a clear execution issue is found.
+Do not modify the feature logic yet.
 
-Validate and report:
+Classify the NULL FUM accounts into clear reason groups:
 
-- query executes successfully
-- total row count
-- distinct "accountID" count
-- duplicate "accountID + as_of_date" count
-- confirm final grain is one row per "accountID + as_of_date"
-- confirm no unexpected row multiplication
-- confirm "current_account_fum_amount" is populated from the investment as-of logic
-- check NULL counts for each feature group
-- note that "edgeSource.accountEngagementWeb" is currently empty in UAT, so website features may be NULL/unavailable
-- compare a small sample of accounts against the corresponding standalone feature queries and confirm values match
-- identify any execution errors, unexpected NULLs, or mismatched feature values
+- no "edgeSource.accountInvestments" record exists for the account
+- investment records exist, but only after "@AsOfDate"
+- investment records exist on/before "@AsOfDate" but are excluded by the current as-of logic
+- join/mapping mismatch
+- any other identifiable reason
 
-Return a PASS / FAIL summary with exact issues found.
+For each reason group, provide:
 
-Do not start model training or target creation.
+- account count
+- percentage of the 90,929 NULL-FUM accounts
+- a few sample "accountID"s
+
+Also confirm whether any of these NULLs are genuine zero-balance accounts.
+
+Do not replace NULL with 0 and do not change the SQL. This is investigation only.
+
+Return a short summary with the main cause and whether the current FUM logic needs correction or the NULLs are expected from source data availability.
