@@ -1,1 +1,1 @@
-Categorical and missing-value treatment approach documented. Detailed encoding and imputation will be implemented during model preprocessing.
+Define and document the high-level ML development design and flow for dataset preparation, preprocessing, training, validation, model evaluation, registration and scoring before implementation begins.
