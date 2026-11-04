@@ -1,1 +1,1 @@
-
+No, currently churn prediction is at account level, so the same account will have one churn prediction even if it is associated with multiple fundIDs. If fund-specific churn prediction is required, we would need to change the modelling grain to account + fund and review the feature/target logic accordingly.
