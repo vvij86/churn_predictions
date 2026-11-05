@@ -1,1 +1,7 @@
-No, currently churn prediction is at account level, so the same account will have one churn prediction even if it is associated with multiple fundIDs. If fund-specific churn prediction is required, we would need to change the modelling grain to account + fund and review the feature/target logic accordingly.
+SELECT
+    accountID,
+    COUNT(DISTINCT fundID) AS fund_count
+FROM edgeSource.accountSummary
+GROUP BY accountID
+HAVING COUNT(DISTINCT fundID) > 1
+ORDER BY fund_count DESC, accountID;
