@@ -1,350 +1,272 @@
-The model comparison is now complete.
+Use the current validated XGBoost local technical scoring pipeline, but run a new real-data scoring test using:
 
-Current comparison result:
+"AsOfDate = '2025-04-01'"
 
-- Baseline / tuned Random Forest did not naturally produce High Risk rows under the fixed thresholds.
-- XGBoost produced a natural spread of High / Medium / Low risk bands.
-- XGBoost validation performance is comparable/slightly better and gives better probability separation.
+The purpose is to generate a business-review sample with better behavioural variety, especially external rollover information.
 
-For this LOCAL TECHNICAL SAMPLE, use XGBoost as the selected model for the final scoring export.
+Do NOT fabricate any rollover values or churn scores.
 
-Do NOT change the approved feature engineering logic.
+1. Use the same approved feature logic
 
-Do NOT change the risk thresholds:
+Use the existing approved consolidated feature dataset / deterministic sampled version.
 
-- High Risk: churn_probability >= 0.70
-- Medium Risk: 0.40 <= churn_probability < 0.70
-- Low Risk: churn_probability < 0.40
+Keep the grain:
 
-Do NOT fabricate or manually edit any values.
-
-1. Use the cached real feature dataset
-
-Use the same deterministic real-data feature sample used in the model comparison.
-
-Do not rerun the full SQL unless absolutely required.
-
-Use the same:
-
-- feature columns
-- preprocessing
-- target definition
-- account population
-- AsOfDate
-- validation logic
-
-2. Score using selected XGBoost model
-
-Use the selected validated XGBClassifier configuration from the comparison run.
-
-Generate churn probability using:
-
-"predict_proba(... )[:, 1]"
-
-Then derive risk_band using the fixed thresholds.
-
-3. Final mandatory ML output columns
-
-Generate the final scoring output with:
-
-1. account_id
-2. member_id
-3. fundJoinDate
-4. fundID
-5. MonthKey
-6. ml_scoring_date
-7. churn_probability
-8. risk_band
-9. primary_churn_driver
-10. additional_churn_drivers
-11. retention_category
-12. current_account_fum_amount
-13. model_version
-14. risk_trend
-15. risk_change
-16. tenure_years
-17. days_since_last_contribution
-18. net_flow_12m
-19. previous_churn_probability
-20. external_rollover_flag
-21. latest_rollover_destination_type
-22. latest_rollover_destination_name
-23. external_rollover_count_12m
-24. external_rollover_count_6m
-25. risk_rank
-26. risk_percentile
-27. driver_count
-28. scoring_run_timestamp
-29. data_quality_flag
-
-Do NOT add priority_segment for now.
-
-Set model_version clearly, for example:
-
-"XGB_local_v1"
-
-4. Churn drivers
-
-Generate account-level churn drivers from actual model explainability / feature contributions.
-
-Preferred:
-
-- SHAP for XGBoost
-
-Rules:
-
-- primary_churn_driver = strongest strategically significant positive churn-risk driver
-- additional_churn_drivers = other significant drivers, comma separated
-- do not force a fixed number
-- driver_count = number of significant retained drivers
-
-Do not use global feature importance as account-level churn drivers.
-
-Use business-friendly labels.
-
-Only use drivers supported by actual account feature values.
-
-5. Previous score / trend fields
-
-If valid previous monthly score exists:
-
-"previous_churn_probability = previous snapshot churn probability"
-
-"risk_change = current churn_probability - previous_churn_probability"
+"one row per accountID + AsOfDate"
 
 Use:
 
-- «= +0.03 → Increasing»
-- <= -0.03 → Decreasing
-- otherwise → Stable
+"AsOfDate = 2025-04-01"
 
-If previous score is unavailable:
+All model input features must use only data available on or before 2025-04-01.
 
-- previous_churn_probability = NULL
-- risk_change = NULL
-- risk_trend = 'New / No Previous Score'
+Do not introduce future information or target leakage.
 
-Do not fabricate previous scores.
+2. Use XGBoost
 
-6. Rollover fields
+Use the selected XGBoost model/configuration from the previous model comparison.
 
-Use actual source-derived values only.
+Do not switch back to Random Forest for this run.
 
-Do not invent destination names/types.
+Keep the same risk thresholds:
 
-Validate:
+- High >= 0.70
+- Medium >= 0.40 and < 0.70
+- Low < 0.40
 
-- external_rollover_count_6m <= external_rollover_count_12m
-- if rollover count > 0, external_rollover_flag should be Yes
-- internal transfers must remain excluded
+Generate churn_probability using XGBoost predict_proba.
 
-7. Generate final full scoring file
+3. Net Money Flow business decision
 
-Create:
+The client has indicated that "accountNetMoneyFlow" is not considered an important source for the business-facing churn-driver view.
+
+Therefore:
+
+- Do NOT use "net_flow_12m" as the primary churn driver.
+- Do NOT use net money flow related features as additional business-facing churn drivers for this sample.
+- Do not delete the feature from the technical feature dataset unless required.
+- It may remain internally available to the model for now, but it should not be exposed as a churn driver in the business sample.
+
+Prefer business-relevant drivers from the approved feature groups such as:
+
+- Employer contribution cessation
+- Employer SG contribution decline
+- Salary sacrifice cessation
+- Member voluntary contribution decline
+- Reduced contribution frequency
+- Long gap since last contribution
+- Partial rollover-out activity
+- External rollover activity
+- Rollover / consolidation enquiry
+- Complaint / escalation activity
+- Retirement / pension enquiry
+- Investment switch activity
+- Low digital / web engagement
+- Long gap since web activity
+- Helpline engagement
+- workflow/member-driven activity
+
+4. External rollover fields
+
+Inspect the real source fields in:
+
+"edgeSource.accountRolloverPayment"
+
+Use actual source columns only.
+
+Populate, where supported:
+
+- "external_rollover_flag"
+- "latest_rollover_destination_type"
+- "latest_rollover_destination_name"
+- "external_rollover_count_12m"
+- "external_rollover_count_6m"
+
+Exclude internal transfers.
+
+Use only qualifying rollover records on or before AsOfDate.
+
+Do not invent destination names.
+
+If destination name/type is unavailable in the source, leave NULL and document it.
+
+5. Specifically validate rollover population
+
+For the 2025-04-01 scoring population print:
+
+- external_rollover_flag = Yes count
+- external_rollover_flag = No count
+- destination type populated count
+- destination name populated count
+- external_rollover_count_12m > 0 count
+- external_rollover_count_6m > 0 count
+
+Also validate:
+
+"external_rollover_count_6m <= external_rollover_count_12m"
+
+for every account.
+
+6. Final output columns
+
+Generate:
+
+- account_id
+- member_id
+- fundJoinDate
+- fundID
+- MonthKey
+- ml_scoring_date
+- churn_probability
+- risk_band
+- primary_churn_driver
+- additional_churn_drivers
+- retention_category
+- current_account_fum_amount
+- model_version
+- risk_trend
+- risk_change
+- tenure_years
+- days_since_last_contribution
+- net_flow_12m
+- previous_churn_probability
+- external_rollover_flag
+- latest_rollover_destination_type
+- latest_rollover_destination_name
+- external_rollover_count_12m
+- external_rollover_count_6m
+- risk_rank
+- risk_percentile
+- driver_count
+- scoring_run_timestamp
+- data_quality_flag
+
+Note:
+"net_flow_12m" may remain in the output for reference if already required, but it should NOT be used as a displayed churn driver.
+
+Set model_version to something clear such as:
+
+"XGB_local_v1"
+
+7. Churn-driver generation
+
+Use SHAP / account-level XGBoost contribution logic.
+
+Do not use global feature importance as an account-specific driver.
+
+Map technical features to business-friendly driver labels.
+
+Exclude net-money-flow features from the business-facing driver selection.
+
+For each account:
+
+- primary_churn_driver = strongest strategically meaningful driver
+- additional_churn_drivers = other meaningful drivers, comma separated
+- driver_count = count of significant drivers
+
+Do not force a fixed number of drivers.
+
+8. Generate full scoring output
+
+Create/update:
 
 "member_retention_ml_scoring_output.csv"
 
-This must now contain the XGBoost scoring results, replacing the earlier Random Forest sample output.
+using the 2025-04-01 XGBoost scoring result.
 
-Before overwriting, confirm that the old file was generated from Random Forest and the new file is generated from XGBoost.
-
-8. Generate 15-row Confluence sample
+9. Generate 15-row business sample
 
 Create:
 
 "member_retention_ml_scoring_sample_15.csv"
 
-The 15 rows must come directly from the validated XGBoost scoring output.
+The 15 rows must come directly from the real scoring output.
 
-Preferred composition:
+Where available, select:
 
-- 5 High Risk
-- 5 Medium Risk
-- 5 Low Risk
+- 5 High
+- 5 Medium
+- 5 Low
 
-Since XGBoost naturally produced all three bands, aim for exactly 5 / 5 / 5.
+The sample should also deliberately include variety in rollover behaviour.
 
-Do NOT simply take the first 15 rows.
+Where the real data permits, include at least:
 
-Use deterministic sample selection.
+- 2 or more accounts with "external_rollover_flag = Yes"
+- at least 1 account with "latest_rollover_destination_type" populated
+- at least 1 account with "latest_rollover_destination_name" populated
+- accounts with different external_rollover_count_12m values
+- accounts with external rollover = No
 
-Within the 15 rows, include useful variety where possible:
+Do NOT manufacture rollover rows if the real output does not contain enough.
 
-- different churn probabilities
-- different FUM values
-- different primary drivers
-- different additional drivers
-- external rollover Yes and No
-- different rollover counts
-- positive and negative net_flow_12m
-- different tenure_years
-- different days_since_last_contribution
-- different risk trends where available
+Also include variety in:
 
-Do not manually edit values after selection.
+- primary churn driver
+- additional churn drivers
+- FUM
+- tenure_years
+- days_since_last_contribution
+- churn probability
+- risk bands
 
-9. Validate full XGBoost output
+10. Sample selection preference
 
-Run and report:
+When selecting the 15 rows, prefer accounts with richer business information.
 
-Grain
+Priority for representative sample selection:
 
-- total rows
-- distinct account_id + ml_scoring_date
-- duplicate count must be 0
+1. High-risk accounts with real external rollover activity
+2. High-risk accounts with contribution / rollover / complaint / retirement signals
+3. Medium-risk accounts with different behavioural drivers
+4. Low-risk accounts for contrast
 
-Probability
+Do NOT change scores or model results to satisfy this preference.
 
-- min
-- mean
-- P50
-- P75
-- P90
-- P95
-- P99
-- max
-
-All churn probabilities must be between 0 and 1.
-
-Risk bands
-
-Report:
-
-- High count
-- Medium count
-- Low count
-- percentages
-
-Validate thresholds exactly.
-
-FUM
-
-Report:
-
-- populated count
-- NULL count
-- zero count
-- min / median / max
-
-Do not replace genuine NULL FUM with 0.
-
-Drivers
-
-Report:
-
-- primary driver NULL count
-- driver_count distribution
-- top primary driver categories
-
-Ensure no leakage/outcome fields appear as drivers.
-
-Rollover
-
-Report:
-
-- Yes / No counts
-- 12M rollover count distribution
-- 6M rollover count distribution
-- count where 6M > 12M must be 0
-- destination name populated count
-- destination type populated count
-
-Previous score
-
-Report:
-
-- previous score available count
-- previous score unavailable count
-
-10. Validate the 15-row sample separately
+11. Validate 15-row sample
 
 Print:
 
-- High Risk rows = 5
-- Medium Risk rows = 5
-- Low Risk rows = 5
-- Total rows = 15
-
-If exact 5 / 5 / 5 cannot be produced from the real XGBoost output, do not fabricate rows. Report the actual available distribution.
+- total rows = 15
+- High count
+- Medium count
+- Low count
+- external rollover Yes count
+- external rollover No count
+- destination name populated count
+- destination type populated count
 
 Also confirm:
 
-- all 15 sample rows exist in the full scoring output
+- every sample row exists unchanged in the full XGBoost output
+- no duplicate account + scoring date rows
 - no manually edited values
-- no duplicate account rows for the same scoring date
 
-11. Generate validation report
+12. Compare with previous snapshot
 
-Create/update:
+At the end compare the 2025-04-01 result with the previous selected scoring run.
 
-"member_retention_ml_scoring_validation.md"
+Show:
 
-Include:
+"AsOfDate | High | Medium | Low | Max Probability | External Rollover Yes | Destination Name Populated"
 
-Model used
+This will help determine whether 2025-04-01 gives a better business-review sample.
 
-XGBoost
-
-Why selected
-
-State that XGBoost had comparable/slightly better validation performance and better natural probability separation than Random Forest under the unchanged thresholds.
-
-Do NOT state that it was selected simply because it produced High Risk accounts.
-
-Full risk distribution
-
-Show High / Medium / Low counts.
-
-15-row sample distribution
-
-Show High / Medium / Low counts.
-
-Validation checks
-
-PASS / FAIL for:
-
-- grain
-- probability range
-- risk thresholds
-- FUM handling
-- churn drivers
-- rollover consistency
-- previous-score handling
-- 15-row sample composition
-
-12. Final output to display
+13. Final output
 
 At the end show:
 
-A. Selected model
+A. 2025-04-01 full risk distribution
 
-XGBoost + model version
+B. External rollover coverage
 
-B. Full scoring distribution
+C. 15-row sample risk distribution
 
-High / Medium / Low counts
+D. Complete 15-row sample
 
-C. Probability statistics
+E. Top primary churn drivers excluding Net Money Flow
 
-P50 / P90 / P95 / P99 / max
-
-D. 15-row sample
-
-Display the complete 15 rows ready for copying into Confluence.
-
-E. Sample validation
-
-Confirm whether the sample is 5 High / 5 Medium / 5 Low.
-
-F. Limitations
-
-Clearly state:
-
-- this is a local deterministic technical sample
-- not production-ready model selection
-- previous scoring history limitations if applicable
-- rollover destination availability limitations
-- explainability limitations if any
+F. Any source limitations for rollover destination
 
 Important:
-The final CSVs must contain REAL XGBoost scoring results from the validated feature dataset. Do not manufacture a desired business distribution.
+Do not lower thresholds, fabricate rollover data, fabricate destination names, or manipulate scores simply to make the sample look better.
