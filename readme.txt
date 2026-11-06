@@ -1,197 +1,350 @@
-The RF vs tuned RF vs XGBoost comparison is being interrupted because the comparison process is still tied to repeated SQL/model execution.
+The model comparison is now complete.
 
-Please simplify the workflow.
+Current comparison result:
 
-1. Cache the real feature dataset once
+- Baseline / tuned Random Forest did not naturally produce High Risk rows under the fixed thresholds.
+- XGBoost produced a natural spread of High / Medium / Low risk bands.
+- XGBoost validation performance is comparable/slightly better and gives better probability separation.
 
-Use the same already validated deterministic real-data sample of 10,000 accounts from the approved feature dataset.
+For this LOCAL TECHNICAL SAMPLE, use XGBoost as the selected model for the final scoring export.
 
-Run the SQL extraction only once.
+Do NOT change the approved feature engineering logic.
 
-Save the resulting feature dataset locally as:
+Do NOT change the risk thresholds:
 
-"member_retention_feature_sample_10000.parquet"
+- High Risk: churn_probability >= 0.70
+- Medium Risk: 0.40 <= churn_probability < 0.70
+- Low Risk: churn_probability < 0.40
 
-Preferred format: Parquet.
+Do NOT fabricate or manually edit any values.
 
-Also optionally save CSV for inspection:
+1. Use the cached real feature dataset
 
-"member_retention_feature_sample_10000.csv"
+Use the same deterministic real-data feature sample used in the model comparison.
 
-Validate before saving:
+Do not rerun the full SQL unless absolutely required.
 
-- rows = 10,000
-- distinct accountID = 10,000
-- duplicate accountID + AsOfDate = 0
-- no synthetic rows
-- same approved feature logic
-- same target definition
-
-2. Do not query SQL during model comparison
-
-After the feature dataset is cached, all model comparison must read only from the local cached Parquet file.
-
-Do not rerun:
-
-- accountSummary queries
-- feature CTEs
-- rollover queries
-- contribution queries
-- other SQL lookups
-
-during RF / XGBoost comparison.
-
-The purpose is to isolate model comparison from SQL execution issues.
-
-3. Use identical modelling data
-
-Use the exact same cached dataset for:
-
-1. Baseline Random Forest
-2. Tuned Random Forest
-3. XGBoost
-
-Use the exact same:
+Use the same:
 
 - feature columns
 - preprocessing
-- target
-- train split
-- validation split
-- random seed where applicable
-- risk thresholds
+- target definition
+- account population
+- AsOfDate
+- validation logic
 
-Do not create different samples for different models.
+2. Score using selected XGBoost model
 
-4. Keep risk thresholds fixed
+Use the selected validated XGBClassifier configuration from the comparison run.
 
-High >= 0.70
-Medium >= 0.40 and < 0.70
-Low < 0.40
+Generate churn probability using:
 
-Do not alter thresholds to create High Risk rows.
+"predict_proba(... )[:, 1]"
 
-5. Baseline Random Forest
+Then derive risk_band using the fixed thresholds.
 
-Run the current baseline RF configuration and capture:
+3. Final mandatory ML output columns
 
-- ROC-AUC
-- PR-AUC
-- Precision
-- Recall
-- F1
-- confusion matrix
-- probability min
+Generate the final scoring output with:
+
+1. account_id
+2. member_id
+3. fundJoinDate
+4. fundID
+5. MonthKey
+6. ml_scoring_date
+7. churn_probability
+8. risk_band
+9. primary_churn_driver
+10. additional_churn_drivers
+11. retention_category
+12. current_account_fum_amount
+13. model_version
+14. risk_trend
+15. risk_change
+16. tenure_years
+17. days_since_last_contribution
+18. net_flow_12m
+19. previous_churn_probability
+20. external_rollover_flag
+21. latest_rollover_destination_type
+22. latest_rollover_destination_name
+23. external_rollover_count_12m
+24. external_rollover_count_6m
+25. risk_rank
+26. risk_percentile
+27. driver_count
+28. scoring_run_timestamp
+29. data_quality_flag
+
+Do NOT add priority_segment for now.
+
+Set model_version clearly, for example:
+
+"XGB_local_v1"
+
+4. Churn drivers
+
+Generate account-level churn drivers from actual model explainability / feature contributions.
+
+Preferred:
+
+- SHAP for XGBoost
+
+Rules:
+
+- primary_churn_driver = strongest strategically significant positive churn-risk driver
+- additional_churn_drivers = other significant drivers, comma separated
+- do not force a fixed number
+- driver_count = number of significant retained drivers
+
+Do not use global feature importance as account-level churn drivers.
+
+Use business-friendly labels.
+
+Only use drivers supported by actual account feature values.
+
+5. Previous score / trend fields
+
+If valid previous monthly score exists:
+
+"previous_churn_probability = previous snapshot churn probability"
+
+"risk_change = current churn_probability - previous_churn_probability"
+
+Use:
+
+- «= +0.03 → Increasing»
+- <= -0.03 → Decreasing
+- otherwise → Stable
+
+If previous score is unavailable:
+
+- previous_churn_probability = NULL
+- risk_change = NULL
+- risk_trend = 'New / No Previous Score'
+
+Do not fabricate previous scores.
+
+6. Rollover fields
+
+Use actual source-derived values only.
+
+Do not invent destination names/types.
+
+Validate:
+
+- external_rollover_count_6m <= external_rollover_count_12m
+- if rollover count > 0, external_rollover_flag should be Yes
+- internal transfers must remain excluded
+
+7. Generate final full scoring file
+
+Create:
+
+"member_retention_ml_scoring_output.csv"
+
+This must now contain the XGBoost scoring results, replacing the earlier Random Forest sample output.
+
+Before overwriting, confirm that the old file was generated from Random Forest and the new file is generated from XGBoost.
+
+8. Generate 15-row Confluence sample
+
+Create:
+
+"member_retention_ml_scoring_sample_15.csv"
+
+The 15 rows must come directly from the validated XGBoost scoring output.
+
+Preferred composition:
+
+- 5 High Risk
+- 5 Medium Risk
+- 5 Low Risk
+
+Since XGBoost naturally produced all three bands, aim for exactly 5 / 5 / 5.
+
+Do NOT simply take the first 15 rows.
+
+Use deterministic sample selection.
+
+Within the 15 rows, include useful variety where possible:
+
+- different churn probabilities
+- different FUM values
+- different primary drivers
+- different additional drivers
+- external rollover Yes and No
+- different rollover counts
+- positive and negative net_flow_12m
+- different tenure_years
+- different days_since_last_contribution
+- different risk trends where available
+
+Do not manually edit values after selection.
+
+9. Validate full XGBoost output
+
+Run and report:
+
+Grain
+
+- total rows
+- distinct account_id + ml_scoring_date
+- duplicate count must be 0
+
+Probability
+
+- min
+- mean
 - P50
 - P75
 - P90
 - P95
 - P99
 - max
-- High / Medium / Low counts
 
-6. Tuned Random Forest
+All churn probabilities must be between 0 and 1.
 
-Use a LIGHTWEIGHT tuning search only.
+Risk bands
 
-Do not use a huge grid.
+Report:
 
-Test a small number of reasonable combinations around:
+- High count
+- Medium count
+- Low count
+- percentages
 
-- n_estimators: 200, 400
-- max_depth: 8, 12, None
-- min_samples_leaf: 1, 5, 10
-- min_samples_split: 2, 10
-- max_features: sqrt
-- class_weight: None, balanced
+Validate thresholds exactly.
 
-Limit the search so it completes reliably in the local environment.
+FUM
 
-Select the best tuned RF using validation performance, not High Risk count.
+Report:
 
-Capture the same metrics as baseline RF.
+- populated count
+- NULL count
+- zero count
+- min / median / max
 
-7. XGBoost
+Do not replace genuine NULL FUM with 0.
 
-Run XGBClassifier on the SAME cached dataset.
+Drivers
 
-If class imbalance exists, calculate:
+Report:
 
-"scale_pos_weight = negative_count / positive_count"
+- primary driver NULL count
+- driver_count distribution
+- top primary driver categories
 
-Use a modest configuration first, for example:
+Ensure no leakage/outcome fields appear as drivers.
 
-- n_estimators around 200–400
-- max_depth around 3–6
-- learning_rate around 0.03–0.1
-- subsample around 0.8
-- colsample_bytree around 0.8
+Rollover
 
-Do not perform an expensive exhaustive grid search.
+Report:
 
-Capture the same metrics and probability statistics.
+- Yes / No counts
+- 12M rollover count distribution
+- 6M rollover count distribution
+- count where 6M > 12M must be 0
+- destination name populated count
+- destination type populated count
 
-8. Comparison table
+Previous score
 
-Produce:
+Report:
 
-Model | ROC-AUC | PR-AUC | Precision | Recall | F1 | P95 Prob | P99 Prob | Max Prob | High | Medium | Low
+- previous score available count
+- previous score unavailable count
 
-Compare:
+10. Validate the 15-row sample separately
 
-- Baseline RF
-- Tuned RF
-- XGBoost
+Print:
 
-9. Select the model
+- High Risk rows = 5
+- Medium Risk rows = 5
+- Low Risk rows = 5
+- Total rows = 15
 
-Select the best model based primarily on:
+If exact 5 / 5 / 5 cannot be produced from the real XGBoost output, do not fabricate rows. Report the actual available distribution.
 
-- validation ROC-AUC
-- PR-AUC
-- recall / precision balance
-- F1
-- reasonable probability separation
+Also confirm:
 
-Do NOT select a model only because it creates more High Risk accounts.
+- all 15 sample rows exist in the full scoring output
+- no manually edited values
+- no duplicate account rows for the same scoring date
 
-10. Generate outputs from selected model
+11. Generate validation report
 
-Only after selecting the best model, regenerate:
-
-"member_retention_ml_scoring_output.csv"
-
-"member_retention_ml_scoring_sample_15.csv"
+Create/update:
 
 "member_retention_ml_scoring_validation.md"
 
-using the selected model and cached real feature dataset.
+Include:
 
-11. 15-row sample
+Model used
 
-Where naturally available, select:
+XGBoost
 
-- 5 High
-- 5 Medium
-- 5 Low
+Why selected
 
-If High Risk remains unavailable, do not fabricate it.
+State that XGBoost had comparable/slightly better validation performance and better natural probability separation than Random Forest under the unchanged thresholds.
 
-The sample must come directly from the selected model's real scoring output.
+Do NOT state that it was selected simply because it produced High Risk accounts.
 
-12. Final report
+Full risk distribution
 
-Clearly show:
+Show High / Medium / Low counts.
 
-- target class distribution
-- baseline RF metrics
-- tuned RF metrics
-- XGBoost metrics
-- probability distribution for each
-- High / Medium / Low counts
-- selected model
-- reason for selection
-- whether High Risk accounts were naturally generated
+15-row sample distribution
+
+Show High / Medium / Low counts.
+
+Validation checks
+
+PASS / FAIL for:
+
+- grain
+- probability range
+- risk thresholds
+- FUM handling
+- churn drivers
+- rollover consistency
+- previous-score handling
+- 15-row sample composition
+
+12. Final output to display
+
+At the end show:
+
+A. Selected model
+
+XGBoost + model version
+
+B. Full scoring distribution
+
+High / Medium / Low counts
+
+C. Probability statistics
+
+P50 / P90 / P95 / P99 / max
+
+D. 15-row sample
+
+Display the complete 15 rows ready for copying into Confluence.
+
+E. Sample validation
+
+Confirm whether the sample is 5 High / 5 Medium / 5 Low.
+
+F. Limitations
+
+Clearly state:
+
+- this is a local deterministic technical sample
+- not production-ready model selection
+- previous scoring history limitations if applicable
+- rollover destination availability limitations
+- explainability limitations if any
 
 Important:
-This remains a local technical comparison using a deterministic real-data sample and is not production-ready model selection.
+The final CSVs must contain REAL XGBoost scoring results from the validated feature dataset. Do not manufacture a desired business distribution.
