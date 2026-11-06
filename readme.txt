@@ -1,179 +1,197 @@
-The current validated Random Forest scoring output has:
+The RF vs tuned RF vs XGBoost comparison is being interrupted because the comparison process is still tied to repeated SQL/model execution.
 
-- Max churn probability approximately 0.5705
-- High Risk accounts = 0
-- Medium Risk accounts = 7,615
-- Low Risk accounts = 2,385
+Please simplify the workflow.
 
-The agreed thresholds must remain unchanged:
+1. Cache the real feature dataset once
 
-- High >= 0.70
-- Medium >= 0.40 and < 0.70
-- Low < 0.40
+Use the same already validated deterministic real-data sample of 10,000 accounts from the approved feature dataset.
 
-Do NOT lower thresholds just to create High Risk rows.
+Run the SQL extraction only once.
 
-I now want to compare the current Random Forest against a tuned Random Forest and XGBoost using the SAME real feature dataset, same account sample, and same validation methodology.
+Save the resulting feature dataset locally as:
 
-1. Models to compare
+"member_retention_feature_sample_10000.parquet"
 
-Run:
+Preferred format: Parquet.
 
-1. Current baseline RandomForestClassifier
-2. Tuned RandomForestClassifier
-3. XGBoost XGBClassifier
+Also optionally save CSV for inspection:
 
-If XGBoost is not installed, install/import it if permitted in this local environment.
+"member_retention_feature_sample_10000.csv"
 
-2. Keep the dataset identical
+Validate before saving:
 
-Use the same validated real-data feature sample.
+- rows = 10,000
+- distinct accountID = 10,000
+- duplicate accountID + AsOfDate = 0
+- no synthetic rows
+- same approved feature logic
+- same target definition
 
-Do not change:
+2. Do not query SQL during model comparison
 
-- sampled account population
-- target definition
-- feature engineering
-- leakage exclusions
-- AsOfDate
-- train/validation split
+After the feature dataset is cached, all model comparison must read only from the local cached Parquet file.
 
-This is a model comparison only.
+Do not rerun:
 
-3. Class imbalance
+- accountSummary queries
+- feature CTEs
+- rollover queries
+- contribution queries
+- other SQL lookups
 
-First print:
+during RF / XGBoost comparison.
 
-- churn count
-- retained count
-- churn %
-- retained %
+The purpose is to isolate model comparison from SQL execution issues.
 
-For Random Forest test "class_weight='balanced'" where appropriate.
+3. Use identical modelling data
 
-For XGBoost calculate and test a reasonable:
+Use the exact same cached dataset for:
 
-"scale_pos_weight = negative_count / positive_count"
+1. Baseline Random Forest
+2. Tuned Random Forest
+3. XGBoost
 
-Do not oversample or generate synthetic churn records.
+Use the exact same:
 
-4. Tune Random Forest
+- feature columns
+- preprocessing
+- target
+- train split
+- validation split
+- random seed where applicable
+- risk thresholds
 
-Use a modest search across:
+Do not create different samples for different models.
 
-- n_estimators
-- max_depth
-- min_samples_leaf
-- min_samples_split
-- max_features
-- class_weight
+4. Keep risk thresholds fixed
 
-Do not tune specifically to force probabilities above 0.70.
+High >= 0.70
+Medium >= 0.40 and < 0.70
+Low < 0.40
 
-5. XGBoost configuration
+Do not alter thresholds to create High Risk rows.
 
-Use a reasonable initial XGBClassifier configuration and a small tuning search across:
+5. Baseline Random Forest
 
-- n_estimators
-- max_depth
-- learning_rate
-- min_child_weight
-- subsample
-- colsample_bytree
-- reg_alpha
-- reg_lambda
-- scale_pos_weight
-
-Avoid excessive tuning.
-
-6. Validation metrics
-
-For all three models calculate:
+Run the current baseline RF configuration and capture:
 
 - ROC-AUC
-- PR-AUC / Average Precision
+- PR-AUC
 - Precision
 - Recall
 - F1
 - confusion matrix
-- Brier score if possible
-
-Also calculate probability distribution:
-
-- min
-- P25
+- probability min
 - P50
 - P75
 - P90
 - P95
 - P99
 - max
-- mean
+- High / Medium / Low counts
 
-And risk-band counts:
+6. Tuned Random Forest
 
-- High
-- Medium
-- Low
+Use a LIGHTWEIGHT tuning search only.
 
-7. Comparison table
+Do not use a huge grid.
 
-Show:
+Test a small number of reasonable combinations around:
 
-Model | ROC-AUC | PR-AUC | Precision | Recall | F1 | P95 Prob | P99 Prob | Max Prob | High Count | Medium Count | Low Count
+- n_estimators: 200, 400
+- max_depth: 8, 12, None
+- min_samples_leaf: 1, 5, 10
+- min_samples_split: 2, 10
+- max_features: sqrt
+- class_weight: None, balanced
 
-8. Model selection
+Limit the search so it completes reliably in the local environment.
 
-Select the model based primarily on validation performance, not based on whether it produces High Risk rows.
+Select the best tuned RF using validation performance, not High Risk count.
 
-If XGBoost:
+Capture the same metrics as baseline RF.
 
-- improves validation metrics
-- gives better separation between churn and retained accounts
-- and naturally produces a wider probability distribution
+7. XGBoost
 
-then recommend XGBoost for the local technical sample.
+Run XGBClassifier on the SAME cached dataset.
 
-If Random Forest remains better, retain Random Forest.
+If class imbalance exists, calculate:
 
-9. Do not manipulate thresholds
+"scale_pos_weight = negative_count / positive_count"
 
-Keep:
+Use a modest configuration first, for example:
 
-High >= 0.70
-Medium >= 0.40 and < 0.70
-Low < 0.40
+- n_estimators around 200–400
+- max_depth around 3–6
+- learning_rate around 0.03–0.1
+- subsample around 0.8
+- colsample_bytree around 0.8
 
-If all models still produce zero High Risk accounts, report that honestly.
+Do not perform an expensive exhaustive grid search.
 
-10. Regenerate outputs
+Capture the same metrics and probability statistics.
 
-After selecting the best validated model, regenerate:
+8. Comparison table
 
-- "member_retention_ml_scoring_output.csv"
-- "member_retention_ml_scoring_sample_15.csv"
-- "member_retention_ml_scoring_validation.md"
+Produce:
 
-For the 15-row sample, use a representative band mix where naturally available.
+Model | ROC-AUC | PR-AUC | Precision | Recall | F1 | P95 Prob | P99 Prob | Max Prob | High | Medium | Low
 
-Preferred:
+Compare:
+
+- Baseline RF
+- Tuned RF
+- XGBoost
+
+9. Select the model
+
+Select the best model based primarily on:
+
+- validation ROC-AUC
+- PR-AUC
+- recall / precision balance
+- F1
+- reasonable probability separation
+
+Do NOT select a model only because it creates more High Risk accounts.
+
+10. Generate outputs from selected model
+
+Only after selecting the best model, regenerate:
+
+"member_retention_ml_scoring_output.csv"
+
+"member_retention_ml_scoring_sample_15.csv"
+
+"member_retention_ml_scoring_validation.md"
+
+using the selected model and cached real feature dataset.
+
+11. 15-row sample
+
+Where naturally available, select:
 
 - 5 High
 - 5 Medium
 - 5 Low
 
-If High Risk is still unavailable, do not fabricate rows.
+If High Risk remains unavailable, do not fabricate it.
 
-11. Final conclusion
+The sample must come directly from the selected model's real scoring output.
 
-Clearly state:
+12. Final report
 
-- Which model performed best
-- Whether class imbalance affected results
-- Whether tuned RF improved over baseline RF
-- Whether XGBoost improved over RF
-- Maximum probability from each model
-- Whether any model naturally produced High Risk accounts
-- Recommended model for this local technical sample
+Clearly show:
 
-This is still a local technical sample, not production-ready model selection.
+- target class distribution
+- baseline RF metrics
+- tuned RF metrics
+- XGBoost metrics
+- probability distribution for each
+- High / Medium / Low counts
+- selected model
+- reason for selection
+- whether High Risk accounts were naturally generated
+
+Important:
+This remains a local technical comparison using a deterministic real-data sample and is not production-ready model selection.
