@@ -1,4 +1,16 @@
-The XGBoost model now includes all approved predictive features, including the partial rollover features:
+The current XGBoost model includes the approved partial rollover features, but account-level SHAP results still show that partial rollover is rarely becoming a primary or additional churn driver.
+
+I want to tune XGBoost properly and check whether the model can capture rollover-related churn patterns better.
+
+Do NOT artificially force partial rollover to become important.
+
+Do NOT change risk thresholds merely to produce desired results.
+
+Use the same real feature dataset, same target, same train/validation methodology, and same leakage rules.
+
+1. Confirm rollover features are in the model
+
+Before tuning, verify these approved rollover features are present in the XGBoost feature matrix:
 
 - partial_rollover_count_12m
 - partial_rollover_amount_12m
@@ -6,25 +18,89 @@ The XGBoost model now includes all approved predictive features, including the p
 - recent_partial_rollover_count_90d
 - recent_partial_rollover_amount_90d
 
-However, the scoring output still shows very similar primary/additional churn-driver patterns as before.
+Also include any other approved rollover behavioural feature already present in the consolidated feature dataset.
 
-I need to confirm that the retrained XGBoost model and SHAP output are actually using the newly included rollover features correctly.
+Print FOUND / NOT FOUND for each.
 
-Also, I want rollover AMOUNT fields included in the final ML output for Power BI/business review.
+2. Baseline model
 
-1. Confirm the model was retrained
+Run the current XGBoost configuration first and capture baseline metrics:
 
-Do not reuse the old fitted XGBoost model.
+- ROC-AUC
+- PR-AUC / Average Precision
+- Precision
+- Recall
+- F1
+- confusion matrix
+- Brier score if available
+- probability P50
+- P90
+- P95
+- P99
+- max probability
+- High / Medium / Low counts
 
-Confirm that XGBoost was retrained after adding the full approved feature matrix.
+Also calculate SHAP-based rollover diagnostics:
 
-Print:
+- number of rollover-positive accounts
+- number where rollover is top SHAP driver
+- number where rollover is in top 3 SHAP drivers
+- number where rollover is in top 5 SHAP drivers
+- average rollover SHAP contribution among rollover-positive accounts
+- median rollover SHAP contribution
+- maximum rollover SHAP contribution
 
-- total model feature count
-- model training timestamp/run
-- whether partial rollover features are present in the fitted booster feature list
+3. Tune XGBoost
 
-Specifically verify:
+Use a lightweight, controlled hyperparameter search.
+
+Test reasonable combinations around:
+
+- n_estimators: 200, 400, 600
+- max_depth: 3, 4, 5, 6
+- learning_rate: 0.03, 0.05, 0.1
+- min_child_weight: 1, 3, 5, 10
+- subsample: 0.7, 0.8, 1.0
+- colsample_bytree: 0.6, 0.8, 1.0
+- gamma: 0, 0.1, 0.3
+- reg_alpha: 0, 0.1, 0.5
+- reg_lambda: 1, 2, 5
+
+If churn class imbalance exists, calculate:
+
+"scale_pos_weight = negative_count / positive_count"
+
+and compare:
+
+- scale_pos_weight = 1
+- calculated scale_pos_weight
+
+Do not run an excessively large exhaustive grid if it is too slow locally.
+
+Prefer RandomizedSearchCV or a limited manual search.
+
+4. Use proper validation
+
+Use the same chronological/time-based validation where available.
+
+Do not randomize historical snapshots unless necessary for this technical comparison.
+
+Select the best model based primarily on:
+
+- ROC-AUC
+- PR-AUC
+- recall / precision balance
+- F1
+- calibration / Brier score
+- sensible probability separation
+
+Do NOT select the model merely because rollover importance increased.
+
+5. Recalculate SHAP for each candidate / best model
+
+After selecting the best tuned model, calculate account-level SHAP values again.
+
+For rollover-positive accounts, inspect:
 
 - partial_rollover_count_12m
 - partial_rollover_amount_12m
@@ -32,134 +108,130 @@ Specifically verify:
 - recent_partial_rollover_count_90d
 - recent_partial_rollover_amount_90d
 
-2. Recalculate SHAP from the retrained model
+For each account calculate:
 
-Recalculate account-level SHAP values using the newly retrained XGBoost model.
+- actual feature value
+- SHAP contribution
+- SHAP rank
+- whether rollover is primary driver
+- whether rollover is additional driver
 
-Do not reuse previously saved SHAP values.
+6. Compare baseline vs tuned XGBoost
 
-For accounts with rollover activity, print:
+Create a comparison table:
+
+Model | ROC-AUC | PR-AUC | Precision | Recall | F1 | Brier | Max Prob | High Count | Rollover Top1 | Rollover Top3 | Rollover Top5
+
+Include:
+
+- Baseline XGBoost
+- Tuned XGBoost
+
+Also compare:
+
+- average rollover SHAP
+- median rollover SHAP
+- maximum rollover SHAP
+
+among rollover-positive accounts.
+
+7. Specifically inspect high-risk rollover accounts
+
+Find accounts where:
+
+- risk_band = High
+  AND
+- partial_rollover_count_12m > 0
+
+or qualifying external rollover activity exists.
+
+For at least 10 such accounts, print:
 
 - account_id
 - churn_probability
+- risk_band
 - partial_rollover_count_12m
 - partial_rollover_amount_12m
 - days_since_last_partial_rollover
 - recent_partial_rollover_count_90d
 - recent_partial_rollover_amount_90d
-- SHAP value for each rollover feature
-- SHAP rank
+- top 10 positive SHAP features
 - primary_churn_driver
 - additional_churn_drivers
 
-I want to confirm whether rollover is genuinely weak or whether stale explainability output is being reused.
+This is to check whether rollover is genuinely predictive for the riskiest accounts.
 
-3. Validate driver distribution again
+8. Check feature interactions
 
-Print the distribution of:
+Use XGBoost interaction analysis / SHAP interaction values if practical.
 
-"primary_churn_driver"
+Specifically inspect whether rollover becomes more predictive when combined with:
 
-Show:
+- contribution cessation / decline
+- long gap since last contribution
+- retirement / pension enquiry
+- investment switch activity
+- account tenure
+- lower engagement
 
-- driver name
-- count
-- percentage
+Do not force these interactions; report only what the model supports.
 
-Also report:
+9. Avoid artificial rollover weighting
 
-- rollover-positive account count
-- rollover as primary driver count
-- rollover as additional driver count
-- rollover not significant count
+Do NOT:
 
-Do not force rollover to become a driver if SHAP contribution is genuinely low.
+- manually multiply rollover SHAP values
+- duplicate rollover columns
+- change labels to make rollover appear primary
+- lower thresholds only for rollover accounts
+- oversample rollover accounts solely to increase importance
 
-4. Add rollover amount columns to ML output
+Any increase in rollover importance should come naturally from the tuned model and real data.
 
-Add these columns to the final scoring output:
+10. Driver output
 
-- partial_rollover_amount_12m
-- recent_partial_rollover_amount_90d
+After tuning, regenerate:
 
-Also derive and add, if supported by actual source data:
+- primary_churn_driver
+- additional_churn_drivers
+- driver_count
 
-- external_rollover_amount_12m
-- external_rollover_amount_6m
+using the best tuned XGBoost model and fresh SHAP values.
 
-Use actual "accountRolloverPayment.paymentAmount" values only.
+If rollover is materially positive for an account, map it to business-friendly labels such as:
 
-Do not fabricate amounts.
+- Partial rollover-out activity
+- Recent partial rollover activity
+- External rollover activity
 
-5. External rollover amount logic
+Group related rollover features into one business driver where appropriate.
 
-For external rollover amount fields:
+11. Final output
 
-Use qualifying external rollover records on or before AsOfDate.
-
-Exclude internal transfers.
-
-Example logic:
-
-"external_rollover_amount_12m"
-= SUM(paymentAmount) for qualifying external rollover transactions during the previous 12 months.
-
-"external_rollover_amount_6m"
-= SUM(paymentAmount) for qualifying external rollover transactions during the previous 6 months.
-
-Validate:
-
-"external_rollover_amount_6m <= external_rollover_amount_12m"
-
-for normal positive rollover amounts.
-
-If the source does not support a clean external rollover amount definition, state that clearly rather than inventing one.
-
-6. Updated mandatory output fields
-
-Keep all existing output fields and add:
-
-- partial_rollover_amount_12m
-- recent_partial_rollover_amount_90d
-- external_rollover_amount_12m
-- external_rollover_amount_6m
-
-Keep existing:
-
-- external_rollover_flag
-- latest_rollover_destination_type
-- latest_rollover_destination_name
-- external_rollover_count_12m
-- external_rollover_count_6m
-
-7. Regenerate files
-
-After retraining and SHAP recalculation, regenerate:
+Regenerate:
 
 - member_retention_ml_scoring_output.csv
 - member_retention_ml_scoring_sample_15.csv
 - member_retention_ml_scoring_validation.md
 
-8. 15-row sample
+Keep the fixed risk thresholds:
 
-For the 15-row sample, include several accounts where rollover data is populated.
+- High >= 0.70
+- Medium >= 0.40 and < 0.70
+- Low < 0.40
 
-Where available, include examples with:
+12. Final conclusion
 
-- external_rollover_flag = Yes
-- external_rollover_count_12m > 0
-- external_rollover_amount_12m > 0
-- rollover destination populated
-- High / Medium / Low risk variety
+At the end clearly answer:
 
-Do not manually edit or fabricate sample values.
+1. Did tuned XGBoost improve validation performance?
+2. Did rollover SHAP contribution increase?
+3. How many rollover-positive accounts now have rollover as:
+   - primary driver
+   - top 3 driver
+   - top 5 driver
+4. Did rollover become more important naturally, or is it still weak?
+5. Which XGBoost configuration should be retained?
+6. Should rollover remain model-driven only, or should a separate business-priority display rule be considered?
 
-9. Final conclusion
-
-Clearly state:
-
-1. Was XGBoost retrained after adding all features?
-2. Were SHAP values recalculated?
-3. Are rollover SHAP contributions still genuinely low?
-4. How many accounts have rollover as primary/additional driver?
-5. Are the new rollover amount fields populated correctly?
+Do not claim production readiness.
