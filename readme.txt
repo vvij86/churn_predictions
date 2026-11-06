@@ -1,193 +1,268 @@
-The current XGBoost output contains accounts where:
+The consolidated SQL feature dataset already contains the approved behavioural features, including rollover features.
 
-- "external_rollover_flag = Yes"
-- "external_rollover_count_12m > 0"
-- rollover destination fields are populated
+I need the Python/XGBoost pipeline to use all approved predictive feature columns available in the consolidated feature dataset, instead of a manually restricted feature subset.
 
-but the generated "primary_churn_driver" is often something else such as Campaign activity, Member service activity, Account tenure, etc.
+Do not add synthetic features.
 
-I need to verify whether external rollover features are actually being considered correctly in the account-level churn-driver logic.
+Do not include identifiers, target fields, future information, or reporting-only output columns.
 
-Please do the following.
+1. Inspect the actual dataset columns
 
-1. Confirm rollover features are in the XGBoost feature matrix
+After loading the feature dataset, print:
 
-Print whether the following fields, or their actual equivalent feature names, are included in model training/scoring:
+- total column count
+- all column names
+- data types
 
-- external_rollover_flag
-- external_rollover_count_12m
-- external_rollover_count_6m
+Then classify each column into:
+
+1. Predictive model feature
+2. Identifier/reference only
+3. Target/outcome field
+4. Reporting/output-only field
+5. Excluded leakage/future field
+
+Show the classification before training.
+
+2. Include all approved predictive features
+
+Automatically include all valid predictive feature columns from the consolidated dataset.
+
+Do not manually restrict the model to only a small feature list.
+
+This should include approved feature groups such as:
+
+Account/profile
+
+- account tenure
+- member age
+- member source
+- benefit type/class
+- super/pension indicators
+- other approved account profile attributes
+
+Contribution / money inflow
+
+- contribution_count_12m
+- contribution_amount_12m
+- avg_contribution_transaction_amount_12m
+- contribution_active_months_12m
+- days_since_last_contribution
+- recent_contribution_amount_90d
+- prior_contribution_amount_90d
+- contribution_decline_flag
+- months_of_declining_contribution
+- employer SG current/baseline/change/cessation features
+- salary sacrifice current/baseline/change/cessation/increase features
+- member voluntary contribution current/baseline/change/cessation/increase features
+
+Rollover
+
+Include all existing approved rollover features in the SQL output, especially:
+
 - partial_rollover_count_12m
 - partial_rollover_amount_12m
 - days_since_last_partial_rollover
 - recent_partial_rollover_count_90d
 - recent_partial_rollover_amount_90d
 
-Use the actual feature names present in the dataset.
+If these columns exist in the dataset, they MUST be included in the XGBoost feature matrix unless there is a documented technical reason not to.
 
-If any rollover fields are output-only and not model features, state that clearly.
+Also include any approved external rollover count features if they are genuine model features rather than output-only fields.
 
-2. Validate account-level SHAP values
+Helpline
 
-For accounts where:
+Include approved helpline behavioural features such as:
 
-"external_rollover_flag = Yes"
+- contact count
+- inquiry count
+- active days
+- days since last contact
+- recent 90-day activity
+- approved inquiry/theme features
 
-and/or:
+Workflow
 
-"external_rollover_count_12m > 0"
+Include approved member-driven workflow features.
 
-calculate ACCOUNT-LEVEL SHAP values from the selected XGBoost model.
+Website
 
-Do not use global feature importance for this check.
+Include approved website engagement features where populated.
 
-For at least 15 such accounts, print:
+Campaign
+
+Include approved campaign/event behavioural features currently in scope.
+
+Investment
+
+Include:
+
+- investment option count
+- direct investment flag
+- approved investment switch features
+- other approved investment behavioural features
+
+Insurance
+
+Include approved active cover / cover amount features.
+
+Third party authority
+
+Include approved authority flags/counts.
+
+Other approved behavioural features
+
+Include all other predictive columns already present in the consolidated feature dataset.
+
+3. Explicitly exclude non-model fields
+
+Exclude from model training:
+
+- accountID / account_id
+- memberID / memberNumber / member_id
+- AsOfDate
+- fundJoinDate
+- fundID where used only for reporting/reference
+- MonthKey
+- ml_scoring_date
+- exitDateRecorded
+- target_churn from X
+- any outcome-window fields
+- churn_probability
+- risk_band
+- retention_category
+- model_version
+- primary_churn_driver
+- additional_churn_drivers
+- risk_trend
+- risk_change
+- previous_churn_probability
+- scoring_run_timestamp
+- data_quality_flag
+- latest_rollover_destination_name
+- latest_rollover_destination_type
+- any post-AsOfDate/future fields
+- any target leakage fields
+
+Do not exclude a valid predictive feature just because it contains the word "rollover".
+
+4. Verify rollover features specifically
+
+After building X_train / model feature matrix, print whether each rollover feature is present.
+
+For example:
+
+"partial_rollover_count_12m -> FOUND / NOT FOUND"
+"partial_rollover_amount_12m -> FOUND / NOT FOUND"
+"days_since_last_partial_rollover -> FOUND / NOT FOUND"
+"recent_partial_rollover_count_90d -> FOUND / NOT FOUND"
+"recent_partial_rollover_amount_90d -> FOUND / NOT FOUND"
+
+If any existing approved rollover feature is missing, fix the feature-selection logic before training.
+
+5. Print final XGBoost feature list
+
+Before model.fit(), print:
+
+- number of model features
+- complete final feature list
+
+Also save it to:
+
+"member_retention_xgboost_feature_list.txt"
+
+6. Retrain XGBoost
+
+Retrain XGBoost using the full approved predictive feature matrix.
+
+Use the same:
+
+- real-data sample
+- target
+- train/validation split
+- preprocessing
+- fixed risk thresholds
+
+Do not change thresholds:
+
+High >= 0.70
+Medium >= 0.40 and < 0.70
+Low < 0.40
+
+7. Recalculate account-level SHAP
+
+After retraining, recalculate account-level SHAP values using the full feature matrix.
+
+For accounts with rollover activity, verify whether rollover features now appear among the top positive contributors.
+
+Do not force rollover to be a driver.
+
+It should appear only when its actual SHAP contribution is material.
+
+8. Driver mapping
+
+Map approved raw rollover features to business-friendly labels:
+
+- partial_rollover_count_12m -> Partial rollover-out activity
+- partial_rollover_amount_12m -> Partial rollover-out activity
+- days_since_last_partial_rollover -> Recent partial rollover activity
+- recent_partial_rollover_count_90d -> Recent partial rollover activity
+- recent_partial_rollover_amount_90d -> Recent partial rollover activity
+
+Avoid displaying multiple raw features from the same feature family as separate duplicate business drivers.
+
+Group them into one meaningful business driver where appropriate.
+
+9. Driver validation
+
+For at least 10 rollover-positive accounts print:
 
 - account_id
 - churn_probability
-- risk_band
-- external_rollover_flag
-- external_rollover_count_12m
-- external_rollover_count_6m
-- latest_rollover_destination_type
-- latest_rollover_destination_name
-- rollover-related feature name
-- actual rollover feature value
-- rollover SHAP contribution
-- rollover SHAP rank among all positive contributors
-- current primary_churn_driver
-- current additional_churn_drivers
-
-3. Print top positive SHAP contributors
-
-For the same accounts print the top 10 positive SHAP contributors:
-
-- raw feature name
-- actual feature value
-- SHAP value
-- mapped business driver name
-- rank
-
-I want to see whether rollover-related features are genuinely weaker than the current primary driver, or whether the mapping/selection logic is dropping them.
-
-4. Check driver mapping
-
-Verify that rollover raw features map to business-friendly driver labels such as:
-
-- "External rollover activity"
-- "Partial rollover-out activity"
-- "Recent external rollover activity"
-- "Repeated external rollover activity"
-
-Do not allow valid rollover features to fall into an unmapped/ignored category.
-
-5. Check driver-selection threshold
-
-Review the current threshold used to decide whether a SHAP contributor becomes:
-
+- rollover feature values
+- top 10 positive SHAP features
 - primary_churn_driver
 - additional_churn_drivers
 
-If the additional-driver threshold is too restrictive and causes valid material rollover contributors to be dropped, adjust it to a reasonable relative/significance rule.
+Confirm whether rollover is:
 
-Do NOT force rollover to appear merely because the rollover flag is Yes.
+- primary driver
+- additional driver
+- not significant
 
-The driver must still have a meaningful positive account-level SHAP contribution.
+based on actual SHAP contribution.
 
-6. Specific expected logic
+10. Regenerate final outputs
 
-Example:
+After retraining and driver validation, regenerate:
 
-If an account has:
+- "member_retention_ml_scoring_output.csv"
+- "member_retention_ml_scoring_sample_15.csv"
+- "member_retention_ml_scoring_validation.md"
 
-- external_rollover_flag = Yes
-- external_rollover_count_12m = 2
+The 15-row sample should still aim for:
 
-and SHAP values are:
+- 5 High
+- 5 Medium
+- 5 Low
 
-- external_rollover_count_12m = +0.28
-- campaign_activity = +0.10
-- account_tenure = +0.06
+where naturally available.
 
-then expected output should be approximately:
+Also include several rows with real rollover activity if available.
 
-Primary Driver:
-"External rollover activity"
+11. Final validation summary
 
-Additional Drivers:
-"Campaign activity, Account tenure"
+At the end show:
 
-But if:
+- total model feature count before and after this fix
+- rollover features included
+- XGBoost validation metrics
+- risk-band distribution
+- top primary driver distribution
+- count of rollover-positive accounts
+- count where rollover is primary driver
+- count where rollover is additional driver
+- count where rollover is not significant
 
-- campaign_activity = +0.24
-- external_rollover_count_12m = +0.05
-
-then Campaign activity may correctly remain primary, and External rollover may appear only as an additional driver if significant.
-
-7. Check leakage safety
-
-Only rollover events occurring on or before AsOfDate may be considered.
-
-Internal transfers must remain excluded.
-
-Do not use:
-
-- post-AsOfDate rollover events
-- full exit completion events from the outcome window
-- future rollover information
-
-as predictive drivers.
-
-8. Driver distribution check
-
-After fixing/validating the logic, print the full distribution of "primary_churn_driver".
-
-Show:
-
-- driver name
-- account count
-- percentage
-
-Also specifically show:
-
-- number of accounts with external rollover activity
-- number of those where rollover is primary driver
-- number where rollover is additional driver
-- number where rollover is not a significant driver
-
-9. Regenerate output only if required
-
-If the investigation identifies a mapping or driver-selection bug, regenerate:
-
-- "primary_churn_driver"
-- "additional_churn_drivers"
-- "driver_count"
-
-in:
-
-"member_retention_ml_scoring_output.csv"
-
-and:
-
-"member_retention_ml_scoring_sample_15.csv"
-
-Do not change:
-
-- churn_probability
-- risk_band
-- model scores
-- risk thresholds
-
-unless model scoring itself is found to be wrong.
-
-10. Final conclusion
-
-At the end clearly state one of these:
-
-A. Rollover features are working correctly and their SHAP contribution is genuinely lower than other drivers.
-
-OR
-
-B. Rollover features had significant SHAP contribution but were missing because of driver mapping / selection logic, and the output has now been corrected.
-
-Also show 5 example accounts with external rollover activity before and after the driver validation.
+Important:
+Use all approved predictive features from the actual consolidated dataset. Do not manually omit rollover or other behavioural features without a documented reason.
