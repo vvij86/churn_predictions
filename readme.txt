@@ -1,79 +1,94 @@
-The current real-data Random Forest scoring output produces no High Risk accounts using the agreed threshold:
+The current validated Random Forest scoring output has:
 
-High Risk >= 0.70
-Medium Risk >= 0.40 and < 0.70
-Low Risk < 0.40
+- Max churn probability approximately 0.5705
+- High Risk accounts = 0
+- Medium Risk accounts = 7,615
+- Low Risk accounts = 2,385
 
-Do NOT lower the thresholds simply to create High Risk rows.
-
-I want to diagnose whether the current Random Forest is underfitting, affected by class imbalance, or producing compressed probabilities.
-
-Please perform the following.
-
-1. Check target distribution
-
-For the actual training dataset print:
-
-- total rows
-- churn count
-- retained count
-- churn %
-- retained %
-
-Also show the target distribution for train and validation datasets separately.
-
-2. Check baseline probability distribution
-
-For the existing Random Forest, print predicted probability statistics:
-
-- minimum
-- P25
-- P50
-- P75
-- P90
-- P95
-- P99
-- maximum
-- mean
-
-Do this for both train and validation data.
-
-Also show counts using the existing risk thresholds:
+The agreed thresholds must remain unchanged:
 
 - High >= 0.70
 - Medium >= 0.40 and < 0.70
 - Low < 0.40
 
-3. Check class imbalance handling
+Do NOT lower thresholds just to create High Risk rows.
 
-If the churn class is materially imbalanced, test:
+I now want to compare the current Random Forest against a tuned Random Forest and XGBoost using the SAME real feature dataset, same account sample, and same validation methodology.
 
-"class_weight='balanced'"
+1. Models to compare
 
-Do not oversample or generate synthetic churn records for this initial technical exercise unless clearly documented separately.
+Run:
+
+1. Current baseline RandomForestClassifier
+2. Tuned RandomForestClassifier
+3. XGBoost XGBClassifier
+
+If XGBoost is not installed, install/import it if permitted in this local environment.
+
+2. Keep the dataset identical
+
+Use the same validated real-data feature sample.
+
+Do not change:
+
+- sampled account population
+- target definition
+- feature engineering
+- leakage exclusions
+- AsOfDate
+- train/validation split
+
+This is a model comparison only.
+
+3. Class imbalance
+
+First print:
+
+- churn count
+- retained count
+- churn %
+- retained %
+
+For Random Forest test "class_weight='balanced'" where appropriate.
+
+For XGBoost calculate and test a reasonable:
+
+"scale_pos_weight = negative_count / positive_count"
+
+Do not oversample or generate synthetic churn records.
 
 4. Tune Random Forest
 
-Compare the existing baseline model against a modest tuned Random Forest.
+Use a modest search across:
 
-Test reasonable values for:
+- n_estimators
+- max_depth
+- min_samples_leaf
+- min_samples_split
+- max_features
+- class_weight
 
-- n_estimators: 200, 400, 600
-- max_depth: None, 8, 12, 16
-- min_samples_split: 2, 10, 25
-- min_samples_leaf: 1, 5, 10, 20
-- max_features: 'sqrt', 0.5
-- class_weight: None, 'balanced'
+Do not tune specifically to force probabilities above 0.70.
 
-Use time-based validation if the historical dataset supports it.
+5. XGBoost configuration
 
-Do not optimize specifically for generating probabilities above 0.70.
+Use a reasonable initial XGBClassifier configuration and a small tuning search across:
 
-Select the model based on validation performance.
+- n_estimators
+- max_depth
+- learning_rate
+- min_child_weight
+- subsample
+- colsample_bytree
+- reg_alpha
+- reg_lambda
+- scale_pos_weight
 
-5. Compare models
+Avoid excessive tuning.
 
-For baseline RF and tuned RF report:
+6. Validation metrics
+
+For all three models calculate:
 
 - ROC-AUC
 - PR-AUC / Average Precision
@@ -81,34 +96,47 @@ For baseline RF and tuned RF report:
 - Recall
 - F1
 - confusion matrix
-- Brier score if straightforward
-- min / mean / max churn probability
-- P90 / P95 / P99 churn probability
-- High / Medium / Low account counts
+- Brier score if possible
 
-Show a clear comparison table.
+Also calculate probability distribution:
 
-6. Check for underfitting
+- min
+- P25
+- P50
+- P75
+- P90
+- P95
+- P99
+- max
+- mean
 
-Compare training and validation performance.
+And risk-band counts:
 
-If both training and validation scores are weak and probability range is narrow, flag likely underfitting.
+- High
+- Medium
+- Low
 
-If training performance is much higher than validation performance, flag possible overfitting.
+7. Comparison table
 
-7. Test one additional model
+Show:
 
-If tuned Random Forest still produces strongly compressed probabilities, test one additional model using the same feature dataset and time-based split.
+Model | ROC-AUC | PR-AUC | Precision | Recall | F1 | P95 Prob | P99 Prob | Max Prob | High Count | Medium Count | Low Count
 
-Preferred:
+8. Model selection
 
-"HistGradientBoostingClassifier"
+Select the model based primarily on validation performance, not based on whether it produces High Risk rows.
 
-Do not replace the Random Forest automatically.
+If XGBoost:
 
-Compare it against Random Forest using the same evaluation metrics.
+- improves validation metrics
+- gives better separation between churn and retained accounts
+- and naturally produces a wider probability distribution
 
-8. Do not manipulate risk thresholds
+then recommend XGBoost for the local technical sample.
+
+If Random Forest remains better, retain Random Forest.
+
+9. Do not manipulate thresholds
 
 Keep:
 
@@ -116,40 +144,36 @@ High >= 0.70
 Medium >= 0.40 and < 0.70
 Low < 0.40
 
-Do not lower the High threshold just to populate the High band.
+If all models still produce zero High Risk accounts, report that honestly.
 
-If the best validated model still produces zero High Risk accounts, explicitly report that finding.
+10. Regenerate outputs
 
-9. Regenerate sample only after model comparison
+After selecting the best validated model, regenerate:
 
-If the selected validated model naturally produces all three bands, regenerate:
+- "member_retention_ml_scoring_output.csv"
+- "member_retention_ml_scoring_sample_15.csv"
+- "member_retention_ml_scoring_validation.md"
 
-"member_retention_ml_scoring_output.csv"
+For the 15-row sample, use a representative band mix where naturally available.
 
-and
-
-"member_retention_ml_scoring_sample_15.csv"
-
-For the 15-row sample, where available select:
+Preferred:
 
 - 5 High
 - 5 Medium
 - 5 Low
 
-using only real scored rows.
+If High Risk is still unavailable, do not fabricate rows.
 
-If High Risk is still unavailable, do not fabricate it.
+11. Final conclusion
 
-10. Final conclusion
+Clearly state:
 
-Clearly answer:
+- Which model performed best
+- Whether class imbalance affected results
+- Whether tuned RF improved over baseline RF
+- Whether XGBoost improved over RF
+- Maximum probability from each model
+- Whether any model naturally produced High Risk accounts
+- Recommended model for this local technical sample
 
-1. Is class imbalance present?
-2. Is the current RF underfitting?
-3. Did class_weight improve performance?
-4. Did tuning improve validation metrics?
-5. Did tuning naturally generate High Risk accounts?
-6. Which model should be retained for this local technical sample?
-7. Are the existing 0.70 / 0.40 risk thresholds appropriate based on the observed score distribution, or should threshold calibration be reviewed later with business after model validation?
-
-Do not claim production readiness.
+This is still a local technical sample, not production-ready model selection.
