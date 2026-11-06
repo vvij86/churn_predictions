@@ -1,18 +1,180 @@
-The latest XGBoost output still needs two corrections.
+The current XGBoost scoring output looks good overall.
 
-Issue 1
+I now want to test a few more AsOfDates to find a real snapshot with better rollover activity coverage, especially accounts with rollover amounts that also naturally fall into High Risk.
 
-The final CSV does not clearly contain/populate the required rollover amount fields and "model_version".
+Do NOT fabricate rollover values.
+Do NOT change the risk thresholds.
+Do NOT manually force rollover to become High Risk.
 
-Issue 2
+Keep the current XGBoost model / feature logic / driver logic unchanged unless required for the new AsOfDate runs.
 
-Accounts with qualifying external / partial rollover activity are still not showing rollover as a high-priority business-facing churn driver.
+1. Add age to final output
 
-Please fix both without changing churn_probability or risk_band.
+Add:
 
-1. Mandatory final output schema
+"age_years"
 
-Regenerate "member_retention_ml_scoring_output.csv" with these columns explicitly present in the final exported DataFrame and CSV:
+to:
+
+- "member_retention_ml_scoring_output.csv"
+- "member_retention_ml_scoring_sample_15.csv"
+
+Use the existing approved member age feature already present in the consolidated feature dataset.
+
+Do not derive a new age definition if an approved "member_age" / equivalent feature already exists.
+
+Use a clear business-facing column name:
+
+"age_years"
+
+Validate:
+
+- age_years populated count
+- age_years NULL count
+- min / median / max age
+
+2. Test additional AsOfDates
+
+Run the same scoring process for these AsOfDates:
+
+- 2025-04-01
+- 2025-05-01
+- 2025-06-01
+- 2025-07-01
+- 2025-08-01
+- 2025-09-01
+
+If one date cannot run because of source coverage, report it and continue.
+
+Use the same deterministic real-account sample approach for each date.
+
+Keep:
+
+- same approved feature engineering logic
+- same XGBoost model approach
+- same feature list
+- same preprocessing
+- same leakage controls
+- same risk thresholds
+
+3. Keep risk thresholds fixed
+
+Use:
+
+- High >= 0.70
+- Medium >= 0.40 and < 0.70
+- Low < 0.40
+
+Do not lower the High threshold.
+
+4. For each AsOfDate calculate overall risk distribution
+
+Print:
+
+- total rows
+- High count
+- Medium count
+- Low count
+- High %
+- Medium %
+- Low %
+- min churn_probability
+- P50
+- P90
+- P95
+- P99
+- max churn_probability
+
+5. Specifically measure rollover coverage
+
+For each AsOfDate report:
+
+- accounts with "external_rollover_flag = Yes"
+- accounts with "external_rollover_count_12m > 0"
+- accounts with "external_rollover_amount_12m > 0"
+- accounts with "partial_rollover_count_12m > 0"
+- accounts with "partial_rollover_amount_12m > 0"
+- destination type populated count
+- destination name populated count
+
+Also report:
+
+- total external_rollover_amount_12m
+- median external_rollover_amount_12m
+- max external_rollover_amount_12m
+- total partial_rollover_amount_12m
+- median partial_rollover_amount_12m
+- max partial_rollover_amount_12m
+
+6. Identify rollover accounts that are High Risk
+
+For each AsOfDate calculate:
+
+External rollover High Risk
+
+Count of accounts where:
+
+"risk_band = 'High'"
+
+AND:
+
+"external_rollover_amount_12m > 0"
+
+Also report:
+
+- average churn_probability
+- median rollover amount
+- max rollover amount
+
+Partial rollover High Risk
+
+Count of accounts where:
+
+"risk_band = 'High'"
+
+AND:
+
+"partial_rollover_amount_12m > 0"
+
+Also report:
+
+- average churn_probability
+- median partial rollover amount
+- max partial rollover amount
+
+7. Create AsOfDate comparison table
+
+Show:
+
+AsOfDate | Total Rows | High | Medium | Low | External Rollover Yes | External Rollover Amt > 0 | High + External Rollover | Partial Rollover Amt > 0 | High + Partial Rollover | Max Probability
+
+Use this table to identify which AsOfDate provides the strongest natural business-review variety.
+
+Do NOT select solely based on rollover amount.
+
+Prefer a date with:
+
+- meaningful High / Medium / Low spread
+- real rollover-positive accounts
+- some High Risk accounts with rollover activity
+- good source coverage
+
+8. Select the best AsOfDate
+
+Choose the best snapshot for Confluence / Power BI review.
+
+Explain why it was selected.
+
+Example rationale:
+
+- contains all three risk bands
+- contains several real rollover-positive accounts
+- contains rollover-positive High Risk accounts
+- contains varied FUM / age / tenure / contribution behaviour
+
+9. Final output columns
+
+Keep the current final output and ensure these are present:
 
 - account_id
 - member_id
@@ -20,6 +182,7 @@ Regenerate "member_retention_ml_scoring_output.csv" with these columns explicitl
 - fundID
 - MonthKey
 - ml_scoring_date
+- age_years
 - churn_probability
 - risk_band
 - primary_churn_driver
@@ -34,7 +197,7 @@ Regenerate "member_retention_ml_scoring_output.csv" with these columns explicitl
 - net_flow_12m
 - previous_churn_probability
 
-External rollover reporting fields
+Rollover fields
 
 - external_rollover_flag
 - latest_rollover_destination_type
@@ -43,249 +206,79 @@ External rollover reporting fields
 - external_rollover_count_6m
 - external_rollover_amount_12m
 - external_rollover_amount_6m
-
-Partial rollover model/reporting fields
-
 - partial_rollover_count_12m
 - partial_rollover_amount_12m
 - days_since_last_partial_rollover
 - recent_partial_rollover_count_90d
 - recent_partial_rollover_amount_90d
 
-Additional useful fields
+Reporting / validation fields
 
 - risk_rank
 - risk_percentile
 - driver_count
 - scoring_run_timestamp
 - data_quality_flag
-
-Before saving the CSV, print the final DataFrame column list and confirm every required column is present.
-
-2. model_version
-
-Populate:
-
-"model_version = 'XGB_local_v1'"
-
-for every scored row.
-
-Validate:
-
-- model_version NULL count = 0
-- distinct model_version values
-
-Expected result:
-
-"XGB_local_v1"
-
-Do not allow model_version to disappear during final column selection/export.
-
-3. External rollover amount calculation
-
-Use actual qualifying records from:
-
-"edgeSource.accountRolloverPayment"
-
-and actual "paymentAmount".
-
-Generate:
-
-external_rollover_amount_12m
-
-Sum qualifying external rollover amount between:
-
-"AsOfDate - 12 months" and "AsOfDate"
-
-external_rollover_amount_6m
-
-Sum qualifying external rollover amount between:
-
-"AsOfDate - 6 months" and "AsOfDate"
-
-Exclude:
-
-- internal transfers
-- events after AsOfDate
-- non-qualifying rollover/payment types
-
-Do not fabricate amounts.
-
-If no qualifying external rollover exists, use 0 only when that genuinely means no qualifying event; otherwise preserve NULL according to the source logic.
-
-4. Validate external rollover amounts
-
-Print:
-
-- accounts with external_rollover_flag = Yes
-- accounts with external_rollover_amount_12m > 0
-- accounts with external_rollover_amount_6m > 0
-- min / median / max external rollover amount
-- count where external_rollover_amount_6m > external_rollover_amount_12m
-
-The last count should be 0.
-
-Also identify any account where:
-
-"external_rollover_flag = Yes"
-
-but:
-
-"external_rollover_amount_12m = 0 or NULL"
-
-and explain why.
-
-5. Business-prioritized churn-driver rule
-
-For the BUSINESS-FACING churn-driver fields, apply the following hierarchy.
-
-This is a business explanation rule and must NOT change XGBoost probability, SHAP values or risk_band.
-
-Priority 1 – Qualifying external rollover
-
-If:
-
-"external_rollover_count_12m > 0"
-
-OR:
-
-"external_rollover_amount_12m > 0"
-
-then set:
-
-"primary_churn_driver = 'External rollover activity'"
-
-This applies only to genuine qualifying rollover activity before AsOfDate.
-
-Priority 2 – Partial rollover
-
-If there is no qualifying external rollover but:
-
-"partial_rollover_count_12m > 0"
-
-OR:
-
-"partial_rollover_amount_12m > 0"
-
-then:
-
-"primary_churn_driver = 'Partial rollover-out activity'"
-
-Priority 3 – Recent partial rollover
-
-If there is no higher-priority rollover rule but:
-
-"recent_partial_rollover_count_90d > 0"
-
-OR:
-
-"recent_partial_rollover_amount_90d > 0"
-
-then:
-
-"primary_churn_driver = 'Recent partial rollover activity'"
-
-Priority 4 – Model / SHAP driver
-
-If there is no qualifying rollover behaviour, use the strongest strategically meaningful positive SHAP driver.
-
-6. Additional churn drivers
-
-After applying the business-priority primary driver, populate "additional_churn_drivers" from the strongest remaining meaningful SHAP/business drivers.
-
-Example:
-
-Primary:
-"External rollover activity"
-
-Additional:
-"Contribution decline, Long gap since last contribution"
-
-Do not repeat rollover again in additional drivers.
-
-Do not force low-value technical features simply to fill the field.
-
-7. Preserve pure model explanation separately
-
-To maintain transparency, add:
-
-- "model_top_shap_driver"
-- "model_top_shap_value"
-
-Example:
-
-"primary_churn_driver = External rollover activity"
-
-but:
-
-"model_top_shap_driver = Campaign activity"
-
-This makes it clear that primary_churn_driver is business-prioritized, while the pure model explanation is still retained separately.
-
-8. Rollover driver validation
-
-After regeneration print:
-
-- external rollover positive accounts
-- partial rollover positive accounts
-- accounts with External rollover activity as primary driver
-- accounts with Partial rollover-out activity as primary driver
-- accounts where business primary driver differs from model_top_shap_driver
-
-Specifically show 10 example rollover-positive accounts containing:
-
-- account_id
-- churn_probability
-- risk_band
-- external_rollover_count_12m
-- external_rollover_amount_12m
-- external_rollover_count_6m
-- external_rollover_amount_6m
-- latest_rollover_destination_type
-- latest_rollover_destination_name
-- partial_rollover_count_12m
-- partial_rollover_amount_12m
-- primary_churn_driver
-- additional_churn_drivers
 - model_top_shap_driver
+- model_top_shap_value
 
-9. Regenerate both CSVs
+10. Regenerate 15-row sample for selected AsOfDate
 
-Regenerate:
-
-"member_retention_ml_scoring_output.csv"
-
-and:
+Create:
 
 "member_retention_ml_scoring_sample_15.csv"
 
-The 15-row sample must continue to contain:
+Preferred mix:
 
 - 5 High
 - 5 Medium
 - 5 Low
 
-where available.
+Within the 15 rows, where real data allows, include:
 
-For the sample, deliberately select real rows so that some have qualifying rollover activity and populated rollover amount/destination information.
+- at least 2 High Risk accounts with external rollover amount > 0
+- at least 1 High Risk account with partial rollover amount > 0
+- rollover Yes / No variety
+- different rollover amounts
+- different age_years
+- different FUM
+- different primary drivers
+- different additional drivers
+- different tenure
+- different days since last contribution
 
-Do not modify churn probabilities to achieve this.
+Do not manually alter values.
 
-10. Final verification
+11. Validation
 
-Before finishing confirm:
+For the selected snapshot confirm:
 
-- model_version exists and is populated
-- external_rollover_amount_12m exists
-- external_rollover_amount_6m exists
-- partial_rollover_amount_12m exists
-- recent_partial_rollover_amount_90d exists
-- rollover-positive accounts show rollover as business-priority primary driver
-- churn_probability unchanged
-- risk_band unchanged
-- XGBoost/SHAP values unchanged
+- duplicate account_id + ml_scoring_date = 0
+- churn_probability between 0 and 1
+- risk thresholds correct
+- rollover amount 6M <= rollover amount 12M
+- rollover count 6M <= rollover count 12M
+- age_years populated correctly
+- model_version populated
+- sample rows exist unchanged in full output
 
-Print PASS / FAIL for each item.
+12. Final result
+
+At the end provide:
+
+A. AsOfDate comparison table
+
+B. Selected AsOfDate and reason
+
+C. Risk distribution
+
+D. Rollover coverage summary
+
+E. Count of High Risk accounts with rollover activity
+
+F. Final 15-row sample
+
+G. Validation PASS / FAIL summary
 
 Important:
-This change is to the BUSINESS-FACING driver presentation and final output schema. Do not manipulate the XGBoost prediction to artificially increase rollover importance.
+The goal is to find a naturally useful real-data snapshot for business review, not to manipulate the model or thresholds to create rollover-driven High Risk accounts.
