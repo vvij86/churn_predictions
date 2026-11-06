@@ -1,64 +1,4 @@
-The consolidated SQL feature dataset already contains the approved behavioural features, including rollover features.
-
-I need the Python/XGBoost pipeline to use all approved predictive feature columns available in the consolidated feature dataset, instead of a manually restricted feature subset.
-
-Do not add synthetic features.
-
-Do not include identifiers, target fields, future information, or reporting-only output columns.
-
-1. Inspect the actual dataset columns
-
-After loading the feature dataset, print:
-
-- total column count
-- all column names
-- data types
-
-Then classify each column into:
-
-1. Predictive model feature
-2. Identifier/reference only
-3. Target/outcome field
-4. Reporting/output-only field
-5. Excluded leakage/future field
-
-Show the classification before training.
-
-2. Include all approved predictive features
-
-Automatically include all valid predictive feature columns from the consolidated dataset.
-
-Do not manually restrict the model to only a small feature list.
-
-This should include approved feature groups such as:
-
-Account/profile
-
-- account tenure
-- member age
-- member source
-- benefit type/class
-- super/pension indicators
-- other approved account profile attributes
-
-Contribution / money inflow
-
-- contribution_count_12m
-- contribution_amount_12m
-- avg_contribution_transaction_amount_12m
-- contribution_active_months_12m
-- days_since_last_contribution
-- recent_contribution_amount_90d
-- prior_contribution_amount_90d
-- contribution_decline_flag
-- months_of_declining_contribution
-- employer SG current/baseline/change/cessation features
-- salary sacrifice current/baseline/change/cessation/increase features
-- member voluntary contribution current/baseline/change/cessation/increase features
-
-Rollover
-
-Include all existing approved rollover features in the SQL output, especially:
+The XGBoost model now includes all approved predictive features, including the partial rollover features:
 
 - partial_rollover_count_12m
 - partial_rollover_amount_12m
@@ -66,203 +6,160 @@ Include all existing approved rollover features in the SQL output, especially:
 - recent_partial_rollover_count_90d
 - recent_partial_rollover_amount_90d
 
-If these columns exist in the dataset, they MUST be included in the XGBoost feature matrix unless there is a documented technical reason not to.
+However, the scoring output still shows very similar primary/additional churn-driver patterns as before.
 
-Also include any approved external rollover count features if they are genuine model features rather than output-only fields.
+I need to confirm that the retrained XGBoost model and SHAP output are actually using the newly included rollover features correctly.
 
-Helpline
+Also, I want rollover AMOUNT fields included in the final ML output for Power BI/business review.
 
-Include approved helpline behavioural features such as:
+1. Confirm the model was retrained
 
-- contact count
-- inquiry count
-- active days
-- days since last contact
-- recent 90-day activity
-- approved inquiry/theme features
+Do not reuse the old fitted XGBoost model.
 
-Workflow
+Confirm that XGBoost was retrained after adding the full approved feature matrix.
 
-Include approved member-driven workflow features.
+Print:
 
-Website
+- total model feature count
+- model training timestamp/run
+- whether partial rollover features are present in the fitted booster feature list
 
-Include approved website engagement features where populated.
+Specifically verify:
 
-Campaign
+- partial_rollover_count_12m
+- partial_rollover_amount_12m
+- days_since_last_partial_rollover
+- recent_partial_rollover_count_90d
+- recent_partial_rollover_amount_90d
 
-Include approved campaign/event behavioural features currently in scope.
+2. Recalculate SHAP from the retrained model
 
-Investment
+Recalculate account-level SHAP values using the newly retrained XGBoost model.
 
-Include:
+Do not reuse previously saved SHAP values.
 
-- investment option count
-- direct investment flag
-- approved investment switch features
-- other approved investment behavioural features
-
-Insurance
-
-Include approved active cover / cover amount features.
-
-Third party authority
-
-Include approved authority flags/counts.
-
-Other approved behavioural features
-
-Include all other predictive columns already present in the consolidated feature dataset.
-
-3. Explicitly exclude non-model fields
-
-Exclude from model training:
-
-- accountID / account_id
-- memberID / memberNumber / member_id
-- AsOfDate
-- fundJoinDate
-- fundID where used only for reporting/reference
-- MonthKey
-- ml_scoring_date
-- exitDateRecorded
-- target_churn from X
-- any outcome-window fields
-- churn_probability
-- risk_band
-- retention_category
-- model_version
-- primary_churn_driver
-- additional_churn_drivers
-- risk_trend
-- risk_change
-- previous_churn_probability
-- scoring_run_timestamp
-- data_quality_flag
-- latest_rollover_destination_name
-- latest_rollover_destination_type
-- any post-AsOfDate/future fields
-- any target leakage fields
-
-Do not exclude a valid predictive feature just because it contains the word "rollover".
-
-4. Verify rollover features specifically
-
-After building X_train / model feature matrix, print whether each rollover feature is present.
-
-For example:
-
-"partial_rollover_count_12m -> FOUND / NOT FOUND"
-"partial_rollover_amount_12m -> FOUND / NOT FOUND"
-"days_since_last_partial_rollover -> FOUND / NOT FOUND"
-"recent_partial_rollover_count_90d -> FOUND / NOT FOUND"
-"recent_partial_rollover_amount_90d -> FOUND / NOT FOUND"
-
-If any existing approved rollover feature is missing, fix the feature-selection logic before training.
-
-5. Print final XGBoost feature list
-
-Before model.fit(), print:
-
-- number of model features
-- complete final feature list
-
-Also save it to:
-
-"member_retention_xgboost_feature_list.txt"
-
-6. Retrain XGBoost
-
-Retrain XGBoost using the full approved predictive feature matrix.
-
-Use the same:
-
-- real-data sample
-- target
-- train/validation split
-- preprocessing
-- fixed risk thresholds
-
-Do not change thresholds:
-
-High >= 0.70
-Medium >= 0.40 and < 0.70
-Low < 0.40
-
-7. Recalculate account-level SHAP
-
-After retraining, recalculate account-level SHAP values using the full feature matrix.
-
-For accounts with rollover activity, verify whether rollover features now appear among the top positive contributors.
-
-Do not force rollover to be a driver.
-
-It should appear only when its actual SHAP contribution is material.
-
-8. Driver mapping
-
-Map approved raw rollover features to business-friendly labels:
-
-- partial_rollover_count_12m -> Partial rollover-out activity
-- partial_rollover_amount_12m -> Partial rollover-out activity
-- days_since_last_partial_rollover -> Recent partial rollover activity
-- recent_partial_rollover_count_90d -> Recent partial rollover activity
-- recent_partial_rollover_amount_90d -> Recent partial rollover activity
-
-Avoid displaying multiple raw features from the same feature family as separate duplicate business drivers.
-
-Group them into one meaningful business driver where appropriate.
-
-9. Driver validation
-
-For at least 10 rollover-positive accounts print:
+For accounts with rollover activity, print:
 
 - account_id
 - churn_probability
-- rollover feature values
-- top 10 positive SHAP features
+- partial_rollover_count_12m
+- partial_rollover_amount_12m
+- days_since_last_partial_rollover
+- recent_partial_rollover_count_90d
+- recent_partial_rollover_amount_90d
+- SHAP value for each rollover feature
+- SHAP rank
 - primary_churn_driver
 - additional_churn_drivers
 
-Confirm whether rollover is:
+I want to confirm whether rollover is genuinely weak or whether stale explainability output is being reused.
 
-- primary driver
-- additional driver
-- not significant
+3. Validate driver distribution again
 
-based on actual SHAP contribution.
+Print the distribution of:
 
-10. Regenerate final outputs
+"primary_churn_driver"
 
-After retraining and driver validation, regenerate:
+Show:
 
-- "member_retention_ml_scoring_output.csv"
-- "member_retention_ml_scoring_sample_15.csv"
-- "member_retention_ml_scoring_validation.md"
+- driver name
+- count
+- percentage
 
-The 15-row sample should still aim for:
+Also report:
 
-- 5 High
-- 5 Medium
-- 5 Low
+- rollover-positive account count
+- rollover as primary driver count
+- rollover as additional driver count
+- rollover not significant count
 
-where naturally available.
+Do not force rollover to become a driver if SHAP contribution is genuinely low.
 
-Also include several rows with real rollover activity if available.
+4. Add rollover amount columns to ML output
 
-11. Final validation summary
+Add these columns to the final scoring output:
 
-At the end show:
+- partial_rollover_amount_12m
+- recent_partial_rollover_amount_90d
 
-- total model feature count before and after this fix
-- rollover features included
-- XGBoost validation metrics
-- risk-band distribution
-- top primary driver distribution
-- count of rollover-positive accounts
-- count where rollover is primary driver
-- count where rollover is additional driver
-- count where rollover is not significant
+Also derive and add, if supported by actual source data:
 
-Important:
-Use all approved predictive features from the actual consolidated dataset. Do not manually omit rollover or other behavioural features without a documented reason.
+- external_rollover_amount_12m
+- external_rollover_amount_6m
+
+Use actual "accountRolloverPayment.paymentAmount" values only.
+
+Do not fabricate amounts.
+
+5. External rollover amount logic
+
+For external rollover amount fields:
+
+Use qualifying external rollover records on or before AsOfDate.
+
+Exclude internal transfers.
+
+Example logic:
+
+"external_rollover_amount_12m"
+= SUM(paymentAmount) for qualifying external rollover transactions during the previous 12 months.
+
+"external_rollover_amount_6m"
+= SUM(paymentAmount) for qualifying external rollover transactions during the previous 6 months.
+
+Validate:
+
+"external_rollover_amount_6m <= external_rollover_amount_12m"
+
+for normal positive rollover amounts.
+
+If the source does not support a clean external rollover amount definition, state that clearly rather than inventing one.
+
+6. Updated mandatory output fields
+
+Keep all existing output fields and add:
+
+- partial_rollover_amount_12m
+- recent_partial_rollover_amount_90d
+- external_rollover_amount_12m
+- external_rollover_amount_6m
+
+Keep existing:
+
+- external_rollover_flag
+- latest_rollover_destination_type
+- latest_rollover_destination_name
+- external_rollover_count_12m
+- external_rollover_count_6m
+
+7. Regenerate files
+
+After retraining and SHAP recalculation, regenerate:
+
+- member_retention_ml_scoring_output.csv
+- member_retention_ml_scoring_sample_15.csv
+- member_retention_ml_scoring_validation.md
+
+8. 15-row sample
+
+For the 15-row sample, include several accounts where rollover data is populated.
+
+Where available, include examples with:
+
+- external_rollover_flag = Yes
+- external_rollover_count_12m > 0
+- external_rollover_amount_12m > 0
+- rollover destination populated
+- High / Medium / Low risk variety
+
+Do not manually edit or fabricate sample values.
+
+9. Final conclusion
+
+Clearly state:
+
+1. Was XGBoost retrained after adding all features?
+2. Were SHAP values recalculated?
+3. Are rollover SHAP contributions still genuinely low?
+4. How many accounts have rollover as primary/additional driver?
+5. Are the new rollover amount fields populated correctly?
