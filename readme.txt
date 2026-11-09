@@ -1,20 +1,31 @@
-Before moving to the next feature block, perform one final validation only. Do not modify the SQL.
+Please correct only the duplicate-account validation. Do not modify any feature SQL.
 
-In "behavioural_features_business_review.sql", validate the Campaign/Event feature logic and confirm:
+The previous result showed:
 
-1. Number of rows inside the actual Campaign/Event feature base/CTE where eventDate > @AsOfDate.
-2. Number of rows inside the actual Campaign/Event feature base/CTE where eventDate < @FeatureStartDate.
-3. Confirm the Campaign/Event feature window is exactly:
-   @FeatureStartDate <= eventDate <= @AsOfDate
-4. Confirm no retained Campaign/Event feature uses post-AsOfDate data.
-5. Confirm final Campaign aggregation still has one row per accountID.
+duplicate accountID count = 373,528
 
-Important:
-Do not report the total number of source-table records after @AsOfDate unless they actually enter the feature CTE. I only care about leakage into the feature dataset.
+but also stated that the final Campaign/Event aggregation contains exactly one row per accountID.
 
-Return only:
+These two statements need to be reconciled.
 
-- post-AsOfDate rows entering feature logic = X
-- pre-FeatureStartDate rows entering feature logic = X
-- duplicate accountID count = X
+Validate duplicates ONLY on the FINAL Campaign/Event account-level aggregate after all Campaign/Event rows have been grouped by accountID.
+
+Do NOT count repeated accountIDs in the raw campaign_event_base/event-level CTE, because multiple events per account are expected before aggregation.
+
+Run a check equivalent to:
+
+SELECT accountID, COUNT() AS row_count
+FROM <final_campaign_account_level_result>
+GROUP BY accountID
+HAVING COUNT() > 1;
+
+Report only:
+
+- raw/event-level repeated accountIDs = X  -- informational only
+- final aggregated duplicate accountIDs = X
+- final Campaign/Event grain = one row per accountID: YES / NO
 - PASS / FAIL
+
+PASS only when final aggregated duplicate accountIDs = 0.
+
+Do not change the SQL.
