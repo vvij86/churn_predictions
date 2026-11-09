@@ -1,79 +1,57 @@
-Update only the Helpline section in "behavioural_features_business_review.sql".
+Review only the ADVICE and COMPLAINT logic in the Helpline section of "behavioural_features_business_review.sql".
 
-Do not modify any other feature block.
+Do not modify SQL yet.
 
-There is an obsolete duplicate Consolidation/Rollover CASE branch still present in the query.
+For ADVICE:
 
-Keep this new live-data-validated logic:
+Current values include:
 
--- BUSINESS REVIEW CHANGE - LIVE DATA VALIDATED
-WHEN h.inquiryDescription = 'Consolidation Outbound'
-  OR h.inquiryDescription = 'Choice/Consolidate Super'
-  OR h.inquiryDescription LIKE '%Roll out%'
-THEN 'ROLLOVER_CONSOLIDATION_INTENT'
+- SOA
+- Projection advice
+- Financial Advice
+- Financial Adviser Contact
+- MST workplace advice
+- Retirement planning
+- TTR advice
 
-Remove or comment out the old Consolidation/Rollover branch that contains:
+Using live source data, return for each value:
 
-WHEN h.inquiryDescription IN
-(
-    'Consolidation Inbound',
-    'Consolidation Outbound'
-)
-OR h.inquiryDescription LIKE 'Choice/Consolidate%'
-THEN 'CONSOLIDATION_ROLLOVER'
+- record count
+- distinct account count
+- earliest callDate
+- latest callDate
+- count within the current 12-month feature window
+- top 10 raw examples with accountID, callDate, outcomeDescription, inquiryDescription
 
-Reason:
+Also identify overlap with:
 
-- "Consolidation Inbound" must not be treated as churn/exit intent.
-- The broad "Choice/Consolidate%" rule has already been replaced by the stricter live-data-validated rule.
-- We must avoid two different categories representing the same rollover concept.
+- "RETIREMENT_INQUIRY"
+- "SUPER_TO_PENSION_TTR"
 
-After the change, confirm there is only one active rollover/consolidation intent rule in the Helpline CASE logic.
+Specifically check whether "Retirement planning" and "TTR advice" are already being captured by those independent business-reviewed features.
 
-Do not change:
+Recommend for each advice value:
+KEEP / REVIEW / REMOVE FROM ADVICE BUCKET
 
-- RESOLVED logic
-- Super-to-Pension/TTR logic
-- Retirement Inquiry logic
-- Advice
-- Contribution
-- Investment
-- Insurance
-- Digital Access
-- Complaint
-- Account Admin
-- Campaign logic
-- date-window logic
-- account-level aggregation
+Do not remove anything yet.
 
-Also review the variable declarations.
+For COMPLAINT:
 
-If the validation section declares "@AsOfDate", "@FeatureStartDate", "@Recent90Start", or "@Recent30Start" again in the same SQL batch, ensure this will not cause duplicate variable declaration errors.
+Validate:
 
-Either:
+- total complaint records
+- distinct accounts
+- coverage in current 12-month window
+- 90-day coverage
+- 30-day coverage
+- top 20 raw records
 
-- separate the validation section using "GO", if appropriate for this standalone SQL file,
-  or
-- rename the validation-only variables.
+Also state clearly that business commented that Helpline complaints may represent only a subset of all complaints and another source/workbook may provide broader complaint coverage.
 
-Do not change the actual AsOfDate value or feature-window calculations.
+Do not assume Helpline complaints are complete.
 
-Then run the live validation using the existing DB connection pattern and confirm:
+At the end provide:
 
-1. "Consolidation Inbound" captured as rollover intent = 0.
-2. "Choice of Fund" captured as rollover intent = 0.
-3. "Investment Choice - change" captured as rollover intent = 0.
-4. "Investment Choice advice" captured as rollover intent = 0.
-5. "MST good choices" captured as rollover intent = 0.
-6. Duplicate "accountID" count in final Helpline aggregation = 0.
-7. Source records after "@AsOfDate" = 0.
-8. There is only one active rollover/consolidation category name:
-   "ROLLOVER_CONSOLIDATION_INTENT".
+Feature | Current logic | Live coverage | Overlap concern | Business concern | Recommendation
 
-Do not broaden the rule and do not reintroduce generic "%Choice%" or "%Consolidat%".
-
-At the end, show:
-
-- what duplicate logic was removed
-- the final active rollover rule
-- PASS / REVIEW / FAIL validation result
+Do not modify any SQL in this step.
