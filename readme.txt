@@ -1,126 +1,96 @@
-Update only the Helpline section in "behavioural_features_business_review.sql".
+Update only the Helpline "ROLLOVER_CONSOLIDATION_INTENT" logic in "behavioural_features_business_review.sql".
 
-Do not modify Campaign/Event, Workflow, Website, Contribution, Rollover, Investment, Insurance, Third Party Authority, Net Money Flow, Account/Tenure/Product, eligibility logic, target logic, or any other section.
+Do not modify any other Helpline feature and do not modify any other feature block.
 
-We completed live source-data validation and need the following corrections.
+We validated the live "inquiryDescription" values and found that the existing broad logic using:
 
-1. Keep the existing RESOLVED logic as-is.
+- "LIKE '%Roll out%'"
+- "LIKE '%Choice%'"
+- "LIKE '%Consolidat%'"
 
-The live values confirmed that:
+is too broad.
 
-"outcomeDescription LIKE '%Resolved%'"
+The live values included:
 
-correctly captures values such as:
+- "Choice of Fund"
+- "Benefit Payment / Choice / Portability"
+- "Choice/Consolidate Super"
+- "MST good choices"
+- "Investment Choice - change"
+- "Consolidation Inbound"
+- "Investment Choice advice"
+- "Consolidation Outbound"
 
-- Inquiry Resolved with Admin Assistance
-- Email inquiry resolved by Helpline services
-- Inquiries Resolved by Helpline Services
+Based on this validation:
 
-Keep these features:
+1. Remove generic matching on "%Choice%".
 
-- "resolved_helpline_count_12m"
-- "recent_resolved_helpline_count_90d"
+2. Do not treat these as rollover/consolidation exit intent:
+   
+   - "Choice of Fund"
+   - "MST good choices"
+   - "Investment Choice - change"
+   - "Investment Choice advice"
+   - "Consolidation Inbound"
 
-2. Modify SUPER_TO_PENSION_TTR logic.
+3. Treat "Consolidation Outbound" as a valid strong rollover/consolidation exit-intent signal.
 
-The live data showed that "outcomeDescription = 'Super to Pension Implementation'" is a strong transition signal and appears across many different inquiry types.
+4. Treat "Choice/Consolidate Super" as a valid rollover/consolidation intent signal for now.
 
-Use an independent flag/bucket for Super-to-Pension/TTR based on:
+5. Do not include "Benefit Payment / Choice / Portability" in this feature yet because its meaning is ambiguous and requires separate business confirmation.
 
-- "outcomeDescription LIKE '%Super to Pension%'"
-- OR "outcomeDescription LIKE '%TTR%'"
-- OR "inquiryDescription LIKE '%TTR%'"
+6. If there are genuine source values containing explicit "Roll out" wording, retain those as valid exit-intent matches.
 
-Do not require "inquiryDescription" to contain "Super to Pension".
+7. Replace the current broad text logic with a controlled rule similar to:
 
-Keep/create:
+- exact "inquiryDescription = 'Consolidation Outbound'"
+- exact "inquiryDescription = 'Choice/Consolidate Super'"
+- OR explicit "inquiryDescription LIKE '%Roll out%'"
 
-- "super_to_pension_ttr_inquiry_count_12m"
-- "recent_super_to_pension_ttr_inquiry_count_90d"
+Do not use generic "%Choice%".
+Do not use generic "%Consolidat%" without excluding inbound/non-exit values.
 
-3. Modify RETIREMENT_INQUIRY logic.
+8. Keep the existing features:
+   
+   - "rollover_consolidation_inquiry_count_12m"
+   - "recent_rollover_consolidation_inquiry_count_90d"
+   - "recent_rollover_inquiry_flag_30d"
 
-The live data showed clear retirement inquiry values such as:
-
-- Retirement / Pension
-- Retirement Optimiser
-- Retirement planning
-
-Therefore derive Retirement Inquiry primarily from:
-
-"inquiryDescription LIKE '%Retirement%'"
-
-Do not use "outcomeDescription LIKE '%Retirement%'" for this feature unless the existing data proves that is required.
-
-Keep/create:
-
-- "retirement_inquiry_count_12m"
-- "recent_retirement_inquiry_count_90d"
-
-4. Important: Super-to-Pension/TTR and Retirement Inquiry must be independent features.
-
-Do not force these concepts into a single mutually-exclusive CASE bucket.
-
-A single source record may legitimately satisfy both.
-
-Example:
-
-"outcomeDescription = 'Super to Pension Implementation'"
-"inquiryDescription = 'Retirement / Pension'"
-
-This should contribute to:
-
-- Super-to-Pension/TTR feature
-  AND
-- Retirement Inquiry feature
-
-This overlap is intentional because the two features represent different concepts:
-
-- Retirement Inquiry = retirement intent / enquiry
-- Super-to-Pension/TTR = stronger transition-to-pension behaviour
-
-5. Do not change the RESOLVED feature because a resolved call may also be a retirement-related call.
-
-Resolved represents service outcome.
-Retirement represents inquiry intent.
-
-They can coexist as separate signals.
-
-6. Keep the current date rules:
-
-- source date >= existing FeatureStartDate
-- source date <= "@AsOfDate"
-- preserve the 12-month feature window
-- preserve recent 90-day logic
-
-7. Preserve account-level grain:
-   one row per "accountID".
-
-8. Keep "helpline_active_days_12m" commented/de-scoped as already implemented.
-
-9. Do not modify the ROLLOVER_CONSOLIDATION_INTENT logic in this change.
-   We will update that separately after reviewing Point 4.
+9. Preserve:
+   
+   - existing 12-month feature window
+   - 90-day logic
+   - 30-day logic
+   - source date <= "@AsOfDate"
+   - one row per "accountID"
 
 10. Add:
-    "-- BUSINESS REVIEW CHANGE - LIVE DATA VALIDATED"
-    around the modified Super-to-Pension/TTR and Retirement Inquiry logic.
 
-After making the change, validate:
+"-- BUSINESS REVIEW CHANGE - LIVE DATA VALIDATED"
 
-- number of accounts with Super-to-Pension/TTR > 0
-- number of accounts with Retirement Inquiry > 0
-- number of accounts having both features > 0
-- top 20 raw records for Super-to-Pension/TTR
-- top 20 raw records for Retirement Inquiry
-- top 20 records where both features match
-- duplicate accountID count in final Helpline aggregation
-- confirm no source record used is after "@AsOfDate"
+around the modified Point 4 logic.
 
-Do not modify any unrelated SQL.
+After updating, run live validation using the existing DB connection pattern from "sample.py".
 
-At the end summarize:
+Validate and report:
 
-- exact logic changed
-- features retained
-- overlap count between Retirement and Super-to-Pension/TTR
-- whether validation passed
+- number of accounts with rollover/consolidation intent > 0
+- distinct "inquiryDescription" values captured by the new rule
+- top 20 raw matching records
+- confirm "Consolidation Inbound" count captured = 0
+- confirm "Investment Choice - change" count captured = 0
+- confirm "Investment Choice advice" count captured = 0
+- confirm "MST good choices" count captured = 0
+- confirm "Choice of Fund" count captured = 0
+- confirm duplicate accountID count in the final Helpline aggregation = 0
+- confirm source records after "@AsOfDate" = 0
+
+Do not make any other SQL changes.
+
+At the end provide:
+
+- exact old rule
+- exact new rule
+- captured distinct inquiry values
+- excluded distinct inquiry values
+- PASS / REVIEW / FAIL result
