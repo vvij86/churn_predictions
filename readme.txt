@@ -1,105 +1,46 @@
-Update only the Helpline feature section in "behavioural_features_business_review.sql".
+Validate only the Helpline changes you just added in "behavioural_features_business_review.sql".
 
-Do not modify Campaign/Event, Workflow, Website, Contribution, Rollover, Investment, Insurance, Third Party Authority, Net Money Flow, Account/Tenure/Product or any other section.
+Do not modify the SQL yet.
 
-Implement the following business-review changes.
+Please run/review the validation logic and report the results for:
 
-1. Add a "RESOLVED" helpline bucket where:
+1. New feature coverage:
+   
+   - number of accounts with "resolved_helpline_count_12m > 0"
+   - number of accounts with "super_to_pension_ttr_inquiry_count_12m > 0"
+   - number of accounts with "retirement_inquiry_count_12m > 0"
+   - number of accounts with "rollover_consolidation_inquiry_count_12m > 0"
 
-"outcomeDescription LIKE '%Resolved%'"
+2. Show up to 20 raw source examples for each new bucket, including:
+   
+   - accountID
+   - source event/contact date
+   - outcomeDescription
+   - inquiryDescription
+   - derived bucket
 
-Create:
+3. Check overlap:
+   
+   - identify any raw record matching more than one new bucket
+   - show the overlapping bucket names and raw description text
 
-- "resolved_helpline_count_12m"
-- "recent_resolved_helpline_count_90d"
+4. Specifically review "ROLLOVER_CONSOLIDATION_INTENT" and show the distinct matching "inquiryDescription" values.
+   Confirm whether any appear to represent inbound consolidation or other non-exit intent.
 
-2. Add a "SUPER_TO_PENSION_TTR" bucket where either "outcomeDescription" or "inquiryDescription" contains:
+5. Specifically review "SUPER_TO_PENSION_TTR" and "RETIREMENT_INQUIRY".
+   Show whether the same descriptions are being captured by both buckets.
 
-- "Super to Pension"
-- "TTR"
+6. Validate date integrity:
+   
+   - confirm no source record used by these features is after "@AsOfDate"
+   - confirm the existing 12-month feature window is respected
 
-Create:
+7. Validate account-level grain:
+   
+   - confirm the final Helpline aggregate has no duplicate "accountID"
 
-- "super_to_pension_ttr_inquiry_count_12m"
-- "recent_super_to_pension_ttr_inquiry_count_90d"
+8. Confirm "helpline_active_days_12m" is no longer part of the active output and is only retained/commented as a business-review candidate for removal.
 
-3. Add a "RETIREMENT_INQUIRY" bucket where "outcomeDescription" or "inquiryDescription" contains:
+9. Do not make fixes automatically.
 
-"Retirement"
-
-Create:
-
-- "retirement_inquiry_count_12m"
-- "recent_retirement_inquiry_count_90d"
-
-4. Add a "ROLLOVER_CONSOLIDATION_INTENT" bucket where "inquiryDescription" contains any of:
-
-- "Roll out"
-- "Choice"
-- "Consolidat"
-
-Create:
-
-- "rollover_consolidation_inquiry_count_12m"
-- "recent_rollover_consolidation_inquiry_count_90d"
-
-Where possible, exclude inbound consolidation activity so that consolidation INTO the fund is not interpreted as potential exit intent.
-
-5. Business questioned the usefulness of:
-
-"helpline_active_days_12m"
-
-Do not permanently delete it yet. Comment it out or clearly mark it:
-
-"-- BUSINESS REVIEW: candidate for removal - generic active days considered low value"
-
-6. Do not modify the existing complaint features in this step. Business has raised concerns about complaint source coverage, but we will review that separately.
-
-7. All source records used for these features must:
-
-- be on or before "@AsOfDate"
-- remain within the existing 12-month feature window
-- use no future/outcome-period information
-
-8. Preserve account-level aggregation:
-   one row per "accountID".
-
-9. Do not change eligibility or target logic.
-
-10. Add the comment:
-
-"-- BUSINESS REVIEW CHANGE"
-
-around every new or changed Helpline section.
-
-After making the changes, append validation SQL that shows:
-
-A. Number of accounts where each new feature is > 0.
-
-B. Top 20 sample accounts for:
-
-- Resolved
-- Super-to-Pension/TTR
-- Retirement
-- Rollover/Consolidation
-
-C. For those samples, show the raw:
-
-- "accountID"
-- event/contact date
-- "outcomeDescription"
-- "inquiryDescription"
-- derived bucket
-
-D. Check whether any source record used has a date greater than "@AsOfDate".
-
-E. Check for duplicate "accountID" rows in the final Helpline aggregation.
-
-Do not change any SQL outside the Helpline feature block.
-
-After completing the changes, summarize exactly:
-
-- features added
-- feature commented/de-scoped
-- any overlap observed between buckets
-- any issue requiring business confirmation
+At the end, provide a short PASS / REVIEW / FAIL summary for each check and list any SQL changes you recommend before we proceed to the next feature block.
