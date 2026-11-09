@@ -1,96 +1,37 @@
-Update only the Helpline "ROLLOVER_CONSOLIDATION_INTENT" logic in "behavioural_features_business_review.sql".
+Do not modify the SQL.
 
-Do not modify any other Helpline feature and do not modify any other feature block.
+Investigate why the validated "ROLLOVER_CONSOLIDATION_INTENT" rule currently produces 0 accounts for the "@AsOfDate" feature window.
 
-We validated the live "inquiryDescription" values and found that the existing broad logic using:
+Using the live database, check these accepted source patterns separately:
 
-- "LIKE '%Roll out%'"
-- "LIKE '%Choice%'"
-- "LIKE '%Consolidat%'"
+- "inquiryDescription = 'Consolidation Outbound'"
+- "inquiryDescription = 'Choice/Consolidate Super'"
+- "inquiryDescription LIKE '%Roll out%'"
 
-is too broad.
+For each pattern return:
 
-The live values included:
+1. Total record count across all available history.
+2. Distinct account count across all available history.
+3. Earliest "callDate".
+4. Latest "callDate".
+5. Record count within the current 12-month feature window for "@AsOfDate = '2024-12-31'".
+6. Distinct account count within that same 12-month window.
+7. Show up to 20 raw records with:
+   - accountID
+   - callDate
+   - outcomeDescription
+   - inquiryDescription
 
-- "Choice of Fund"
-- "Benefit Payment / Choice / Portability"
-- "Choice/Consolidate Super"
-- "MST good choices"
-- "Investment Choice - change"
-- "Consolidation Inbound"
-- "Investment Choice advice"
-- "Consolidation Outbound"
+Also check coverage across the available historical period / multiple possible AsOfDate years or months, so we can understand whether this feature has useful historical variation rather than judging it from only the 31-Dec-2024 snapshot.
 
-Based on this validation:
+Do not broaden the rule and do not reintroduce generic "%Choice%" or "%Consolidat%".
 
-1. Remove generic matching on "%Choice%".
+At the end explain whether the zero coverage is because:
 
-2. Do not treat these as rollover/consolidation exit intent:
-   
-   - "Choice of Fund"
-   - "MST good choices"
-   - "Investment Choice - change"
-   - "Investment Choice advice"
-   - "Consolidation Inbound"
+A. valid events exist but fall outside the current 12-month window,
+B. valid events are extremely rare,
+C. the accepted values do not actually exist in the source,
+or
+D. there is an issue in the feature SQL.
 
-3. Treat "Consolidation Outbound" as a valid strong rollover/consolidation exit-intent signal.
-
-4. Treat "Choice/Consolidate Super" as a valid rollover/consolidation intent signal for now.
-
-5. Do not include "Benefit Payment / Choice / Portability" in this feature yet because its meaning is ambiguous and requires separate business confirmation.
-
-6. If there are genuine source values containing explicit "Roll out" wording, retain those as valid exit-intent matches.
-
-7. Replace the current broad text logic with a controlled rule similar to:
-
-- exact "inquiryDescription = 'Consolidation Outbound'"
-- exact "inquiryDescription = 'Choice/Consolidate Super'"
-- OR explicit "inquiryDescription LIKE '%Roll out%'"
-
-Do not use generic "%Choice%".
-Do not use generic "%Consolidat%" without excluding inbound/non-exit values.
-
-8. Keep the existing features:
-   
-   - "rollover_consolidation_inquiry_count_12m"
-   - "recent_rollover_consolidation_inquiry_count_90d"
-   - "recent_rollover_inquiry_flag_30d"
-
-9. Preserve:
-   
-   - existing 12-month feature window
-   - 90-day logic
-   - 30-day logic
-   - source date <= "@AsOfDate"
-   - one row per "accountID"
-
-10. Add:
-
-"-- BUSINESS REVIEW CHANGE - LIVE DATA VALIDATED"
-
-around the modified Point 4 logic.
-
-After updating, run live validation using the existing DB connection pattern from "sample.py".
-
-Validate and report:
-
-- number of accounts with rollover/consolidation intent > 0
-- distinct "inquiryDescription" values captured by the new rule
-- top 20 raw matching records
-- confirm "Consolidation Inbound" count captured = 0
-- confirm "Investment Choice - change" count captured = 0
-- confirm "Investment Choice advice" count captured = 0
-- confirm "MST good choices" count captured = 0
-- confirm "Choice of Fund" count captured = 0
-- confirm duplicate accountID count in the final Helpline aggregation = 0
-- confirm source records after "@AsOfDate" = 0
-
-Do not make any other SQL changes.
-
-At the end provide:
-
-- exact old rule
-- exact new rule
-- captured distinct inquiry values
-- excluded distinct inquiry values
-- PASS / REVIEW / FAIL result
+Do not make SQL changes yet.
