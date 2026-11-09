@@ -1,267 +1,162 @@
-Review only the Campaign / Event Behaviour section in "behavioural_features_business_review.sql".
+Update only the Campaign / Event Behaviour section in "behavioural_features_business_review.sql".
 
-Do NOT change the SQL yet.
+Use the live-validation findings already completed. Do not modify any other feature section.
 
-Use the existing database connection pattern already available in "sample.py" and run live validation against the source tables:
+Apply the following changes conservatively.
 
-- "edgeSource.campaignEventDetails"
-- "edgeSource.campaignEvents"
+1. De-scope generic campaign activity features
 
-Keep the review strictly account-level and respect the current feature window:
+The following broad activity features were confirmed as high-volume but low-specificity:
 
-- one row per accountID
-- use only source records on or before "@AsOfDate"
-- use the existing 12-month / 90-day windows
-- do not introduce post-AsOfDate leakage
+- campaign_event_count_12m
+- distinct_campaign_event_type_count_12m
+- days_since_last_campaign_event
+- recent_campaign_event_count_90d
 
-Business has provided comments on this Campaign / Event section. Validate every comment below using live source data.
+Do not delete their SQL permanently.
 
-1. Generic campaign activity features
+Comment them out from the active feature output and add:
 
-Review:
+"-- BUSINESS REVIEW: candidate for removal - generic campaign activity is high coverage but low specificity and does not identify a meaningful retention-related behaviour."
 
-- "campaign_event_count_12m"
-- "distinct_campaign_event_type_count_12m"
-- "days_since_last_campaign_event"
-- "recent_campaign_event_count_90d"
+Keep the underlying source logic available for reference.
 
-Business comment:
-“These don’t really tell us anything important.”
+2. ADVICE campaign features
 
-Check:
+Current live validation found zero Campaign/Event ADVICE records in the eligible 12-month window.
 
-- number of accounts with each feature > 0
-- distribution of values
-- exact eventName/eventID values contributing to them
-- whether these are only generic activity-volume metrics
-- whether they add any meaningful information beyond the more specific event categories below
+Do not delete the ADVICE mapping.
 
-Give each feature one recommendation:
+Keep the source mapping available but comment out the following features from the active ML feature output for now:
 
-- KEEP
-- REVIEW
-- CANDIDATE FOR REMOVAL
+- advice_event_count_12m
+- recent_advice_event_count_90d
+- days_since_last_advice_event
 
-Do not remove anything yet.
+Add:
 
-2. Advice-event features
+"-- BUSINESS REVIEW: current UAT/source window has zero Campaign ADVICE coverage. Preserve mapping for future production/source validation; do not rely on as active ML feature yet."
 
-Review:
+Do not change the already-reviewed Helpline ADVICE logic.
 
-- "advice_event_count_12m"
-- "recent_advice_event_count_90d"
-- "days_since_last_advice_event"
+3. WEBSITE_LOGIN features
 
-Business comment:
-“Potential duplication with Helpline, depends on logic used.”
+Current live validation found zero WEBSITE_LOGIN rows in the eligible period.
 
-Compare the Campaign/Event ADVICE classification with the already-reviewed Helpline ADVICE logic.
+Preserve the WEBSITE_LOGIN event mapping, but comment out from the active ML feature output:
 
-Show:
+- website_login_count_12m
+- website_login_count_90d
+- website_login_count_30d
+- days_since_last_website_login
 
-- exact Campaign eventName/eventID values classified as ADVICE
-- number of accounts captured
-- overlap account count with Helpline ADVICE
-- Campaign-only account count
-- Helpline-only account count
-- examples of overlapping and non-overlapping records
+Add:
 
-Determine whether Campaign ADVICE provides an independent behavioural signal or mainly duplicates Helpline activity.
+"-- BUSINESS REVIEW: WEBSITE_LOGIN currently has zero source coverage in this environment. Preserve logic for future production validation."
 
-Do not automatically remove it just because overlap exists.
+Do not confuse this with "accountEngagementWeb".
 
-3. Website login features
+4. MEMBER_SERVICE
 
-Review:
+Live validation found only 7 accounts, mainly CONTACT_UPDATE, and no HELP_DESK_CALL records.
 
-- "website_login_count_12m"
-- "website_login_count_90d"
-- "website_login_count_30d"
-- "days_since_last_website_login"
+Comment out:
 
-Show:
+- member_service_event_count_12m
+- recent_member_service_event_count_90d
 
-- exact eventName/eventID used for WEBSITE_LOGIN
-- account coverage
-- recency coverage
-- example raw records
-- whether this represents genuine digital engagement
+from the active ML output.
 
-Also clearly distinguish these Campaign/Event website-login features from "edge.accountEngagementWeb". Do not assume they are the same source.
+Add:
 
-4. Member Service features
+"-- BUSINESS REVIEW: MEMBER_SERVICE is extremely sparse and current mapping is dominated by CONTACT_UPDATE rather than a clear member-service behavioural signal."
 
-Review:
+Preserve the source mapping for reference.
 
-- "member_service_event_count_12m"
-- "recent_member_service_event_count_90d"
+5. CONTRIBUTION events
 
-Business comment:
-“I’m unclear on what Member Service entails.”
+Keep:
 
-Show the exact:
+- contribution_event_count_12m
+- recent_contribution_event_count_90d
 
-- eventID
-- eventName
-- frequency
-- distinct account count
-- sample raw records
+Do not remove them.
 
-Explain in simple business language what events are currently being grouped into "MEMBER_SERVICE".
+Add a comment that live validation showed material overlap with MoneyInflow contribution activity, so they should be interpreted as event-based behavioural evidence rather than an independent financial signal.
 
-If the category contains multiple unrelated activities, flag that clearly.
+Do not modify the MoneyInflow feature block.
 
-Recommendation:
-KEEP / REVIEW / CANDIDATE FOR REMOVAL.
+6. ROLLIN
 
-5. Contribution-event features
+Keep:
 
-Review:
+- rollin_event_count_12m
+- recent_rollin_event_count_90d
 
-- "contribution_event_count_12m"
-- "recent_contribution_event_count_90d"
+Preserve the current ROLLIN event mapping.
 
-Business comment:
-“Likely duplication with Contributions Table, depends on logic used.”
+Add a comment noting possible overlap with contribution/transfer behaviour but retain it because it is a meaningful explicit event signal.
 
-Show the exact Campaign event values classified as CONTRIBUTION.
+7. RETIREMENT / PENSION events
 
-Compare these Campaign/Event features with the existing contribution features derived from "Edge.accountMoneyInflow".
+Keep:
 
-Report:
+- retirement_pension_event_count_12m
+- recent_retirement_pension_event_count_90d
 
-- Campaign contribution account count
-- MoneyInflow contribution account count
-- accounts present in both
-- Campaign-only accounts
-- MoneyInflow-only accounts
+Use the actual source values already validated:
 
-Explain whether the Campaign/Event feature represents:
+- PENSION
+- ALLOCATED_PENSION
+- TTR
 
-A. actual contribution transaction activity already available in MoneyInflow,
+Add:
 
-or
+"-- BUSINESS REVIEW: represents pension/product action events, including Pension Creation/TTR activity; do not describe generically as retirement inquiry intent."
 
-B. a separate member behavioural interaction related to contributions.
+Do not merge these with Helpline RETIREMENT_INQUIRY or SUPER_TO_PENSION_TTR.
 
-Do not remove it without evidence.
+8. INSURANCE
 
-6. Roll-in features
+Keep:
 
-Review:
+- insurance_opt_in_12m_flag
 
-- "rollin_event_count_12m"
-- "recent_rollin_event_count_90d"
+Preserve the validated "INSURANCE_OPT_IN" mapping.
 
-Business comment:
-“Likely duplication with Contributions Table, depends on logic used.”
+9. BENEFICIARY
 
-Show:
+Before using the beneficiary feature, normalize the source eventName mapping for known formatting variations of:
 
-- eventID/eventName used for ROLLIN
-- account coverage
-- example records
-- overlap with MoneyInflow contribution/roll-in activity where possible
+- NOMINATED_BENEFICIARY
+- NOMINATED_BINDING_BENEFICIARY
 
-Determine whether this is an independent behavioural interaction or duplicate financial transaction information.
+Use trimming/normalization where appropriate rather than depending on an accidental leading/trailing space.
 
-7. Retirement / Pension event features
+Keep:
 
-Review:
+- beneficiary_event_count_12m
 
-- "retirement_pension_event_count_12m"
-- "recent_retirement_pension_event_count_90d"
+After the normalization, validate account coverage again.
 
-Business comment:
-“What are you trying to measure here? Pension (EventID = 13) refers to Pension Creation.”
+10. INVESTMENT SWITCH
 
-Specifically validate:
+Keep the existing INVESTMENT_CHANGE / investment-switch feature logic.
 
-- whether EventID 13 maps to Pension Creation
-- all eventID/eventName values currently classified under "RETIREMENT_PENSION"
-- account coverage
-- sample raw records
+Add a business-review comment stating that it represents an investment-switch/product action and should be treated as a specific behavioural signal rather than generic campaign activity.
 
-Explain exactly what the current feature measures.
+Validation after the change
 
-Do not describe it generically as “retirement intent” if the source actually represents Pension Creation.
+Run live database validation and report:
 
-Check whether this overlaps with:
+1. duplicate accountID rows in the final Campaign aggregation
+2. source rows after @AsOfDate
+3. active feature list after the changes
+4. account coverage for every retained Campaign/Event feature
+5. confirm generic campaign, ADVICE, WEBSITE_LOGIN and MEMBER_SERVICE features are no longer in the active feature output
+6. confirm CONTRIBUTION, ROLLIN, RETIREMENT/PENSION, INSURANCE, BENEFICIARY and INVESTMENT SWITCH remain active
+7. confirm beneficiary normalization captures all intended source variants
 
-- Helpline "RETIREMENT_INQUIRY"
-- Helpline "SUPER_TO_PENSION_TTR"
+Do not change the consolidated dataset SQL yet.
 
-Report overlap separately.
-
-8. Insurance opt-in
-
-Review:
-
-- "insurance_opt_in_12m_flag"
-
-Show:
-
-- exact eventName/eventID
-- coverage
-- sample records
-- whether it clearly represents an insurance opt-in action
-
-9. Beneficiary events
-
-Review:
-
-- "beneficiary_event_count_12m"
-
-Show:
-
-- exact beneficiary event values
-- account coverage
-- examples
-- whether it represents a meaningful behavioural action rather than a generic event count
-
-10. Duplication and semantic overlap summary
-
-Create a final comparison showing possible overlap between Campaign/Event features and other already-existing feature families:
-
-- Campaign ADVICE vs Helpline ADVICE
-- Campaign CONTRIBUTION vs MoneyInflow contribution features
-- Campaign ROLLIN vs MoneyInflow / contribution activity
-- Campaign RETIREMENT_PENSION vs Helpline retirement / Super-to-Pension/TTR
-- Campaign WEBSITE_LOGIN vs any other digital-engagement features
-
-For each one classify:
-
-- NO MATERIAL OVERLAP
-- PARTIAL OVERLAP – BOTH MAY BE USEFUL
-- HIGH DUPLICATION RISK
-- NEEDS BUSINESS CONFIRMATION
-
-11. Data-quality validation
-
-Also validate:
-
-- duplicate accountID rows in the final Campaign aggregation = 0
-- no source record after "@AsOfDate"
-- all 90-day features are within the intended 90-day window
-- all 12-month features are within the intended 12-month window
-- NULL handling remains unchanged
-
-Required final output
-
-Do not modify SQL.
-
-Return a table with:
-
-"Feature | Business Comment | Live Coverage | Exact Source Values | Overlap Finding | Recommendation | Reason"
-
-Then provide a short section:
-
-Changes recommended before modifying SQL
-
-Split it into:
-
-- SAFE TO CHANGE
-- NEEDS BUSINESS CONFIRMATION
-- KEEP AS-IS
-
-Do not infer event meaning from the feature name alone. Base all conclusions on the actual "eventID", "eventName", source values and live database results.
+Return a short PASS / REVIEW / FAIL summary and show exactly which lines/features were changed.
