@@ -1,57 +1,69 @@
-Review only the ADVICE and COMPLAINT logic in the Helpline section of "behavioural_features_business_review.sql".
 
-Do not modify SQL yet.
+Update only the Helpline section in "behavioural_features_business_review.sql".
 
-For ADVICE:
+Based on the completed live-data review:
 
-Current values include:
+1. ADVICE bucket:
+   Keep only these values in the ADVICE category:
 
 - SOA
 - Projection advice
 - Financial Advice
 - Financial Adviser Contact
 - MST workplace advice
+
+Remove these values from the ADVICE category:
+
 - Retirement planning
 - TTR advice
 
-Using live source data, return for each value:
+Reason:
 
-- record count
-- distinct account count
-- earliest callDate
-- latest callDate
-- count within the current 12-month feature window
-- top 10 raw examples with accountID, callDate, outcomeDescription, inquiryDescription
+- "Retirement planning" is already captured by the independent "RETIREMENT_INQUIRY" feature.
+- "TTR advice" is already captured by the independent "SUPER_TO_PENSION_TTR" feature.
+- We do not want the same business behaviour represented twice as separate advice evidence.
 
-Also identify overlap with:
+Do not change the existing RETIREMENT_INQUIRY or SUPER_TO_PENSION_TTR logic.
 
-- "RETIREMENT_INQUIRY"
-- "SUPER_TO_PENSION_TTR"
+2. COMPLAINT:
+   The live validation found:
 
-Specifically check whether "Retirement planning" and "TTR advice" are already being captured by those independent business-reviewed features.
+- 8 total complaint records
+- 5 distinct accounts
+- only 1 record in the current 12-month window
+- 0 records in the 90-day window
+- 0 records in the 30-day window
 
-Recommend for each advice value:
-KEEP / REVIEW / REMOVE FROM ADVICE BUCKET
+Business also commented that Helpline complaints represent only a subset of all complaints and broader complaint data may exist elsewhere.
 
-Do not remove anything yet.
+Therefore de-scope these Helpline complaint features from the active output:
 
-For COMPLAINT:
+- complaint_inquiry_count_12m
+- recent_complaint_inquiry_count_90d
+- recent_complaint_flag_30d
 
-Validate:
+Do not delete the logic permanently.
 
-- total complaint records
-- distinct accounts
-- coverage in current 12-month window
-- 90-day coverage
-- 30-day coverage
-- top 20 raw records
+Comment the complaint classification/feature logic and add:
 
-Also state clearly that business commented that Helpline complaints may represent only a subset of all complaints and another source/workbook may provide broader complaint coverage.
+"-- BUSINESS REVIEW: de-scoped from active ML features because Helpline complaint coverage is sparse/incomplete; broader complaint source to be assessed separately."
 
-Do not assume Helpline complaints are complete.
+3. Do not modify:
 
-At the end provide:
+- resolved features
+- Super-to-Pension/TTR features
+- retirement inquiry features
+- rollover/consolidation features
+- other Helpline categories
+- any other feature block
 
-Feature | Current logic | Live coverage | Overlap concern | Business concern | Recommendation
+4. Run the live validation after the change and confirm:
 
-Do not modify any SQL in this step.
+- no duplicate accountID rows
+- no source records after AsOfDate
+- ADVICE no longer contains Retirement planning or TTR advice
+- RETIREMENT_INQUIRY still captures Retirement planning
+- SUPER_TO_PENSION_TTR still captures TTR advice
+- complaint features are no longer present in the active Helpline output
+
+Give me a short PASS/FAIL summary. Do not change any other SQL.
