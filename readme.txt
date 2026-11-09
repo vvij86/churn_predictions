@@ -1,126 +1,133 @@
-Run a live database validation for the Helpline business-review changes in "behavioural_features_business_review.sql".
+/* ============================================================
+   POINT 2 + POINT 3 HELPLINE VALIDATION
+   Source: edgeSource.accountEngagementHelpline
+   ============================================================ */
 
-Use the existing SQL Server connection pattern already implemented in "sample.py".
+DECLARE @AsOfDate DATE = '2024-12-31';
+DECLARE @FeatureStartDate DATE =
+    DATEADD(DAY, 1, DATEADD(MONTH, -12, @AsOfDate));
 
-Important:
 
-- Reuse the existing connection code from "sample.py".
-- Do not expose or print passwords, secrets, connection strings or tokens.
-- Do not modify production/source data.
-- Execute SELECT-only validation queries.
-- Do not change the SQL feature logic yet.
-- Use the same "@AsOfDate" and 12-month feature window currently defined in the standalone SQL.
+/* ============================================================
+   POINT 2
+   Super to Pension / TTR
+   Check actual Outcome + Inquiry descriptions
+   ============================================================ */
 
-Validate the following against the live database:
+SELECT
+    outcomeDescription,
+    inquiryDescription,
+    COUNT(*) AS record_count,
+    COUNT(DISTINCT accountID) AS account_count
+FROM edgeSource.accountEngagementHelpline
+WHERE callDate >= @FeatureStartDate
+  AND callDate <= @AsOfDate
+  AND
+  (
+       outcomeDescription LIKE '%Super to Pension%'
+    OR inquiryDescription LIKE '%Super to Pension%'
+    OR outcomeDescription LIKE '%TTR%'
+    OR inquiryDescription LIKE '%TTR%'
+  )
+GROUP BY
+    outcomeDescription,
+    inquiryDescription
+ORDER BY record_count DESC;
 
-1. Feature coverage
-   Return the number of distinct accounts where:
 
-- "resolved_helpline_count_12m > 0"
-- "super_to_pension_ttr_inquiry_count_12m > 0"
-- "retirement_inquiry_count_12m > 0"
-- "rollover_consolidation_inquiry_count_12m > 0"
+/* ============================================================
+   POINT 2 - SAMPLE RAW RECORDS
+   ============================================================ */
 
-Also return the corresponding 90-day feature coverage.
+SELECT TOP 50
+    accountID,
+    callDate,
+    outcomeDescription,
+    inquiryDescription
+FROM edgeSource.accountEngagementHelpline
+WHERE callDate >= @FeatureStartDate
+  AND callDate <= @AsOfDate
+  AND
+  (
+       outcomeDescription LIKE '%Super to Pension%'
+    OR inquiryDescription LIKE '%Super to Pension%'
+    OR outcomeDescription LIKE '%TTR%'
+    OR inquiryDescription LIKE '%TTR%'
+  )
+ORDER BY callDate DESC;
 
-2. Raw examples
-   For each new bucket return up to 20 actual source records showing:
 
-- accountID
-- call/event date
-- outcomeDescription
-- inquiryDescription
-- derived bucket
+/* ============================================================
+   POINT 3
+   Retirement inquiry
+   Check actual Outcome + Inquiry descriptions
+   ============================================================ */
 
-3. Distinct source wording
-   Return distinct matching descriptions and counts for:
+SELECT
+    outcomeDescription,
+    inquiryDescription,
+    COUNT(*) AS record_count,
+    COUNT(DISTINCT accountID) AS account_count
+FROM edgeSource.accountEngagementHelpline
+WHERE callDate >= @FeatureStartDate
+  AND callDate <= @AsOfDate
+  AND
+  (
+       outcomeDescription LIKE '%Retirement%'
+    OR inquiryDescription LIKE '%Retirement%'
+  )
+GROUP BY
+    outcomeDescription,
+    inquiryDescription
+ORDER BY record_count DESC;
 
-- Resolved
-- Super to Pension
-- TTR
-- Retirement
-- Roll out
-- Choice
-- Consolidat
 
-Show:
+/* ============================================================
+   POINT 3 - SAMPLE RAW RECORDS
+   ============================================================ */
 
-- description
-- record count
-- distinct account count
+SELECT TOP 50
+    accountID,
+    callDate,
+    outcomeDescription,
+    inquiryDescription
+FROM edgeSource.accountEngagementHelpline
+WHERE callDate >= @FeatureStartDate
+  AND callDate <= @AsOfDate
+  AND
+  (
+       outcomeDescription LIKE '%Retirement%'
+    OR inquiryDescription LIKE '%Retirement%'
+  )
+ORDER BY callDate DESC;
 
-4. Overlap validation
-   Do not rely only on the CASE-derived single bucket.
 
-Evaluate each matching rule independently and identify source records that satisfy more than one rule.
+/* ============================================================
+   OVERLAP CHECK
+   Records matching BOTH Point 2 and Point 3
+   ============================================================ */
 
-Show:
+SELECT TOP 100
+    accountID,
+    callDate,
+    outcomeDescription,
+    inquiryDescription
+FROM edgeSource.accountEngagementHelpline
+WHERE callDate >= @FeatureStartDate
+  AND callDate <= @AsOfDate
 
-- accountID
-- date
-- outcomeDescription
-- inquiryDescription
-- resolved_flag
-- super_to_pension_ttr_flag
-- retirement_flag
-- rollover_consolidation_flag
-- number_of_matching_buckets
+  AND
+  (
+       outcomeDescription LIKE '%Super to Pension%'
+    OR inquiryDescription LIKE '%Super to Pension%'
+    OR outcomeDescription LIKE '%TTR%'
+    OR inquiryDescription LIKE '%TTR%'
+  )
 
-5. Rollover / consolidation review
-   Specifically check whether any records matched by:
+  AND
+  (
+       outcomeDescription LIKE '%Retirement%'
+    OR inquiryDescription LIKE '%Retirement%'
+  )
 
-- "Roll out"
-- "Choice"
-- "Consolidat"
-
-appear to represent:
-
-- consolidation inbound
-- transfer into the fund
-- general choice/product information
-- any other non-exit intent
-
-Show the distinct raw descriptions so they can be reviewed manually.
-
-6. Super-to-Pension vs Retirement
-   Show actual records where both:
-
-- Super-to-Pension/TTR rule
-  and
-- Retirement rule
-
-would match.
-
-This is needed to determine whether the two concepts should remain separate.
-
-7. Date integrity
-   Confirm:
-
-- no source record used is after "@AsOfDate"
-- all records fall within the configured 12-month feature window
-
-8. Account grain
-   Execute the Helpline aggregate and confirm:
-
-- total row count
-- distinct accountID count
-- duplicate accountID count
-
-Expected duplicate accountID count = 0.
-
-9. "helpline_active_days_12m"
-   Confirm it is no longer in the active Helpline SELECT output and is retained only as a commented business-review candidate for removal.
-
-Do not make any SQL changes based on the results yet.
-
-At the end provide a table:
-
-Check | Result | Status | Recommendation
-
-Use:
-
-- PASS
-- REVIEW
-- FAIL
-
-Also clearly state whether Step 2 is safe to proceed as-is or whether the Helpline matching rules need adjustment before moving to the Campaign/Event block.
+ORDER BY callDate DESC;
