@@ -1,37 +1,79 @@
-Do not modify the SQL.
+Update only the Helpline section in "behavioural_features_business_review.sql".
 
-Investigate why the validated "ROLLOVER_CONSOLIDATION_INTENT" rule currently produces 0 accounts for the "@AsOfDate" feature window.
+Do not modify any other feature block.
 
-Using the live database, check these accepted source patterns separately:
+There is an obsolete duplicate Consolidation/Rollover CASE branch still present in the query.
 
-- "inquiryDescription = 'Consolidation Outbound'"
-- "inquiryDescription = 'Choice/Consolidate Super'"
-- "inquiryDescription LIKE '%Roll out%'"
+Keep this new live-data-validated logic:
 
-For each pattern return:
+-- BUSINESS REVIEW CHANGE - LIVE DATA VALIDATED
+WHEN h.inquiryDescription = 'Consolidation Outbound'
+  OR h.inquiryDescription = 'Choice/Consolidate Super'
+  OR h.inquiryDescription LIKE '%Roll out%'
+THEN 'ROLLOVER_CONSOLIDATION_INTENT'
 
-1. Total record count across all available history.
-2. Distinct account count across all available history.
-3. Earliest "callDate".
-4. Latest "callDate".
-5. Record count within the current 12-month feature window for "@AsOfDate = '2024-12-31'".
-6. Distinct account count within that same 12-month window.
-7. Show up to 20 raw records with:
-   - accountID
-   - callDate
-   - outcomeDescription
-   - inquiryDescription
+Remove or comment out the old Consolidation/Rollover branch that contains:
 
-Also check coverage across the available historical period / multiple possible AsOfDate years or months, so we can understand whether this feature has useful historical variation rather than judging it from only the 31-Dec-2024 snapshot.
+WHEN h.inquiryDescription IN
+(
+    'Consolidation Inbound',
+    'Consolidation Outbound'
+)
+OR h.inquiryDescription LIKE 'Choice/Consolidate%'
+THEN 'CONSOLIDATION_ROLLOVER'
+
+Reason:
+
+- "Consolidation Inbound" must not be treated as churn/exit intent.
+- The broad "Choice/Consolidate%" rule has already been replaced by the stricter live-data-validated rule.
+- We must avoid two different categories representing the same rollover concept.
+
+After the change, confirm there is only one active rollover/consolidation intent rule in the Helpline CASE logic.
+
+Do not change:
+
+- RESOLVED logic
+- Super-to-Pension/TTR logic
+- Retirement Inquiry logic
+- Advice
+- Contribution
+- Investment
+- Insurance
+- Digital Access
+- Complaint
+- Account Admin
+- Campaign logic
+- date-window logic
+- account-level aggregation
+
+Also review the variable declarations.
+
+If the validation section declares "@AsOfDate", "@FeatureStartDate", "@Recent90Start", or "@Recent30Start" again in the same SQL batch, ensure this will not cause duplicate variable declaration errors.
+
+Either:
+
+- separate the validation section using "GO", if appropriate for this standalone SQL file,
+  or
+- rename the validation-only variables.
+
+Do not change the actual AsOfDate value or feature-window calculations.
+
+Then run the live validation using the existing DB connection pattern and confirm:
+
+1. "Consolidation Inbound" captured as rollover intent = 0.
+2. "Choice of Fund" captured as rollover intent = 0.
+3. "Investment Choice - change" captured as rollover intent = 0.
+4. "Investment Choice advice" captured as rollover intent = 0.
+5. "MST good choices" captured as rollover intent = 0.
+6. Duplicate "accountID" count in final Helpline aggregation = 0.
+7. Source records after "@AsOfDate" = 0.
+8. There is only one active rollover/consolidation category name:
+   "ROLLOVER_CONSOLIDATION_INTENT".
 
 Do not broaden the rule and do not reintroduce generic "%Choice%" or "%Consolidat%".
 
-At the end explain whether the zero coverage is because:
+At the end, show:
 
-A. valid events exist but fall outside the current 12-month window,
-B. valid events are extremely rare,
-C. the accepted values do not actually exist in the source,
-or
-D. there is an issue in the feature SQL.
-
-Do not make SQL changes yet.
+- what duplicate logic was removed
+- the final active rollover rule
+- PASS / REVIEW / FAIL validation result
