@@ -1,69 +1,71 @@
-Based on the Contribution Behaviour live-data review just completed, make the FINAL evidence-based deduplication recommendation between:
+Update only the Campaign/Event contribution-related feature logic in "behavioural_features_business_review.sql" based on the completed live-data deduplication review.
 
-Campaign/Event features:
+Do not modify any other feature block.
 
-- contribution_event_count_12m
-- recent_contribution_event_count_90d
-- rollin_event_count_12m
-- recent_rollin_event_count_90d
+Final decisions:
 
-and the Contribution Behaviour features sourced from:
-"edgeSource.accountMoneyInflow"
-
-Do NOT modify SQL yet.
-
-We already established:
-
-- Campaign contribution events have extremely high account overlap with accountMoneyInflow contribution activity.
-- Same-account + same-day / ±1-day alignment is very high.
-- There is no reliable common transaction ID.
-- Campaign contribution event features therefore appear to represent largely the same underlying contribution activity.
-- Roll-in events show material overlap, but are not necessarily identical because roll-in/transfer behaviour may not be represented by the same accountMoneyInflow contribution logic.
-
-Perform the final decision separately for CONTRIBUTION and ROLLIN.
-
-For CONTRIBUTION:
-
-Decide whether these should be DE-SCOPED from the active Campaign/Event ML feature list:
+DE-SCOPE:
 
 - contribution_event_count_12m
 - recent_contribution_event_count_90d
 
-Use the live overlap evidence already obtained.
-
-If de-scoping is recommended, explicitly state that accountMoneyInflow contribution frequency/change/recency features remain the authoritative contribution behaviour features.
-
-For ROLLIN:
-
-Review:
+RETAIN FOR REVIEW:
 
 - rollin_event_count_12m
 - recent_rollin_event_count_90d
 
-Determine whether these capture a genuinely distinct roll-in / transfer-in event that is not already represented by the current accountMoneyInflow contribution feature set.
+Reason:
 
-Check actual source event mappings and, where possible:
+Live validation showed that Campaign/Event contribution activity has extremely high account and date overlap with contribution behaviour already captured from "edgeSource.accountMoneyInflow".
 
-- source event names
-- same account overlap
-- same/near date overlap
-- whether accountMoneyInflow explicitly includes or excludes roll-in / transfer transactions
-- whether roll-in represents new incoming money from another fund rather than a normal contribution
+Therefore the Campaign/Event contribution counters should no longer be exposed as active ML features because they largely duplicate the authoritative Contribution Behaviour features.
 
-Return exactly:
+For the two contribution event features:
 
-Feature | Final decision | Evidence | Reason
+1. Remove/comment them from the active Campaign/Event final SELECT output.
+2. Keep the underlying source mapping/commented reference logic if useful for traceability.
+3. Add a short SQL comment such as:
 
-Allowed decisions:
+"BUSINESS REVIEW: De-scoped because live validation showed very high overlap with accountMoneyInflow contribution behaviour; not treated as an independent ML signal."
 
-- KEEP
-- DE-SCOPE
-- REVIEW
+For Roll-in:
 
-Also return:
+Keep active:
 
-1. Final Campaign/Event active feature list after contribution deduplication.
-2. Final Contribution Behaviour active feature list.
-3. A short business-review comment I can paste against Nathan's original "likely duplication with Contributions table" comment.
+- rollin_event_count_12m
+- recent_rollin_event_count_90d
 
-Do NOT change SQL in this step.
+Add a review comment such as:
+
+"BUSINESS REVIEW: Retained for review as potential transfer-in behaviour. It overlaps with contribution activity but is not confirmed to represent the same underlying financial action."
+
+Important:
+
+- Do not merge Roll-in into Contribution.
+- Do not rename Roll-in as Contribution.
+- Do not change the accountMoneyInflow Contribution Behaviour block.
+- Do not change Website Engagement.
+- Do not change Helpline, Workflow, or any other feature section.
+- Preserve one row per accountID.
+- Preserve the existing FeatureStartDate / AsOfDate boundaries.
+
+After the change, validate and report:
+
+1. "contribution_event_count_12m" active in final Campaign/Event output: YES/NO
+2. "recent_contribution_event_count_90d" active: YES/NO
+3. "rollin_event_count_12m" active: YES/NO
+4. "recent_rollin_event_count_90d" active: YES/NO
+5. final duplicate accountID count
+6. post-AsOfDate rows entering feature logic
+7. pre-FeatureStartDate rows entering feature logic
+8. PASS / REVIEW / FAIL
+
+Expected result:
+
+- contribution event features = NO
+- roll-in features = YES
+- duplicate accountID count = 0
+- post-AsOfDate = 0
+- pre-FeatureStartDate = 0
+
+Also show exactly which SQL lines/features were changed.
