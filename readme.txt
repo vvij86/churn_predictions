@@ -1,71 +1,160 @@
-Update only the Campaign/Event contribution-related feature logic in "behavioural_features_business_review.sql" based on the completed live-data deduplication review.
+Review only the Inflow Signals / Contribution Change section in "behavioural_features_business_review.sql".
 
-Do not modify any other feature block.
+Do not modify any other feature section yet.
 
-Final decisions:
+Source table:
+"edgeSource.accountMoneyInflow"
+
+Context:
+We already reviewed the main Contribution Behaviour block. Many raw/current contribution amount features may overlap with features already present there.
+
+Nathan’s business review comments also indicate that some current amount features may be duplicates. However, the colour coding suggests that the change % and cessation flag features should not automatically be removed and may be useful behavioural signals.
+
+Please validate the following feature families separately:
+
+Employer SG:
+
+- "employer_sg_current_amount_12m"
+- "employer_sg_change_pct_12m"
+- "employer_sg_cessation_flag"
+
+Salary Sacrifice:
+
+- "salary_sacrifice_current_amount_12m"
+- "salary_sacrifice_change_pct_12m"
+- "salary_sacrifice_cessation_flag"
+
+Member Voluntary:
+
+- "member_voluntary_current_amount_12m"
+- "member_voluntary_change_pct_12m"
+- "member_voluntary_cessation_flag"
+
+Perform the following review using the live source data.
+
+1. Check duplication against the already retained Contribution Behaviour features.
+
+For each "*_current_amount_12m" feature, identify the closest existing Contribution Behaviour feature, such as:
+
+- "employer_sg_amount_12m"
+- "salary_sacrifice_amount_12m"
+- "member_voluntary_amount_12m"
+
+Determine whether the current amount feature is:
+
+- exactly the same measure,
+- derived from the same source rows,
+- materially equivalent,
+- or genuinely different.
+
+If it is effectively the same information, recommend DE-SCOPE as duplicate.
+
+Do not remove it merely because it comes from the same source table. Confirm the actual calculation first.
+
+2. Review the "*_change_pct_12m" features separately.
+
+Do not classify these as duplicates simply because their underlying amounts already exist.
+
+Validate whether each feature measures a meaningful within-account behavioural change, for example:
+
+current-period contribution amount versus prior-period contribution amount.
+
+Check:
+
+- source coverage,
+- number of distinct accounts,
+- NULL / zero handling,
+- denominator logic,
+- extreme percentage values,
+- divide-by-zero handling,
+- whether the comparison periods are truly comparable,
+- whether the feature uses only data available on or before "@AsOfDate".
+
+If technically valid, treat these as potentially useful behavioural change signals and recommend KEEP unless evidence shows otherwise.
+
+3. Review the "*_cessation_flag" features separately.
+
+Validate exactly how cessation is defined.
+
+Confirm that a cessation flag means something equivalent to:
+
+prior contribution activity existed,
+but contribution activity stopped in the relevant recent/current period.
+
+Check that it is not simply triggered by:
+
+- missing data,
+- incomplete source coverage,
+- account closure,
+- death,
+- internal transfer,
+- source-system gaps,
+- or another technical condition.
+
+If the flag genuinely represents contribution stopping, treat it as a potentially useful behavioural signal and recommend KEEP.
+
+4. Pay special attention to Nathan’s review intent.
+
+The intended interpretation is:
+
+- raw/current contribution amount by itself does not necessarily represent stronger engagement;
+- raw/current amount fields may already be represented in the Contribution Behaviour section;
+- relative change in contribution behaviour can be more informative;
+- cessation can be a meaningful behavioural deterioration signal.
+
+Therefore do NOT automatically de-scope all nine features.
+
+Expected likely pattern, subject to live-data validation:
+
+"*_current_amount_12m"
+→ possible duplicate / DE-SCOPE if equivalent to existing amount feature.
+
+"*_change_pct_12m"
+→ potentially useful / KEEP if calculation is valid.
+
+"*_cessation_flag"
+→ potentially useful / KEEP if it represents genuine contribution cessation.
+
+5. Validate time-window integrity.
+
+Confirm:
+
+- no records after "@AsOfDate" enter feature logic;
+- no records before "@FeatureStartDate" enter the 12-month feature logic;
+- no future information is used to determine cessation;
+- final feature grain is one row per "accountID";
+- final duplicate "accountID" count = 0.
+
+6. Return a decision table with:
+
+Feature | Existing overlapping feature | Live coverage | Same underlying measure? | Business meaning | Recommendation | Reason
+
+Use only:
+
+- KEEP
+- DE-SCOPE
+- REVIEW
+
+7. Also return a short final active feature recommendation grouped as:
+
+KEEP:
+
+- useful change features
+- useful cessation features
 
 DE-SCOPE:
 
-- contribution_event_count_12m
-- recent_contribution_event_count_90d
+- confirmed duplicate amount features
 
-RETAIN FOR REVIEW:
+REVIEW:
 
-- rollin_event_count_12m
-- recent_rollin_event_count_90d
-
-Reason:
-
-Live validation showed that Campaign/Event contribution activity has extremely high account and date overlap with contribution behaviour already captured from "edgeSource.accountMoneyInflow".
-
-Therefore the Campaign/Event contribution counters should no longer be exposed as active ML features because they largely duplicate the authoritative Contribution Behaviour features.
-
-For the two contribution event features:
-
-1. Remove/comment them from the active Campaign/Event final SELECT output.
-2. Keep the underlying source mapping/commented reference logic if useful for traceability.
-3. Add a short SQL comment such as:
-
-"BUSINESS REVIEW: De-scoped because live validation showed very high overlap with accountMoneyInflow contribution behaviour; not treated as an independent ML signal."
-
-For Roll-in:
-
-Keep active:
-
-- rollin_event_count_12m
-- recent_rollin_event_count_90d
-
-Add a review comment such as:
-
-"BUSINESS REVIEW: Retained for review as potential transfer-in behaviour. It overlaps with contribution activity but is not confirmed to represent the same underlying financial action."
+- anything where equivalence or business meaning cannot be proven from the source data.
 
 Important:
+Do not change the SQL in this step.
 
-- Do not merge Roll-in into Contribution.
-- Do not rename Roll-in as Contribution.
-- Do not change the accountMoneyInflow Contribution Behaviour block.
-- Do not change Website Engagement.
-- Do not change Helpline, Workflow, or any other feature section.
-- Preserve one row per accountID.
-- Preserve the existing FeatureStartDate / AsOfDate boundaries.
+First perform the live-data validation and give me the evidence-based recommendation only.
 
-After the change, validate and report:
+Do not assume that the green rows are automatically correct; use them as Nathan’s review direction, then confirm using live source data.
 
-1. "contribution_event_count_12m" active in final Campaign/Event output: YES/NO
-2. "recent_contribution_event_count_90d" active: YES/NO
-3. "rollin_event_count_12m" active: YES/NO
-4. "recent_rollin_event_count_90d" active: YES/NO
-5. final duplicate accountID count
-6. post-AsOfDate rows entering feature logic
-7. pre-FeatureStartDate rows entering feature logic
-8. PASS / REVIEW / FAIL
-
-Expected result:
-
-- contribution event features = NO
-- roll-in features = YES
-- duplicate accountID count = 0
-- post-AsOfDate = 0
-- pre-FeatureStartDate = 0
-
-Also show exactly which SQL lines/features were changed.
+Do not infer business meaning from feature names alone. Base the conclusion on the actual SQL calculations and source values.
