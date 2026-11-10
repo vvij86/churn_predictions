@@ -1,17 +1,24 @@
-Review ONLY the Workflow Behaviour section in "behavioural_features_business_review.sql".
+Update ONLY the Workflow Behaviour section in "behavioural_features_business_review.sql".
 
-Do not touch any other feature section.
+Based on the completed live-data validation, de-scope the generic Workflow feature group from the active ML output.
 
-We have already de-scoped the category-specific Workflow outputs for:
+The validation confirmed that the generic "meaningful_workflow_*" features aggregate the same four Workflow categories already reviewed:
 
 - MEMBER_DETAIL_CHANGE
+- BENEFICIARY_ACTIVITY
 - MEMBER_INQUIRY_SERVICE
 - COMPLAINT_ESCALATION
-- BENEFICIARY_ACTIVITY
 
-The category-specific output columns are already commented/de-scoped.
+The live data showed:
 
-Now validate whether the remaining generic Workflow features are still being calculated from these de-scoped categories:
+- MEMBER_DETAIL_CHANGE = 324,438 events across 575 accounts and is dominated by repetitive operational/contact-admin updates.
+- BENEFICIARY_ACTIVITY overlaps strongly with the retained Campaign/Event beneficiary feature.
+- MEMBER_INQUIRY_SERVICE is extremely sparse.
+- COMPLAINT_ESCALATION is extremely sparse and represents incomplete complaint coverage.
+
+Therefore the generic Workflow aggregate indirectly reintroduces the same de-scoped/overlapping signals and should not remain active.
+
+De-scope these generic Workflow output features:
 
 - meaningful_workflow_count_12m
 - meaningful_workflow_active_days_12m
@@ -21,48 +28,34 @@ Now validate whether the remaining generic Workflow features are still being cal
 - completed_meaningful_workflow_count_12m
 - open_meaningful_workflow_count_asof
 
-Important:
+Requirements:
 
-Currently "meaningful_workflow" appears to use:
+1. Do not delete the SQL logic completely.
 
-FROM workflow_base
-WHERE workflow_category IS NOT NULL
+2. Comment/de-scope the features from the active final Workflow output so they remain available as reference code.
 
-This may mean the generic "meaningful workflow" features still include MEMBER_DETAIL_CHANGE, MEMBER_INQUIRY_SERVICE, COMPLAINT_ESCALATION and BENEFICIARY_ACTIVITY even though their category-specific features were de-scoped.
-
-Please:
-
-1. Confirm exactly which workflow categories currently contribute to each generic meaningful_workflow feature.
-
-2. Show live account counts and event counts contributed by each category to the generic Workflow measures.
-
-3. Specifically confirm whether the high counts such as 47 workflow events for an account are primarily caused by repetitive MEMBER_DETAIL_CHANGE / contact-update activity.
-
-4. Do not automatically modify SQL yet.
-
-5. Recommend one of:
+3. Add a short comment such as:
    
-   KEEP generic Workflow features
-   REDEFINE generic Workflow features using only defensible categories
-   DE-SCOPE generic Workflow features completely
+   "-- BUSINESS REVIEW: De-scoped from ML output because the generic Workflow aggregate is dominated by repetitive operational/admin activity and reintroduces categories already de-scoped or captured elsewhere."
 
-6. The recommendation must be based on the previous live-data findings:
+4. Keep the existing category-specific de-scoped Workflow logic unchanged.
+
+5. Do not modify any non-Workflow feature section.
+
+6. Do not modify Website Engagement.
+
+7. Preserve the account-level grain: one row per accountID.
+
+8. Validate after the change:
    
-   - MEMBER_DETAIL_CHANGE = repetitive operational/admin activity
-   - MEMBER_INQUIRY_SERVICE = extremely sparse
-   - COMPLAINT_ESCALATION = extremely sparse/incomplete complaint coverage
-   - BENEFICIARY_ACTIVITY = overlaps strongly with the retained Campaign/Event beneficiary feature
+   - no records after @AsOfDate
+   - no records before @FeatureStartDate
+   - duplicate accountID count = 0
+   - none of the generic Workflow features appear in the active final output
+   - none of the category-specific de-scoped Workflow features appear in the active final output
 
-7. If all four categories are unsuitable as independent Workflow ML signals, recommend de-scoping the generic meaningful_workflow features as well rather than leaving an aggregate feature that indirectly reintroduces the same de-scoped behaviours.
+Return:
 
-8. Confirm:
-   
-   - no records after @AsOfDate enter the feature logic
-   - no records before @FeatureStartDate enter the feature logic
-   - final duplicate accountID count = 0
-   - final grain remains one row per accountID
-
-Do not change Website Engagement.
-
-Return a short final recommendation:
-KEEP / REDEFINE / DE-SCOPE for the generic Workflow feature group, with the reason.
+- PASS / REVIEW / FAIL
+- exact Workflow features de-scoped
+- confirmation that no other feature block was changed.
