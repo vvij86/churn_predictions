@@ -1,12 +1,13 @@
-Update ONLY the Partial Rollover / Withdrawal Behaviour section in "behavioural_features_business_review.sql".
+Update ONLY the Partial Rollover percentage logic in "behavioural_features_business_review.sql".
 
-The current percentage calculation uses:
+The latest live validation still shows a small number of percentage values > 1:
 
-partial_rollover_amount / current_account_fum_amount
+- partial_rollover_pct_12m > 1: 23 accounts
+- recent_partial_rollover_pct_90d > 1: 5 accounts
 
-This can produce values greater than 100% because current FUM is the remaining balance after historical outflows.
+This occurs because some accounts have zero or negative current FUM.
 
-Please change the percentage calculation to represent the proportion of funds rolled out relative to rolled-out amount plus remaining FUM.
+Please make the percentage denominator valid only when "current_account_fum_amount > 0".
 
 Use:
 
@@ -18,55 +19,37 @@ recent_partial_rollover_pct_90d =
 recent_partial_rollover_amount_90d /
 (current_account_fum_amount + recent_partial_rollover_amount_90d)
 
-Requirements:
+BUT return NULL when:
 
-1. Keep these existing Partial Rollover features unchanged:
-   
-   - partial_rollover_count_12m
-   - partial_rollover_amount_12m
-   - days_since_last_partial_rollover
-   - recent_partial_rollover_count_90d
-   - recent_partial_rollover_amount_90d
+- current_account_fum_amount IS NULL
+- current_account_fum_amount <= 0
+- partial rollover amount is NULL
+- resulting denominator <= 0
 
-2. Keep:
-   
-   - current_account_fum_amount
-   - partial_rollover_pct_12m
-   - recent_partial_rollover_pct_90d
+Do not cap percentages artificially at 1.
 
-3. Use point-in-time AccountInvestment data only:
-   
-   - investmentDate <= @AsOfDate
-   - latest investment record per account/investment option
-   - aggregate to account-level FUM
-   - no future records
+Do not multiply by 100.
 
-4. Handle denominator safely:
-   
-   - return NULL where denominator is NULL or <= 0
-   - do not force NULL values to zero
+Keep all existing Partial Rollover features unchanged.
 
-5. Do not multiply by 100. Keep percentage values as decimal ratios between 0 and 1.
+After the change, run live validation and report only:
 
-6. Run live validation and report:
-   
-   - total output rows
-   - distinct accountID count
-   - duplicate accountID count
-   - accounts with positive / zero / NULL FUM
-   - min / average / max for both percentage fields
-   - count of percentage values > 1
-   - count of percentage values < 0
-   - post-AsOfDate records entering feature logic
-   - PASS / REVIEW / FAIL
+1. total output rows
+2. distinct accountID count
+3. duplicate accountID count
+4. positive / zero / negative / NULL FUM counts
+5. min / avg / max of partial_rollover_pct_12m
+6. min / avg / max of recent_partial_rollover_pct_90d
+7. count of each percentage > 1
+8. count of each percentage < 0
+9. post-AsOfDate rows entering the feature logic
+10. PASS / REVIEW / FAIL
 
 Expected:
 
-- final grain = one row per accountID
-- duplicate accountID count = 0
-- no post-AsOfDate records used
-- valid percentage values should normally be between 0 and 1
+- duplicate accountID = 0
+- no future records used
+- percentage < 0 = 0
+- percentage > 1 = 0 for valid positive-FUM accounts
 
-Do not modify any other feature block.
-
-After validation, show the final active Partial Rollover feature list and the exact SQL lines changed.
+Do not modify any other feature section.
