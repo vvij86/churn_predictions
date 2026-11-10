@@ -1,160 +1,56 @@
-Review only the Inflow Signals / Contribution Change section in "behavioural_features_business_review.sql".
+Update ONLY the Inflow Signals / Contribution Change section in behavioural_features_business_review.sql based on the completed live-data review.
 
-Do not modify any other feature section yet.
+Do not modify any other feature block.
 
-Source table:
-"edgeSource.accountMoneyInflow"
+Apply the following final decision:
 
-Context:
-We already reviewed the main Contribution Behaviour block. Many raw/current contribution amount features may overlap with features already present there.
+DE-SCOPE these duplicate current/raw amount features from the active output:
+1. employer_sg_current_amount_12m
+2. salary_sacrifice_current_amount_12m
+3. member_voluntary_current_amount_12m
 
-Nathan’s business review comments also indicate that some current amount features may be duplicates. However, the colour coding suggests that the change % and cessation flag features should not automatically be removed and may be useful behavioural signals.
+Reason:
+These are materially equivalent to the corresponding retained Contribution Behaviour amount features already calculated from edgeSource.accountMoneyInflow, using the same source rows, same eligible account population, same 12-month window, same contribution-type restrictions, same internal-transfer/rollover exclusions, and SUM(amount) aggregation.
 
-Please validate the following feature families separately:
+KEEP these behavioural change features active:
+1. employer_sg_change_pct_12m
+2. employer_sg_cessation_flag
+3. salary_sacrifice_change_pct_12m
+4. salary_sacrifice_cessation_flag
+5. member_voluntary_change_pct_12m
+6. member_voluntary_cessation_flag
 
-Employer SG:
+Reason:
+- change_pct features measure within-account current-vs-prior contribution change
+- cessation flags measure contribution stopping/deterioration
+- these are not duplicate copies of the raw amount totals
 
-- "employer_sg_current_amount_12m"
-- "employer_sg_change_pct_12m"
-- "employer_sg_cessation_flag"
+Implementation requirements:
+- Remove/comment out ONLY the 3 de-scoped current_amount fields from the final active SELECT/output.
+- Preserve their calculation code as commented reference code with a short BUSINESS REVIEW note explaining why they were de-scoped.
+- Do not change the formulas for the 6 retained features.
+- Do not change contribution filtering, eligible-account logic, date windows, internal-transfer exclusions, rollover exclusions, or account-level grain.
+- Do not touch Campaign/Event, Workflow, Helpline, Website, Partial Rollover, or any other section.
 
-Salary Sacrifice:
+After the SQL change, validate the live output and return:
 
-- "salary_sacrifice_current_amount_12m"
-- "salary_sacrifice_change_pct_12m"
-- "salary_sacrifice_cessation_flag"
+1. Active Inflow Signals / Contribution Change feature list.
+2. Confirm these are NOT active:
+   - employer_sg_current_amount_12m
+   - salary_sacrifice_current_amount_12m
+   - member_voluntary_current_amount_12m
+3. Confirm all 6 retained change/cessation features ARE active.
+4. post-AsOfDate rows entering feature logic = X
+5. pre-FeatureStartDate rows entering feature logic = X
+6. final duplicate accountID count = X
+7. final grain = one row per accountID: YES/NO
+8. PASS / FAIL
 
-Member Voluntary:
+PASS only if:
+- the 3 duplicate raw/current amount features are no longer active,
+- all 6 behavioural change/cessation features remain active,
+- post-AsOfDate rows = 0,
+- pre-FeatureStartDate rows = 0,
+- final duplicate accountID count = 0.
 
-- "member_voluntary_current_amount_12m"
-- "member_voluntary_change_pct_12m"
-- "member_voluntary_cessation_flag"
-
-Perform the following review using the live source data.
-
-1. Check duplication against the already retained Contribution Behaviour features.
-
-For each "*_current_amount_12m" feature, identify the closest existing Contribution Behaviour feature, such as:
-
-- "employer_sg_amount_12m"
-- "salary_sacrifice_amount_12m"
-- "member_voluntary_amount_12m"
-
-Determine whether the current amount feature is:
-
-- exactly the same measure,
-- derived from the same source rows,
-- materially equivalent,
-- or genuinely different.
-
-If it is effectively the same information, recommend DE-SCOPE as duplicate.
-
-Do not remove it merely because it comes from the same source table. Confirm the actual calculation first.
-
-2. Review the "*_change_pct_12m" features separately.
-
-Do not classify these as duplicates simply because their underlying amounts already exist.
-
-Validate whether each feature measures a meaningful within-account behavioural change, for example:
-
-current-period contribution amount versus prior-period contribution amount.
-
-Check:
-
-- source coverage,
-- number of distinct accounts,
-- NULL / zero handling,
-- denominator logic,
-- extreme percentage values,
-- divide-by-zero handling,
-- whether the comparison periods are truly comparable,
-- whether the feature uses only data available on or before "@AsOfDate".
-
-If technically valid, treat these as potentially useful behavioural change signals and recommend KEEP unless evidence shows otherwise.
-
-3. Review the "*_cessation_flag" features separately.
-
-Validate exactly how cessation is defined.
-
-Confirm that a cessation flag means something equivalent to:
-
-prior contribution activity existed,
-but contribution activity stopped in the relevant recent/current period.
-
-Check that it is not simply triggered by:
-
-- missing data,
-- incomplete source coverage,
-- account closure,
-- death,
-- internal transfer,
-- source-system gaps,
-- or another technical condition.
-
-If the flag genuinely represents contribution stopping, treat it as a potentially useful behavioural signal and recommend KEEP.
-
-4. Pay special attention to Nathan’s review intent.
-
-The intended interpretation is:
-
-- raw/current contribution amount by itself does not necessarily represent stronger engagement;
-- raw/current amount fields may already be represented in the Contribution Behaviour section;
-- relative change in contribution behaviour can be more informative;
-- cessation can be a meaningful behavioural deterioration signal.
-
-Therefore do NOT automatically de-scope all nine features.
-
-Expected likely pattern, subject to live-data validation:
-
-"*_current_amount_12m"
-→ possible duplicate / DE-SCOPE if equivalent to existing amount feature.
-
-"*_change_pct_12m"
-→ potentially useful / KEEP if calculation is valid.
-
-"*_cessation_flag"
-→ potentially useful / KEEP if it represents genuine contribution cessation.
-
-5. Validate time-window integrity.
-
-Confirm:
-
-- no records after "@AsOfDate" enter feature logic;
-- no records before "@FeatureStartDate" enter the 12-month feature logic;
-- no future information is used to determine cessation;
-- final feature grain is one row per "accountID";
-- final duplicate "accountID" count = 0.
-
-6. Return a decision table with:
-
-Feature | Existing overlapping feature | Live coverage | Same underlying measure? | Business meaning | Recommendation | Reason
-
-Use only:
-
-- KEEP
-- DE-SCOPE
-- REVIEW
-
-7. Also return a short final active feature recommendation grouped as:
-
-KEEP:
-
-- useful change features
-- useful cessation features
-
-DE-SCOPE:
-
-- confirmed duplicate amount features
-
-REVIEW:
-
-- anything where equivalence or business meaning cannot be proven from the source data.
-
-Important:
-Do not change the SQL in this step.
-
-First perform the live-data validation and give me the evidence-based recommendation only.
-
-Do not assume that the green rows are automatically correct; use them as Nathan’s review direction, then confirm using live source data.
-
-Do not infer business meaning from feature names alone. Base the conclusion on the actual SQL calculations and source values.
+Also show exactly which SQL lines/features were changed.
