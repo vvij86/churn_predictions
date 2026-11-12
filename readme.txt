@@ -1,279 +1,451 @@
-Generate a standalone SQL Server query for AccountEngagementWeb behavioural features based on the production XLSX analysis already completed.
+Create a NEW Word document for the final reviewed behavioural feature list.
 
 IMPORTANT:
-- Do NOT modify behavioural_features_business_review.sql yet.
-- Create a new standalone query/file, for example:
-  AccountEngagementWeb_Reviewed_Features.sql
-- Grain must be ONE ROW PER accountID PER @AsOfDate.
-- Use only information available on or before @AsOfDate.
-- Feature window = previous 12 months.
-- Recent window = previous 90 days.
-- Avoid target leakage.
-- Do NOT use ExitDate from requestParameters.
-- Do NOT use any future-dated exit/outcome field.
-- Do NOT include generic WebQuoteSummary activity counts.
-- Do NOT include profile/address/contact update features.
-- Do NOT include static CurrentBalance, RetirementBenefit, contribution amount, investment strategy, or similar values already captured in other feature groups.
+Do NOT overwrite the existing document:
+"Member Retention Behavioral Feature Business Review"
 
-Source:
-edgeSource.accountEngagementWeb
+Create a new document, for example:
 
-Use the same eligible-account logic and parameter style already used in behavioural_features_business_review.sql:
-- @AsOfDate
-- @FeatureStartDate
-- @Recent90Start
-- eligible_accounts
+Member_Retention_Behavioural_Features_Final_Reviewed.docx
 
-Production XLSX analysis established the following decisions.
+Use the SAME formatting, structure, table style, fonts, section headings, column widths, borders, shading and overall layout as the existing:
+"Member Retention Behavioral Feature Business Review"
+
+The existing document should be used only as the formatting/template reference.
 
 ==================================================
-1. RETIREMENT PLANNING — KEEP
+SOURCE OF TRUTH
 ==================================================
 
-Use jobTypeDescription values:
-- MemberRISProjection
-- BalanceRetirementProjection
+The final active feature definitions must come from these two SQL files:
 
-Create:
+1. behavioural_features_business_review.sql
+2. AccountEngagementWeb_Reviewed_Features.sql
 
-retirement_planning_activity_count_12m
+Do NOT use the old Word document as the source of truth for feature inclusion.
 
-recent_retirement_planning_activity_count_90d
+The Word document must represent the CURRENT reviewed SQL state.
 
-days_since_last_retirement_planning_activity
+Where a feature has been commented out / de-scoped / removed from active SELECT output in SQL, do NOT include it as an active feature.
 
-Definition:
-- count actual qualifying web requests
-- recent count only within previous 90 days
-- recency = DATEDIFF(DAY, MAX(requestDate), @AsOfDate)
+Where a feature is explicitly retained in SQL, include it.
 
-Do NOT use ExitDate from requestParameters.
+For AccountEngagementWeb, use the standalone:
+AccountEngagementWeb_Reviewed_Features.sql
 
-Do NOT directly use:
-- RetirementAge
-- DesiredRetirementIncome
-- CurrentBalance
-- ProjectedBalanceAtRetirement
-- RetirementBenefit
-as model features in this first version.
-
-The behavioural signal is that the member performed retirement-planning activity, not the resulting monetary values.
+because AccountEngagementWeb was reviewed separately using the production XLSX files.
 
 ==================================================
-2. LEAVING SERVICE / WITHDRAWAL QUOTE — REVIEW FEATURE
+DOCUMENT PURPOSE
 ==================================================
 
-WebQuoteSummary itself is too broad.
+Create a clean final business-review feature catalogue containing the latest scoped behavioural features that are candidates for the ML model.
 
-Only classify a WebQuoteSummary request as leaving-service intent when requestParameters contains a valid LeavingService value.
+The document must be understandable by:
+- Business
+- BA
+- Data Science
+- ML reviewers
 
-Create:
-
-leaving_service_quote_count_12m
-
-recent_leaving_service_quote_count_90d
-
-days_since_last_leaving_service_quote
-
-Do NOT use ExitDate.
-
-Do NOT create a generic WebQuoteSummary count.
-
-Do NOT use LeavingService monetary amount itself in the first version.
-
-The feature should represent:
-"member actively modelled a leaving-service / withdrawal scenario"
-
-rather than generic quote activity.
-
-Please inspect the real requestParameters format from the production XLSX examples and implement robust SQL parsing.
-
-If requestParameters is pipe-delimited key=value text, extract/check LeavingService safely using SQL Server string logic.
-
-Do not simply search for the word "LeavingService" if it can occur without a usable value.
-Where possible, require a non-empty/non-null value.
+Do not include temporary validation columns, debug outputs, intermediate CTE fields, or technical helper columns.
 
 ==================================================
-3. TRANSFER INTENT — REVIEW
+DOCUMENT STRUCTURE
 ==================================================
 
-Use specific intentional event:
-- Transfer Request WEB
+Retain the same section-based format used in the existing Word document.
 
-Create:
+For each feature group, create a table with exactly these columns:
 
-transfer_intent_activity_count_12m
+S.No
+Behaviour Name
+Description
+Sample Value
+Source
+Comments
 
-recent_transfer_intent_activity_count_90d
+Use the same styling as the existing document.
 
-days_since_last_transfer_intent_activity
-
-Do not combine this with generic web activity.
+Number rows sequentially within each section.
 
 ==================================================
-4. INVESTMENT SWITCH INTENT — REVIEW
+FEATURE INCLUSION RULES
+==================================================
+
+Read the SQL carefully and generate the final active feature list.
+
+Do NOT simply copy all historical rows from the old Word document.
+
+Include only currently retained / active fields.
+
+==================================================
+1. HELPLINE ENGAGEMENT
+==================================================
+
+Use the final reviewed Helpline logic from behavioural_features_business_review.sql.
+
+Do not reintroduce fields already de-scoped during review.
+
+Preserve only active Helpline behavioural features.
+
+For complaint-related fields:
+respect the earlier business review warning that Helpline complaints capture only a narrow subset of complaints.
+
+Do not promote a complaint feature if it has been de-scoped in the reviewed SQL.
+
+==================================================
+2. WORKFLOW BEHAVIOUR
+==================================================
+
+The Workflow review concluded that the generic workflow features and category-specific weak signals were not strong enough.
+
+Do NOT include de-scoped Workflow fields merely because the SQL reference code still exists.
+
+If the final active SQL output contains no Workflow ML features, either:
+
+- omit the Workflow section entirely
+
+OR
+
+- retain a short section heading with a note:
+  "De-scoped during business review — no active ML features retained."
+
+Prefer omitting individual de-scoped rows.
+
+==================================================
+3. CONTRIBUTION BEHAVIOUR
+==================================================
+
+Include the currently retained Contribution Behaviour features from behavioural_features_business_review.sql.
+
+These may include features such as:
+
+- contribution_count_12m
+- contribution_amount_12m
+- contribution_active_months_12m
+- days_since_last_contribution
+- recent_contribution_amount_90d
+- prior_contribution_amount_90d
+- recent_contribution_count_90d
+- prior_contribution_count_90d
+- contribution_change_pct_90d
+- contribution_ceased_90d_flag
+- employer_sg_amount_12m
+- employer_sg_amount_90d
+- salary_sacrifice_amount_12m
+- salary_sacrifice_amount_90d
+- member_voluntary_amount_12m
+- member_voluntary_amount_90d
+
+BUT verify against the current SQL before including.
+
+Important business wording:
+
+Raw contribution monetary values are financial-behaviour measures.
+
+Do NOT describe larger contribution amount as stronger engagement.
+
+Frequency, persistence, recency, relative change and cessation are stronger behavioural signals.
+
+==================================================
+4. CAMPAIGN / EVENT CONTRIBUTION DEDUPLICATION
+==================================================
+
+Do NOT include:
+
+- contribution_event_count_12m
+- recent_contribution_event_count_90d
+
+because these were de-scoped as possible duplicates of accountMoneyInflow contribution behaviour.
+
+Retain roll-in event fields only if they remain active in the final SQL.
+
+For example, verify whether the following are active:
+
+- rollin_event_count_12m
+- recent_rollin_event_count_90d
+
+If retained, mention in Comments that these are still under review as transfer-in / roll-in signals and are not treated as duplicates of normal contributions.
+
+==================================================
+5. INFLOW SIGNALS / CONTRIBUTION CHANGE
+==================================================
+
+Do not include duplicate raw/current amount fields that were de-scoped.
+
+Specifically verify and exclude the de-scoped current amount features such as:
+
+- employer_sg_current_amount_12m
+- salary_sacrifice_current_amount_12m
+- member_voluntary_current_amount_12m
+
+Retain behavioural change / cessation features if active, such as:
+
+- employer_sg_change_pct_12m
+- employer_sg_cessation_flag
+- salary_sacrifice_change_pct_12m
+- salary_sacrifice_cessation_flag
+- member_voluntary_change_pct_12m
+- member_voluntary_cessation_flag
+
+Verify exact active column names from the SQL.
+
+==================================================
+6. PARTIAL ROLLOVER / WITHDRAWAL BEHAVIOUR
+==================================================
+
+Include the final reviewed Partial Rollover features.
+
+Expected active features should be verified from SQL and may include:
+
+- partial_rollover_count_12m
+- partial_rollover_amount_12m
+- days_since_last_partial_rollover
+- recent_partial_rollover_count_90d
+- recent_partial_rollover_amount_90d
+- partial_rollover_pct_12m
+- recent_partial_rollover_pct_90d
+
+Also include current_account_fum_amount only if it is an intended active feature in the final modelling output.
+
+Important description for percentage features:
+
+partial_rollover_pct_12m represents the proportion of the account's pre-withdrawal value represented by partial rollover activity.
+
+The final reviewed denominator logic is:
+
+partial_rollover_amount_12m /
+(current_account_fum_amount + partial_rollover_amount_12m)
+
+and similarly for the recent 90-day percentage.
+
+Only positive FUM is used for percentage calculation.
+
+Do not show implementation SQL in the document; convert it to simple business wording.
+
+==================================================
+7. INVESTMENT BEHAVIOUR / POSITION
+==================================================
+
+Use the final active features from AccountInvestments.
+
+Verify against SQL.
+
+Potential fields include:
+- investment_option_count_asof
+- total_investment_value_asof
+- direct_investment_flag
+
+Do not invent new features.
+
+If total_investment_value_asof is effectively the account-level FUM used elsewhere, describe it consistently and avoid duplicate naming if the final SQL has one canonical field.
+
+==================================================
+8. INSURANCE BEHAVIOUR / COVER POSITION
+==================================================
+
+Use the latest review decision.
+
+KEEP:
+- has_death_cover_asof
+- has_tpd_cover_asof
+
+The review indicated that the amount fields were not useful behavioural signals.
+
+Do NOT include if de-scoped:
+- death_cover_amount_asof
+- tpd_cover_amount_asof
+- ip_cover_amount_asof
+
+For:
+- has_ip_cover_asof
+- insurance_cover_type_count_asof
+
+check the current SQL.
+
+If still active but under review, include them with a clear Comments value such as:
+"Retained for review — lower-prevalence / derived cover-position indicator."
+
+Do not describe insurance amounts as engagement.
+
+==================================================
+9. ACCOUNT ENGAGEMENT WEB
 ==================================================
 
 Use:
-- Web - Asset Switch
+AccountEngagementWeb_Reviewed_Features.sql
 
-Create:
+Do NOT use the old generic AccountEngagementWeb feature list.
 
-investment_switch_activity_count_12m
+The reviewed production sample established that generic WebQuoteSummary activity is too broad.
 
-recent_investment_switch_activity_count_90d
+Include only final scoped web behavioural-intent fields.
 
-days_since_last_investment_switch_activity
+Expected retained/reviewed features to verify from the SQL:
 
-This represents an explicit online investment-change action.
+Retirement planning:
+- retirement_planning_activity_count_12m
+- recent_retirement_planning_activity_count_90d
+- days_since_last_retirement_planning_activity
 
-==================================================
-5. DO NOT INCLUDE
-==================================================
+Leaving-service quote intent:
+- leaving_service_quote_count_12m
+- recent_leaving_service_quote_count_90d
+- days_since_last_leaving_service_quote
 
-Do not generate active ML features for:
+Transfer intent:
+- transfer_intent_activity_count_12m
+- recent_transfer_intent_activity_count_90d
+- days_since_last_transfer_intent_activity
 
-- WebQuoteSummary generic count
-- generic web_activity_count_12m
+Investment switch:
+- investment_switch_activity_count_12m
+- recent_investment_switch_activity_count_90d
+- days_since_last_investment_switch_activity
+
+Verify exact final output columns from the standalone SQL.
+
+Do NOT include generic web features such as:
+- web_activity_count_12m
 - web_active_days_12m
 - days_since_last_web_activity
 - recent_web_activity_count_90d
-- profile/address/contact updates
-- Update Basic Details
-- UpdateAccessCode
-- UpdateAllDetails
-- UpdateBeneficiaries
-- UpdateTFN
-- UpdateTFNConsent
-- UpdateCommunicationPreferences
-- Web - Update Email Address
 
-Do not use:
-- ExitDate
-- any future exit/outcome fields
-- CurrentBalance
-- RetirementBenefit
-- static contribution amounts
-- static investment strategy/profile values
+Do NOT use ExitDate.
 
-Do not automatically include RiskAttitudeTool / RiskAttitudeToolUpdate yet.
-Leave these as REVIEW only because production coverage is low.
+Do NOT include any future exit/outcome parameter.
 
-Also leave the following very-low-volume events outside the active feature set for now:
-- Web Request - Cancel Insurance
-- Manual Super to Pension Application
-- Pension Commutation
+Do NOT include CurrentBalance or static financial values extracted from requestParameters.
 
-==================================================
-6. DATA QUALITY / FILTERS
-==================================================
+Do NOT include generic WebQuoteSummary counts.
 
-Use:
+For source, use:
+Edge.accountEngagementWeb
+or the exact source naming convention used in the existing document.
 
-requestDate >= @FeatureStartDate
-AND requestDate <= @AsOfDate
+For Comments:
 
-Recent 90-day features use:
-requestDate >= @Recent90Start
-AND requestDate <= @AsOfDate
+Retirement planning:
+"Retained — strongest genuine pre-churn digital intent observed in production sample."
 
-Use only eligible accounts.
+Leaving-service:
+"Retained / review — targeted leaving-service quote intent; generic WebQuoteSummary excluded."
 
-Preserve NULL handling appropriately.
+Transfer intent:
+"Retained / review — explicit member-initiated transfer intent."
 
-Do not allow future requestDate records.
-
-Account-level aggregation must return at most one row per accountID.
+Investment switch:
+"Retained / review — explicit investment-change action."
 
 ==================================================
-7. QUERY STRUCTURE
+10. OTHER FEATURE GROUPS
 ==================================================
 
-Prefer clear CTEs such as:
+Continue through every feature section present in behavioural_features_business_review.sql.
 
-eligible_accounts
-web_base
-classified_web_activity
-web_behaviour_features
+Examples may include:
+- Third Party Authority
+- Member service
+- Campaign
+- FUM
+- Investment
+- other behavioural sections already implemented
 
-In classified_web_activity create explicit flags such as:
+For every section:
 
-retirement_planning_flag
-leaving_service_quote_flag
-transfer_intent_flag
-investment_switch_flag
+1. inspect current SQL
+2. identify active final output features
+3. exclude commented-out / de-scoped fields
+4. preserve exact column name
+5. write concise business description
+6. use correct source table
+7. add business-review comment only where needed
 
-Then aggregate these to account level.
-
-Final SELECT should contain:
-
-accountID
-
-retirement_planning_activity_count_12m
-recent_retirement_planning_activity_count_90d
-days_since_last_retirement_planning_activity
-
-leaving_service_quote_count_12m
-recent_leaving_service_quote_count_90d
-days_since_last_leaving_service_quote
-
-transfer_intent_activity_count_12m
-recent_transfer_intent_activity_count_90d
-days_since_last_transfer_intent_activity
-
-investment_switch_activity_count_12m
-recent_investment_switch_activity_count_90d
-days_since_last_investment_switch_activity
+Do not lose any active reviewed feature simply because it was not explicitly mentioned in this prompt.
 
 ==================================================
-8. VALIDATION OUTPUT
+SAMPLE VALUE RULES
 ==================================================
 
-After the main query, add validation queries for:
+Match the style of the original document.
 
-1. total rows
-2. distinct accountID
-3. duplicate accountID count
-4. records with requestDate > @AsOfDate entering feature logic
-5. records before @FeatureStartDate entering feature logic
-6. coverage for every generated feature
-7. number of accounts with each feature > 0
-8. min / avg / max for each count feature
-9. NULL coverage for each days-since feature
-10. source event counts by jobTypeDescription
-11. LeavingService parsing success count
-12. WebQuoteSummary rows where LeavingService is absent vs present
+Examples:
 
-Also provide 20 sample qualifying source rows for:
-- retirement planning
-- leaving-service quote
-- transfer intent
-- investment switch
+Counts:
+3
 
-Include:
-accountID,
-requestDate,
-jobSource,
-jobType,
-jobTypeDescription,
-requestParameters
+Flags:
+1 (Yes)
 
-for manual business verification.
+Days-since:
+15 days
+
+Monetary:
+$2,500.00
+
+Percentage:
+12.5%
+
+Do not derive fake production-specific values.
+
+These are illustrative sample values only, consistent with the existing document style.
 
 ==================================================
-9. IMPORTANT
+COMMENTS RULE
 ==================================================
 
-Do not modify any other feature block.
+Comments should capture only useful business-review context.
 
-Do not invent mappings not observed in the production XLSX files.
+Examples:
 
-Base the requestParameters parsing on the actual production examples already analysed.
+- "Retained — strong recency signal."
+- "Retained as financial behaviour; amount should not be interpreted as engagement strength."
+- "Retained / review — possible overlap with another feature group."
+- "Derived current-position indicator."
+- "Production web review confirmed targeted intent; generic web activity excluded."
 
-At the end provide:
+Do NOT add verbose technical SQL explanations inside Comments.
 
-A. exact active feature list
-B. mapping from each feature to source jobTypeDescription/requestParameters condition
-C. any assumptions made
-D. PASS / REVIEW / FAIL assessment
-E. features intentionally excluded and reason
+==================================================
+FINAL QUALITY CHECK
+==================================================
+
+Before creating the document, produce an internal comparison of:
+
+A. all active feature columns from behavioural_features_business_review.sql
+B. all active feature columns from AccountEngagementWeb_Reviewed_Features.sql
+C. all feature rows planned for the new Word document
+
+Verify:
+
+- no active SQL feature is accidentally omitted
+- no de-scoped feature is accidentally included
+- no duplicate feature appears in two sections unless there is a genuine business reason
+- exact feature names match SQL
+- source table is correct
+- AccountEngagementWeb comes only from the reviewed standalone SQL
+- ExitDate and other leakage fields are absent
+- final modelling grain remains account level
+
+==================================================
+OUTPUT
+==================================================
+
+Create:
+
+Member_Retention_Behavioural_Features_Final_Reviewed.docx
+
+Use the SAME visual style as the existing:
+Member Retention Behavioral Feature Business Review
+
+At the end, also provide a short summary:
+
+- total number of active features in the document
+- count by feature group
+- features removed/de-scoped compared with the old document
+- newly added features compared with the old document
+- features retained as REVIEW rather than fully KEEP
+
+Do not modify either SQL file during this task.
+Do not modify the existing Word document.
+Only generate the new final reviewed Word document.
