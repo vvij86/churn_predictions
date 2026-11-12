@@ -1,1 +1,1 @@
-ML FRS reviewed by Simon Sutherland, who confirmed his agreement with the proposed approach. David will review the document upon his return on 19 November to address any minor changes. Business sign-off confirmation received; final review pending.
+Addressed most of Nathan's review comments on the feature query list. Two items remain pending: Website Engagement and Insurance Behaviour. Working on the remaining items to complete the review updates.
