@@ -1,12 +1,9 @@
-Here’s a shorter version:
+I have updated the queries and feature list based on your review comments and inputs.
 
-Description
+Please find the updated links below for your review:
 
-Address the remaining behavioural feature review comments, validate the updated features with source data, and obtain Business SME confirmation on the final feature list.
+- **Updated Queries:** [Link]
+- **Updated Feature List:** [Link]
 
-Acceptance Criteria
+Please let me know if you have any further comments.
 
-- Pending review comments are addressed.
-- Updated features are validated against source data.
-- Final KEEP / REVIEW / DE-SCOPE decisions are documented.
-- Business SME confirmation is obtained.
