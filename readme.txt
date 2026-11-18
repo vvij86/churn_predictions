@@ -1,12 +1,4 @@
+view_name = "mer_wealth_dev.mer_wealth_landing_edge.mscs_mrt_account_summary"
 
-from databricks.connect import DatabricksSession
-
-spark = DatabricksSession.builder.serverless().getOrCreate()
-
-print("Connected to Databricks Serverless!")
-
-df = spark.range(5)
-df.show()
-
-print("Serverless test successful!")
-
+df = spark.sql(f"SELECT * FROM {view_name} LIMIT 5")
+display(df)
