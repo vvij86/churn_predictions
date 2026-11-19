@@ -1,30 +1,42 @@
-We request the creation of a new Databricks ML Runtime cluster with dedicated group access in the Mercer Wealth Europe DEV (EU/UK) workspace to support ongoing ML development activities for the Member Retention Analytics project.
+Create the following child task under the ADO story “Enable Group Based Dedicated ML Runtime cluster/environment”.
 
-Previously, the cluster "mer_dev_wealth_SaiBeera_MRA_single_user_cluster" was configured with dedicated group access and renamed to "mer_wealth_dev_mra_ml_shared_cluster". The group "mer_wealth_mscs_ds_dev" was granted Can Restart permission.
+### Task Title
 
-However, the existing cluster has now expired due to inactivity and is no longer available. Hence, we request a new ML Runtime cluster with a similar configuration and dedicated group access.
+Request and Provision Dedicated Databricks ML Runtime Cluster with Group Access – EU/UK DEV
 
-Requested Configuration:
+### Description
 
-- Cluster Type: Databricks ML Runtime
-- Access Mode: Dedicated
-- Dedicated Group: "mer_wealth_mscs_ds_dev"
-- Required Permission: Can Restart
-- Proposed Cluster Name: "mer_wealth_dev_mra_ml_shared_cluster" (subject to name availability)
-- Workspace: Mercer Wealth Europe DEV (EU/UK)
+Raise and coordinate a ServiceNow request with the Databricks platform team to provision a new dedicated ML Runtime cluster for the Member Retention Analytics project in the EU/UK DEV workspace.
 
-Project Details:
+The previously configured cluster `mer_wealth_dev_mra_ml_shared_cluster` (renamed from `mer_dev_wealth_SaiBeera_MRA_single_user_cluster`) has expired due to inactivity and is no longer available.
 
-- Project Name: Member Retention Analytics
+**Activities:**
+1. Raise a new ServiceNow request for ML Runtime cluster provisioning.
+2. Attach the previous cluster provisioning email chain for reference.
+3. Request Dedicated access mode for the existing ML group `mer_wealth_mscs_ds_dev`.
+4. Request Can Restart permission for the group.
+5. Coordinate with the platform team until the cluster is provisioned.
+6. Validate cluster visibility, startup, ML Runtime availability, and group access.
+7. Update the ServiceNow and ADO tickets with the outcome.
+
+**Project Details:**
+- Project: Member Retention Analytics
 - App Short Key: MSECDP
 - Planview Code: 1013599
+- Workspace: Mercer Wealth Europe DEV (EU/UK)
 - Workspace ID: 3997133087712069
-- Environment: DEV
 
-Business Impact:
+### Acceptance Criteria
 
-The ML Runtime cluster is required for feature engineering, model training, evaluation, and other ML development activities. The unavailability of the cluster is impacting ongoing development.
+- New Databricks ML Runtime cluster is provisioned in the EU/UK DEV workspace.
+- Dedicated group access is configured for `mer_wealth_mscs_ds_dev`.
+- Required Can Restart permissions are granted.
+- Authorized ML group members can access and start the cluster.
+- Basic ML Runtime and notebook execution are successfully validated.
+- ServiceNow request and ADO task are updated with the provisioning details and validation results.
 
-Request:
+ADO Link Type: Select Child (as shown in your screenshot).
 
-Kindly provision a new ML Runtime cluster with dedicated access for the "mer_wealth_mscs_ds_dev" group and grant the necessary restart permissions on priority.
+Suggested State: In Progress
+
+Comment (optional): ServiceNow request initiated for provisioning a new dedicated ML Runtime cluster with group access. Previous cluster configuration and email chain will be provided for reference.
