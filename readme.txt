@@ -1,1 +1,1 @@
-
+ML modelling-input development is in progress. Databricks connectivity and source access are configured. Base population build and contribution feature build have been completed with validation checks passing. Currently progressing with the remaining behavioural feature blocks, including partial rollover/FUM features.
