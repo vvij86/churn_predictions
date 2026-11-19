@@ -1,199 +1,122 @@
-Create a new Python file directly under the existing "notebook" folder named:
+Update the existing file:
 
 "ml_mscs_mrt_base_population.py"
 
-Follow ALL development rules from:
+Do not change the existing business logic, source mappings, filtering logic, validation rules, modelling grain, or output DataFrame.
 
-".github/copilot-instructions.md"
+Add production-style logging and exception handling only.
 
-Important context:
+Requirements:
 
-This is the first file in the Member Retention Analytics ML feature-build pipeline.
+1. Use Python's built-in "logging" module.
 
-Use Databricks / PySpark.
+2. Create a module-level logger:
 
-Do not create any subfolder under "notebook".
+"logger = logging.getLogger(__name__)"
 
-Source
+Configure logging so INFO-level messages are visible in Databricks job output.
 
-Use:
+3. Replace normal pipeline-status "print()" statements with appropriate logging calls:
 
-Catalog:
-"mer_wealth_dev"
+- "logger.info()" for normal progress and validation metrics
+- "logger.warning()" for non-fatal data-quality observations
+- "logger.error()" only when appropriate
+- "logger.exception()" inside exception handlers
 
-Schema:
-"mer_wealth_landing_edge"
+4. Keep schema/sample display functionality where it is useful for development, but use logging for execution/status messages.
 
-Primary source table:
+5. Add clear INFO logging for major stages such as:
 
-"mer_wealth_dev.mer_wealth_landing_edge.mscs_mrt_account_summary"
+- starting base population build
+- loading "mscs_mrt_account_summary"
+- source schema validation
+- source field mapping
+- applying historical/date filters
+- applying eligibility/deceased filtering
+- applying deterministic point-in-time selection
+- building "base_population_df"
+- starting validation
+- validation metrics
+- successful completion
 
-Only use "mscs_mrt_*" source tables.
+6. Wrap major functions with appropriate exception handling.
 
-Do not use similarly named legacy/non-MRT tables.
+For example:
 
-Behavioural SQL References
+- source loading failure
+- missing mandatory source columns
+- transformation/build failure
+- validation failure
 
-The workspace contains two important SQL reference files:
+7. Use "logger.exception()" so the full stack trace appears in Databricks job logs.
 
-1. "behavioural_features_business_review.sql"
-2. "AccountEngagementWeb_Reviewed_Features.sql"
+Example pattern:
 
-For this base-population file, review "behavioural_features_business_review.sql" for any relevant account population / eligibility / point-in-time assumptions.
+try:
+    ...
+except Exception:
+    logger.exception("Failed to build base population")
+    raise
 
-Do not copy SQL Server table or column names blindly.
+8. Always re-raise critical exceptions.
 
-The SQL files are business-logic references only.
+Do not silently catch or suppress errors.
 
-Always validate the actual Databricks "mscs_mrt_account_summary" schema first.
+Databricks jobs must fail correctly when critical pipeline logic fails.
 
-"AccountEngagementWeb_Reviewed_Features.sql" will mainly be used later when building web-engagement features and should not be implemented in this base-population file.
+9. For required-column validation, raise a clear exception such as:
 
-Purpose
+"ValueError" or "RuntimeError"
 
-Build the reusable account-level base population / account spine that will be used by all subsequent feature modules.
+with the missing column names included in the message.
 
-Final grain MUST be:
+10. Keep existing critical validation failures.
 
-"one row per account_id per as_of_date"
+The following conditions must still fail the job:
 
-Final DataFrame name:
+- duplicate "account_id + as_of_date" > 0
+- null "account_id" > 0
+- null "as_of_date" > 0
 
-"base_population_df"
+Log the validation failure before raising the exception.
 
-Do NOT create behavioural features in this file.
-
-Do NOT create model training logic.
-
-Do NOT create churn probability or drivers.
-
-Do NOT persist a Databricks feature table yet.
-
-Required Configuration
-
-Create configurable constants near the top:
-
-"SOURCE_CATALOG = "mer_wealth_dev""
-
-"SOURCE_SCHEMA = "mer_wealth_landing_edge""
-
-"ACCOUNT_SUMMARY_TABLE = "mscs_mrt_account_summary""
-
-"HISTORICAL_START_DATE = "2023-04-01""
-
-Define "AS_OF_DATE" as a configurable parameter rather than repeating a hard-coded value throughout the code.
-
-Build the fully qualified source table name from the configuration.
-
-Schema Validation
-
-Load the source using "spark.table()".
-
-Before implementing transformations:
-
-- print/display the schema
-- inspect the actual column names
-- identify available equivalents for:
-  - account ID
-  - member/reference ID
-  - customer ID
-  - fund ID
-  - reporting/snapshot date
-  - exit date
-  - exit type
-  - date of death
-  - other fields genuinely required for the account spine
-
-Do not invent columns.
-
-If a required mapping cannot be established from the actual Databricks table:
-
-- add a clear TODO
-- identify what needs clarification
-- do not fabricate a replacement
-
-Base Population Logic
-
-Create a reusable account-level population using only information available on or before "as_of_date".
-
-Historical source availability begins from:
-
-"2023-04-01"
-
-Where supported by the actual source and agreed logic:
-
-- exclude deceased records
-- maintain point-in-time correctness
-- prevent future/outcome leakage
-- preserve valid historical account records
-
-Do not use outcome-period information as feature/input data.
-
-If multiple source records can exist for the same account and AsOfDate, use deterministic point-in-time logic to select the correct record.
-
-Do not simply call "dropDuplicates()" without explaining the duplicate source condition and selection logic.
-
-Output Columns
-
-Where available, standardize identifiers to snake_case and include:
-
-"account_id"
-
-"member_id"
-
-"customer_id"
-
-"fund_id"
-
-"as_of_date"
-
-Only include additional base fields if they are genuinely required for downstream feature logic or eligibility.
-
-Do not add behavioural feature columns.
-
-Modularity
-
-Prefer functions such as:
-
-"load_account_summary()"
-
-"build_base_population()"
-
-"validate_base_population()"
-
-Keep the implementation production-readable and reusable.
-
-Validation
-
-At the end, validate:
+11. Log the final validation metrics clearly, including:
 
 - total row count
 - distinct account_id count
 - distinct account_id + as_of_date count
-- duplicate account_id + as_of_date count
+- duplicate count
 - null account_id count
 - null as_of_date count
 - minimum as_of_date
 - maximum as_of_date
 
-Critical requirements:
+12. Do not add MLflow autologging to this file.
 
-- duplicate "account_id + as_of_date" count must be 0
-- null "account_id" count must be 0
-- null "as_of_date" count must be 0
+This is a feature/base-population pipeline, not a model-training file.
 
-Use clear assertions or validation failures for critical conditions.
+MLflow autologging will be introduced later during model training/evaluation.
 
-Display a small development sample of "base_population_df".
+13. Do not change:
 
-Important
+- source catalog
+- source schema
+- source table
+- historical start date
+- AsOfDate logic
+- field mappings
+- existing business rules
+- final grain
+- final DataFrame name
 
-Do not implement contribution, rollover, FUM, investment, insurance, campaign, web, helpline or other behavioural features yet.
+Final DataFrame must remain:
 
-This file is only the reusable account-level spine.
+"base_population_df"
 
-Do not modify unrelated files in the shared repository.
+14. Keep the code simple and Databricks-friendly.
 
-Before finalizing the code, confirm that every referenced source column actually exists in:
+Do not create a custom external log file on local disk.
 
-"mer_wealth_dev.mer_wealth_landing_edge.mscs_mrt_account_summary"
+Logs should appear naturally in Databricks job/run output.
+
+15. After refactoring, ensure the existing output/validation results remain functionally unchanged.
