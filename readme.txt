@@ -1,18 +1,20 @@
-Create the next reviewed behavioural feature module for Member Retention Analytics:
+Create the reviewed AccountEngagementWeb / Digital Behaviour feature module:
 
-notebook/ml_mscs_mrt_campaign_features.py
+notebook/ml_mscs_mrt_web_engagement_features.py
 
 Follow `.github/copilot-instructions.md` strictly.
 
-Before writing code, review the existing standalone reviewed SQL:
+PRIMARY BUSINESS-LOGIC REFERENCE:
 
-- behavioural_features_business_review.sql
+AccountEngagementWeb_Reviewed_Features.sql
 
-Use the Campaign / Event Behaviour section of that SQL as the PRIMARY business-logic reference.
+Before implementing anything:
 
-Also inspect the actual Databricks source schemas before implementing anything.
+1. Read the complete reviewed SQL file.
+2. Inspect the actual Databricks source schema.
+3. Confirm whether the corresponding `mscs_mrt_account_engagement_web` source contains data in the current DEV/UAT environment.
 
-Use only the corresponding `mscs_mrt_*` Databricks landing tables under:
+Use:
 
 catalog:
 mer_wealth_dev
@@ -20,149 +22,140 @@ mer_wealth_dev
 schema:
 mer_wealth_landing_edge
 
-Possible relevant sources include the reviewed mappings for:
-- campaign events
-- campaign event details
-- campaign/account mappings
+Do NOT invent mappings.
 
-Do NOT invent column mappings.
-If any SQL Server field does not have a confirmed Databricks equivalent, clearly flag it instead of guessing.
+IMPORTANT ENVIRONMENT RULE:
 
-IMPORTANT:
-Previously de-scoped duplicate contribution-event features must NOT be reintroduced:
+The AccountEngagementWeb source is known to be unavailable/empty in UAT.
 
-- contribution_event_count_12m
-- recent_contribution_event_count_90d
+If the Databricks source is empty:
 
-These were removed because contribution behaviour is already sourced from AccountMoneyInflow.
+- do NOT manufacture sample records
+- do NOT convert unavailable web behaviour into genuine zero activity
+- preserve NULL/unavailable semantics for the reviewed web feature columns
+- log clearly that AccountEngagementWeb data is unavailable for this snapshot/environment
+- still produce the full base-population grain so this module can later work when production data becomes available
 
-Retain only the currently reviewed/approved Campaign/Event behavioural features from the standalone SQL.
-
-For roll-in related campaign/event features, preserve the reviewed logic where applicable, including:
-
-- rollin_event_count_12m
-- recent_rollin_event_count_90d
-
-Do not add new business features unless they already exist in the reviewed standalone SQL.
-
-BASE POPULATION
-
-Reuse the common controlled-snapshot base population from:
+Reuse the common base population from:
 
 notebook/ml_mscs_mrt_base_population.py
 
-Do NOT rebuild eligibility/database-code/deceased/active-account filtering inside this module.
-
-The module must call:
+using:
 
 run_base_population_pipeline(
     spark,
     as_of_date="2024-03-31"
 )
 
-For the current development run:
+Controlled snapshot:
 
 as_of_date = "2024-03-31"
 
-The final grain must remain:
+Never derive as_of_date from source dates.
+
+Final grain:
 
 one row per account_id per as_of_date
 
-Do NOT derive as_of_date from:
+IMPLEMENT ONLY THE REVIEWED DIGITAL FEATURES FROM:
 
-- reportingDate
-- fundJoinDate
-- campaign dates
-- event dates
-- exit dates
-- system/current date
+AccountEngagementWeb_Reviewed_Features.sql
 
-FEATURE WINDOWS
+Expected reviewed feature concepts include, where supported by the SQL:
 
-All feature windows must be calculated relative to the controlled as_of_date.
+Retirement planning:
+- retirement_planning_activity_count_12m
+- recent_retirement_planning_activity_count_90d
+- days_since_last_retirement_planning_activity
 
-Where required by the reviewed SQL:
+Leaving-service intent, where retained in reviewed SQL:
+- leaving_service_quote_count_12m
+- recent_leaving_service_quote_count_90d
+- days_since_last_leaving_service_quote
 
-- trailing 12-month window
-- recent 90-day window
+Transfer intent, where retained:
+- transfer_intent_activity_count_12m
+- recent_transfer_intent_activity_count_90d
 
-No campaign/event record after as_of_date may contribute to a predictive feature.
+Investment-switch digital intent, where retained:
+- investment_switch_activity_count_12m
+- recent_investment_switch_activity_count_90d
 
-Use Spark/PySpark DataFrame operations.
+Do NOT reintroduce the previously de-scoped broad generic website activity features unless the reviewed SQL explicitly retains them.
 
-Preserve point-in-time safety and prevent outcome leakage.
+Examples that were de-scoped include generic WebQuoteSummary activity such as:
 
-Do NOT use outcome-related events such as:
+- web_activity_count_12m
+- web_active_days_12m
+- days_since_last_web_activity
+- recent_web_activity_count_90d
 
-- member exit
-- account closure
-- completed full rollover-out
-- other events that directly reveal churn after/because of exit
+LEAKAGE:
 
-OUTPUT
+Never use ExitDate or other outcome/future information present inside RequestParameters.
 
-Create final DataFrame:
+Do not use:
+- ExitDate
+- future account closure information
+- future rollover-out information
+- any outcome information after as_of_date
 
-campaign_features_df
+All actual web events used in features must satisfy:
 
-It must contain:
+event_date <= as_of_date
+
+FEATURE WINDOWS:
+
+Use reviewed SQL definitions relative to controlled as_of_date:
+
+- trailing 12 months
+- recent 90 days
+- recency calculations where applicable
+
+OUTPUT:
+
+Create:
+
+web_engagement_features_df
+
+containing:
 
 - account_id
 - as_of_date
-- only the reviewed Campaign/Event feature columns
+- reviewed digital behaviour feature columns
 
-Do not persist this individual DataFrame as a table yet.
+If source data is unavailable in this environment, output should still contain all 785885 base-population accounts, but web feature values must follow the reviewed unavailable-data NULL handling rather than pretending each member had zero web activity.
 
-VALIDATION
+Do NOT persist this individual DataFrame yet.
 
-Add validation consistent with the existing contribution, rollover, investment, insurance and helpline modules.
+VALIDATION:
 
-At minimum log and validate:
+Log and validate:
 
 - base population row count
 - output row count
-- distinct account_id + as_of_date count
-- distinct as_of_date count
-- duplicate account_id + as_of_date count = 0
-- null account_id count = 0
-- null as_of_date count = 0
-- future campaign/event leakage count = 0
-- exactly one snapshot date
-- snapshot date exactly equals 2024-03-31
-- negative count/value checks where relevant
-- invalid binary flag checks where relevant
+- distinct account_id + as_of_date
+- duplicate count = 0
+- null account_id = 0
+- null as_of_date = 0
+- distinct as_of_date count = 1
+- snapshot exactly 2024-03-31
+- future web-feature leakage = 0
+- source row count
+- whether source is available or empty
+- null/unavailable feature counts when source is empty
 
-If raw source contains post-2024-03-31 events, they may be logged as an INFORMATIONAL source-presence metric, but validation should fail only if such future records actually enter feature calculations.
+If source contains future web records, log raw future-source presence separately, but fail only if a future record enters feature calculations.
 
-LOGGING
+Do not modify any existing completed feature module.
 
-Follow the same logging and exception-handling pattern used in the existing ML feature modules.
+After implementation report:
 
-Log major stages:
-
-- loading base population
-- loading source tables
-- schema inspection
-- source mapping
-- point-in-time filtering
-- feature calculation
-- aggregation to account grain
-- validation
-- successful completion
-
-Do not modify:
-
-- existing completed feature modules
-- Data Engineering files
-- Power BI files
-- business SQL reference files
-
-After implementation, provide:
-
-1. Exact reviewed Campaign/Event features implemented.
-2. Databricks source table/column mapping used.
-3. Features intentionally excluded/de-scoped.
-4. Any unresolved source mapping.
-5. Validation results.
-6. Confirmation that final grain is one row per account_id per as_of_date.
-7. Confirmation that all rows use as_of_date = 2024-03-31.
+1. Source availability status.
+2. Exact reviewed features implemented.
+3. Source field mappings used.
+4. Features intentionally de-scoped.
+5. Any unresolved mappings.
+6. Validation metrics.
+7. Confirmation of one-row-per-account snapshot grain.
+8. Confirmation that unavailable UAT website features remain NULL rather than being incorrectly represented as zero.
