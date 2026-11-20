@@ -1,88 +1,108 @@
-Update the existing file:
+Update the following existing feature modules to use the corrected controlled-snapshot base population:
 
-notebook/ml_mscs_mrt_base_population.py
+- notebook/ml_mscs_mrt_contribution_features.py
+- notebook/ml_mscs_mrt_rollover_features.py
+- notebook/ml_mscs_mrt_investment_features.py
+- notebook/ml_mscs_mrt_insurance_features.py
 
 Follow `.github/copilot-instructions.md` strictly.
 
-IMPORTANT: Do not rewrite the file from scratch. Preserve the current structure, logging, validation, helper functions, source mappings and eligibility logic unless required for this correction.
+Do NOT rewrite these files from scratch.
 
-The current implementation incorrectly derives `as_of_date` from `reportingDate`.
+Preserve all already-reviewed:
 
-Correct this.
+- business logic
+- feature names
+- source mappings
+- logging
+- validation
+- exclusions
+- point-in-time logic
+
+The only purpose of this change is to align all modules with the corrected modelling snapshot design.
 
 MANDATORY RULE:
 
-`as_of_date` must be an explicit controlled modelling snapshot parameter equivalent to the reviewed SQL Server `@AsOfDate`.
+All feature modules must reuse the common base population from:
 
-For the current development run use:
+`ml_mscs_mrt_base_population.py`
 
-AS_OF_DATE = "2024-03-31"
+and must use the same explicitly supplied controlled:
+
+`as_of_date`
+
+For the current development run:
+
+as_of_date = "2024-03-31"
 
 Do NOT derive `as_of_date` from:
 
 - reportingDate
 - fundJoinDate
-- exitDate
-- exitDateRecorded
-- any event date
-- system/current date
+- exit dates
+- transaction dates
+- event dates
+- system date
 
-Use `fundJoinDate` only for eligibility and tenure logic, e.g.:
+Each module should accept the active SparkSession and controlled snapshot date, conceptually:
 
-fundJoinDate <= as_of_date
+run_<feature>_pipeline(
+    spark,
+    as_of_date="2024-03-31"
+)
 
-Use exit logic only for eligibility:
+Pass the same `as_of_date` to:
 
-exitDateRecorded IS NULL OR exitDateRecorded > as_of_date
+`run_base_population_pipeline(...)`
 
-Preserve the reviewed deceased-member exclusions and database/fund scope.
+Do not independently rebuild the account population inside individual feature modules.
 
-`reportingDate` must NOT become the modelling snapshot date.
+Feature windows must remain relative to the controlled `as_of_date`.
 
-It may only be used if genuinely required for deterministic source-record selection, and if so document why.
+Examples:
 
-The base population output must contain:
+- trailing 12-month contribution window
+- recent 90-day contribution window
+- prior 90-day contribution window
+- rollover feature windows
+- investment position as of snapshot
+- insurance position as of snapshot
 
-- account_id
-- member_id
-- customer_id
-- fund_id
-- fund_join_date
-- as_of_date
+All source records used in predictive features must satisfy:
 
-Every eligible account for this run must have:
+event/source date <= as_of_date
 
-as_of_date = 2024-03-31
+Do not generate multiple snapshots inside any individual feature module.
 
-Final grain:
+Final grain of every module must remain:
 
 one row per account_id per as_of_date
 
-Update `run_base_population_pipeline()` so it accepts the controlled `as_of_date` parameter.
+For the current run, all output rows should have:
 
-Prefer:
+as_of_date = 2024-03-31
 
-run_base_population_pipeline(spark, as_of_date="2024-03-31")
+Keep the existing final DataFrames:
 
-Do not generate multiple snapshots inside this file.
+- contribution_features_df
+- rollover_features_df
+- investment_features_df
+- insurance_features_df
 
-Multiple snapshots will be handled later by a higher-level process that repeatedly calls this pipeline with different controlled dates.
+Do not persist these individual feature DataFrames as tables yet.
 
-Validation must include:
+Validation for each module must confirm:
 
 - output row count
 - distinct account_id + as_of_date
-- duplicate count
-- null account_id
-- null as_of_date
-- distinct as_of_date values
-- minimum as_of_date
-- maximum as_of_date
+- duplicate count = 0
+- null account_id = 0
+- null as_of_date = 0
+- future leakage count = 0 where applicable
+- exactly one controlled snapshot date for this development run
 
-For this development run, validate that exactly one distinct modelling snapshot date exists:
+Do not change feature business logic unless required specifically to remove dependence on reportingDate-derived as_of_date.
 
-2024-03-31
+Do not modify unrelated Data Engineering / Power BI files.
 
-Do not modify unrelated ML feature files yet.
-
-After making the changes, summarize exactly what was changed and flag any remaining dependency on reportingDate.
+After updating, provide a short summary by file of what changed.
