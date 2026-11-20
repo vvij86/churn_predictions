@@ -1,1 +1,1 @@
-I’m following the naming pattern "ml_mscs_mrt_<purpose>.py" — "ml" for Machine Learning, "mscs_mrt" for the Member Retention project, and the last part indicates what the file does, e.g. base population, contribution features, rollover features, investment features. Each file handles one feature block and later they’ll be combined into the consolidated modelling dataset.
+
