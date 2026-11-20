@@ -1,108 +1,62 @@
-Update the following existing feature modules to use the corrected controlled-snapshot base population:
+Before proceeding to the other feature modules, review the latest changes in:
 
-- notebook/ml_mscs_mrt_contribution_features.py
-- notebook/ml_mscs_mrt_rollover_features.py
-- notebook/ml_mscs_mrt_investment_features.py
-- notebook/ml_mscs_mrt_insurance_features.py
+"notebook/ml_mscs_mrt_base_population.py"
 
-Follow `.github/copilot-instructions.md` strictly.
+against the reviewed standalone logic in:
 
-Do NOT rewrite these files from scratch.
+"behavioural_features_business_review.sql"
 
-Preserve all already-reviewed:
+Also read and follow the repository ML instructions from this exact path:
 
-- business logic
-- feature names
-- source mappings
-- logging
-- validation
-- exclusions
-- point-in-time logic
+".databricks/.github/copilot-instructions.md"
 
-The only purpose of this change is to align all modules with the corrected modelling snapshot design.
+If ".github/copilot-instructions.md" also exists at repository root, follow that as well. Do not ignore either instructions file.
 
-MANDATORY RULE:
+Important correction:
 
-All feature modules must reuse the common base population from:
+The standalone reviewed base-population logic does NOT use "reportingDate" to define the modelling snapshot or intentionally choose a latest "reportingDate" record.
 
-`ml_mscs_mrt_base_population.py`
+Do not introduce "reportingDate"-based business logic unless it is strictly required because the Databricks source genuinely contains duplicate "accountID" rows.
 
-and must use the same explicitly supplied controlled:
+Please inspect the actual grain of:
 
-`as_of_date`
+"mer_wealth_dev.mer_wealth_landing_edge.mscs_mrt_account_summary"
 
-For the current development run:
+first.
 
-as_of_date = "2024-03-31"
+If "accountID" is already unique after applying the reviewed eligibility filters:
 
-Do NOT derive `as_of_date` from:
+- remove "reportingDate" from deterministic source selection completely.
 
-- reportingDate
-- fundJoinDate
-- exit dates
-- transaction dates
-- event dates
-- system date
+If multiple rows per "accountID" genuinely exist:
 
-Each module should accept the active SparkSession and controlled snapshot date, conceptually:
+- report the duplicate pattern first.
+- do not automatically select the maximum "reportingDate".
+- especially do not allow a "reportingDate" after the controlled "as_of_date" to determine the selected modelling row.
+- preserve point-in-time safety.
+- use only the minimum necessary deterministic tie-break logic without changing reviewed business meaning.
 
-run_<feature>_pipeline(
-    spark,
-    as_of_date="2024-03-31"
-)
+The controlled modelling snapshot must remain:
 
-Pass the same `as_of_date` to:
+"as_of_date = 2024-03-31"
 
-`run_base_population_pipeline(...)`
+Keep:
 
-Do not independently rebuild the account population inside individual feature modules.
+"fundJoinDate <= as_of_date"
 
-Feature windows must remain relative to the controlled `as_of_date`.
+Keep the reviewed:
 
-Examples:
+- fund/database eligibility rules
+- active-account logic
+- exit logic
+- deceased-member exclusion
 
-- trailing 12-month contribution window
-- recent 90-day contribution window
-- prior 90-day contribution window
-- rollover feature windows
-- investment position as of snapshot
-- insurance position as of snapshot
+Do not rewrite the file from scratch.
 
-All source records used in predictive features must satisfy:
+At the end, explicitly report:
 
-event/source date <= as_of_date
-
-Do not generate multiple snapshots inside any individual feature module.
-
-Final grain of every module must remain:
-
-one row per account_id per as_of_date
-
-For the current run, all output rows should have:
-
-as_of_date = 2024-03-31
-
-Keep the existing final DataFrames:
-
-- contribution_features_df
-- rollover_features_df
-- investment_features_df
-- insurance_features_df
-
-Do not persist these individual feature DataFrames as tables yet.
-
-Validation for each module must confirm:
-
-- output row count
-- distinct account_id + as_of_date
-- duplicate count = 0
-- null account_id = 0
-- null as_of_date = 0
-- future leakage count = 0 where applicable
-- exactly one controlled snapshot date for this development run
-
-Do not change feature business logic unless required specifically to remove dependence on reportingDate-derived as_of_date.
-
-Do not modify unrelated Data Engineering / Power BI files.
-
-After updating, provide a short summary by file of what changed.
+1. whether duplicate "accountID" values exist after eligibility filtering,
+2. whether "reportingDate" is still used anywhere,
+3. why it is required if retained,
+4. whether any "reportingDate > 2024-03-31" can influence the selected base row,
+5. whether all final output rows use exactly "as_of_date = 2024-03-31".
