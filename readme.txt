@@ -1,104 +1,45 @@
-Perform a full behavioural feature coverage audit for the Member Retention Analytics ML feature build.
+Update only:
+
+notebook/ml_mscs_mrt_web_engagement_features.py
 
 Follow `.github/copilot-instructions.md` strictly.
 
-DO NOT modify any code yet.
+Reference business logic from:
 
-BUSINESS-LOGIC REFERENCE FILES
+AccountEngagementWeb_Reviewed_Features.sql
 
-1. `behavioural_features_business_review.sql`
-2. `AccountEngagementWeb_Reviewed_Features.sql`
+The coverage audit found one remaining SQL-parity gap in the Leaving Service web feature logic.
 
-IMPLEMENTED PYSPARK MODULES TO REVIEW
+Current PySpark implementation handles the `LEAVING_SERVICE` representation, but the reviewed SQL also handles the `LeavingService` representation.
 
-- `notebook/ml_mscs_mrt_base_population.py`
-- `notebook/ml_mscs_mrt_contribution_features.py`
-- `notebook/ml_mscs_mrt_rollover_features.py`
-- `notebook/ml_mscs_mrt_investment_features.py`
-- `notebook/ml_mscs_mrt_insurance_features.py`
-- `notebook/ml_mscs_mrt_helpline_features.py`
-- `notebook/ml_mscs_mrt_campaign_features.py`
-- `notebook/ml_mscs_mrt_web_engagement_features.py`
-- `notebook/ml_mscs_mrt_third_party_authority_features.py`
+TASK
 
-PURPOSE
+1. Read the exact Leaving Service logic in `AccountEngagementWeb_Reviewed_Features.sql`.
+2. Compare it with the existing Leaving Service parser/filter logic in `ml_mscs_mrt_web_engagement_features.py`.
+3. Make the smallest possible correction so all reviewed Leaving Service variants handled by the SQL are handled equivalently in PySpark.
+4. Do NOT change any other web feature logic.
+5. Do NOT introduce new features.
+6. Preserve current source-unavailable/UAT NULL behaviour.
+7. Preserve controlled:
+   as_of_date = "2024-03-31"
+8. Preserve point-in-time filtering and leakage protection.
+9. Preserve one row per account_id per as_of_date.
 
-Compare every reviewed/active behavioural feature from the two SQL reference files against the implemented PySpark modules and determine whether the current Databricks implementation has complete feature coverage.
+The affected reviewed features are:
 
-Do not assume a feature is implemented just because a similarly named column exists.
+- leaving_service_quote_count_12m
+- recent_leaving_service_quote_count_90d
+- days_since_last_leaving_service_quote
 
-For each reviewed feature verify:
+After the fix, validate and report:
 
-1. Feature name.
-2. Behavioural block/category.
-3. Status in reviewed SQL:
-   - active/keep
-   - review/pending
-   - de-scoped/removed
-4. Expected source table.
-5. PySpark module where it is implemented.
-6. Exact final DataFrame column name.
-7. Present or missing.
-8. Whether business logic matches the reviewed SQL.
-9. Whether the controlled `as_of_date` design is used correctly.
-10. Whether point-in-time filtering is correct.
-11. Whether future/outcome leakage is prevented.
-12. Whether the feature is present in the FINAL module output, not only as an intermediate column.
+- exact parser/filter change made
+- confirmation that both reviewed Leaving Service representations are now covered
+- output row count
+- duplicate account_id + as_of_date count
+- distinct as_of_date count
+- future leakage count
+- whether UAT remains source-unavailable for the snapshot window
+- confirmation that NULL semantics are preserved when source data is unavailable
 
-CONTROLLED SNAPSHOT RULE
-
-Current development snapshot:
-
-`as_of_date = "2024-03-31"`
-
-All implemented modules must use the shared base population from:
-
-`notebook/ml_mscs_mrt_base_population.py`
-
-and preserve:
-
-one row per account_id per as_of_date
-
-Do not treat `reportingDate`, `fundJoinDate`, event dates, transaction dates, exit dates, or current system date as the modelling `as_of_date`.
-
-IMPORTANT COVERAGE RULES
-
-- Do not count de-scoped features as missing.
-- Do not count intermediate calculation fields as final implemented features.
-- Do not reintroduce previously removed duplicate features.
-- AccountEngagementWeb features may legitimately be NULL/unavailable in UAT; still count them as implemented if the reviewed logic exists and source-unavailable handling is correct.
-- Do not invent missing source mappings.
-- If a reviewed feature cannot be implemented because the Databricks source/column is unavailable, mark it clearly as:
-  `BLOCKED - SOURCE MAPPING REQUIRED`
-- If business review status is still pending, mark:
-  `PENDING BUSINESS REVIEW`
-- If deliberately de-scoped, mark:
-  `DE-SCOPED - NO ACTION`
-
-Produce a coverage matrix with columns:
-
-- Behavioural Block
-- Feature Name
-- Reviewed Status
-- Source
-- PySpark Module
-- Final Output Column
-- Implementation Status
-- SQL Logic Match
-- Snapshot/Point-in-Time Safe
-- Leakage Safe
-- Notes
-
-Then provide a final summary:
-
-1. Total reviewed active features.
-2. Total implemented correctly.
-3. Total missing.
-4. Total blocked by source mapping.
-5. Total pending business review.
-6. Total de-scoped.
-7. Overall implementation coverage percentage.
-8. List ONLY the genuinely missing feature blocks/features that still require development.
-9. Confirm whether we are ready to proceed to the consolidated feature dataset.
-
-Do not modify any `.py` or `.sql` files during this audit.
+Do not modify any unrelated files.
