@@ -1,114 +1,121 @@
 Create the next reviewed behavioural feature module for Member Retention Analytics:
 
-notebook/ml_mscs_mrt_helpline_features.py
+notebook/ml_mscs_mrt_campaign_features.py
 
 Follow `.github/copilot-instructions.md` strictly.
 
+Before writing code, review the existing standalone reviewed SQL:
+
+- behavioural_features_business_review.sql
+
+Use the Campaign / Event Behaviour section of that SQL as the PRIMARY business-logic reference.
+
+Also inspect the actual Databricks source schemas before implementing anything.
+
+Use only the corresponding `mscs_mrt_*` Databricks landing tables under:
+
+catalog:
+mer_wealth_dev
+
+schema:
+mer_wealth_landing_edge
+
+Possible relevant sources include the reviewed mappings for:
+- campaign events
+- campaign event details
+- campaign/account mappings
+
+Do NOT invent column mappings.
+If any SQL Server field does not have a confirmed Databricks equivalent, clearly flag it instead of guessing.
+
 IMPORTANT:
-Do not invent or redesign the business logic.
+Previously de-scoped duplicate contribution-event features must NOT be reintroduced:
 
-Before writing code:
+- contribution_event_count_12m
+- recent_contribution_event_count_90d
 
-1. Read `.github/copilot-instructions.md`.
-2. Review the Helpline Behaviour section in:
-   `behavioural_features_business_review.sql`
-3. Treat the reviewed standalone SQL as the primary source of truth for:
-   - feature definitions
-   - source fields
-   - filters
-   - exclusions
-   - date logic
-   - aggregation logic
-4. Inspect the actual Databricks schema before implementing.
+These were removed because contribution behaviour is already sourced from AccountMoneyInflow.
 
-Databricks source should use the corresponding MRT landing table, expected to be:
+Retain only the currently reviewed/approved Campaign/Event behavioural features from the standalone SQL.
 
-mer_wealth_dev.mer_wealth_landing_edge.mscs_mrt_account_engagement_helpline
+For roll-in related campaign/event features, preserve the reviewed logic where applicable, including:
 
-Do not assume SQL Server and Databricks column names/types are identical.
-Inspect the actual Databricks schema and map the reviewed SQL logic appropriately.
+- rollin_event_count_12m
+- recent_rollin_event_count_90d
+
+Do not add new business features unless they already exist in the reviewed standalone SQL.
 
 BASE POPULATION
 
-Reuse the common corrected base population from:
+Reuse the common controlled-snapshot base population from:
 
 notebook/ml_mscs_mrt_base_population.py
 
-Do not rebuild AccountSummary eligibility logic inside this module.
+Do NOT rebuild eligibility/database-code/deceased/active-account filtering inside this module.
 
-Call the shared base population using the same controlled modelling snapshot:
+The module must call:
 
-as_of_date = "2024-03-31"
-
-Conceptually:
-
-base_population_df =
-    run_base_population_pipeline(
-        spark,
-        as_of_date="2024-03-31"
-    )
-
-The helpline pipeline should conceptually expose:
-
-run_helpline_feature_pipeline(
+run_base_population_pipeline(
     spark,
     as_of_date="2024-03-31"
 )
 
-MANDATORY SNAPSHOT RULE
+For the current development run:
 
-The final modelling snapshot must come only from the explicitly supplied controlled `as_of_date`.
+as_of_date = "2024-03-31"
 
-Do NOT derive `as_of_date` from:
-
-- reportingDate
-- fundJoinDate
-- helpline interaction dates
-- system/current date
-- any other source date
-
-For this development run every final row must have:
-
-as_of_date = 2024-03-31
-
-FEATURE LOGIC
-
-Implement only the reviewed/active Helpline Behaviour features from:
-
-`behavioural_features_business_review.sql`
-
-Preserve the standalone SQL logic as closely as possible.
-
-Where the reviewed SQL uses:
-
-- trailing 12-month windows
-- recent 90-day windows
-- recency calculations
-- call/contact counts
-- interaction/category filters
-- exclusions
-
-preserve those definitions exactly unless Databricks schema/type differences require a technical adaptation.
-
-All feature windows must be calculated relative to the controlled `as_of_date`.
-
-No source helpline interaction after `as_of_date` may contribute to predictive features.
-
-The final feature DataFrame must be:
-
-helpline_features_df
-
-Final grain:
+The final grain must remain:
 
 one row per account_id per as_of_date
 
-Accounts with no qualifying helpline activity must still remain in the output through the shared base population, with appropriate zero/NULL values consistent with the reviewed SQL logic.
+Do NOT derive as_of_date from:
 
-Do not persist this individual feature DataFrame as a table yet.
+- reportingDate
+- fundJoinDate
+- campaign dates
+- event dates
+- exit dates
+- system/current date
+
+FEATURE WINDOWS
+
+All feature windows must be calculated relative to the controlled as_of_date.
+
+Where required by the reviewed SQL:
+
+- trailing 12-month window
+- recent 90-day window
+
+No campaign/event record after as_of_date may contribute to a predictive feature.
+
+Use Spark/PySpark DataFrame operations.
+
+Preserve point-in-time safety and prevent outcome leakage.
+
+Do NOT use outcome-related events such as:
+
+- member exit
+- account closure
+- completed full rollover-out
+- other events that directly reveal churn after/because of exit
+
+OUTPUT
+
+Create final DataFrame:
+
+campaign_features_df
+
+It must contain:
+
+- account_id
+- as_of_date
+- only the reviewed Campaign/Event feature columns
+
+Do not persist this individual DataFrame as a table yet.
 
 VALIDATION
 
-Add logging and validation consistent with the existing contribution/rollover/investment/insurance modules.
+Add validation consistent with the existing contribution, rollover, investment, insurance and helpline modules.
 
 At minimum log and validate:
 
@@ -116,42 +123,46 @@ At minimum log and validate:
 - output row count
 - distinct account_id + as_of_date count
 - distinct as_of_date count
-- duplicate account_id + as_of_date count
-- null account_id count
-- null as_of_date count
-- distinct as_of_date values
-- future helpline leakage count
-- negative count/rate values where applicable
-- any feature-specific invalid ranges
+- duplicate account_id + as_of_date count = 0
+- null account_id count = 0
+- null as_of_date count = 0
+- future campaign/event leakage count = 0
+- exactly one snapshot date
+- snapshot date exactly equals 2024-03-31
+- negative count/value checks where relevant
+- invalid binary flag checks where relevant
 
-Hard requirements:
+If raw source contains post-2024-03-31 events, they may be logged as an INFORMATIONAL source-presence metric, but validation should fail only if such future records actually enter feature calculations.
 
-- output row count must equal base population row count
-- duplicate account_id + as_of_date = 0
-- null account_id = 0
-- null as_of_date = 0
-- distinct as_of_date count = 1
-- as_of_date must equal 2024-03-31
-- future helpline leakage count = 0
+LOGGING
 
-Use Python logging and re-raise critical exceptions.
+Follow the same logging and exception-handling pattern used in the existing ML feature modules.
+
+Log major stages:
+
+- loading base population
+- loading source tables
+- schema inspection
+- source mapping
+- point-in-time filtering
+- feature calculation
+- aggregation to account grain
+- validation
+- successful completion
 
 Do not modify:
 
-- base population business logic
-- contribution features
-- rollover features
-- investment features
-- insurance features
-- unrelated Data Engineering / Power BI files
-
-Do not persist any table.
+- existing completed feature modules
+- Data Engineering files
+- Power BI files
+- business SQL reference files
 
 After implementation, provide:
 
-1. Databricks source table used
-2. Actual source-field mappings
-3. Helpline features implemented
-4. Any reviewed SQL fields that could not be mapped
-5. Validation checks added
-6. Confirmation that final grain remains one row per account_id per as_of_date
+1. Exact reviewed Campaign/Event features implemented.
+2. Databricks source table/column mapping used.
+3. Features intentionally excluded/de-scoped.
+4. Any unresolved source mapping.
+5. Validation results.
+6. Confirmation that final grain is one row per account_id per as_of_date.
+7. Confirmation that all rows use as_of_date = 2024-03-31.
