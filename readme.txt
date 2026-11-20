@@ -1,108 +1,157 @@
-Update the following existing feature modules to use the corrected controlled-snapshot base population:
+Create the next reviewed behavioural feature module for Member Retention Analytics:
 
-- notebook/ml_mscs_mrt_contribution_features.py
-- notebook/ml_mscs_mrt_rollover_features.py
-- notebook/ml_mscs_mrt_investment_features.py
-- notebook/ml_mscs_mrt_insurance_features.py
+notebook/ml_mscs_mrt_helpline_features.py
 
 Follow `.github/copilot-instructions.md` strictly.
 
-Do NOT rewrite these files from scratch.
+IMPORTANT:
+Do not invent or redesign the business logic.
 
-Preserve all already-reviewed:
+Before writing code:
 
-- business logic
-- feature names
-- source mappings
-- logging
-- validation
-- exclusions
-- point-in-time logic
+1. Read `.github/copilot-instructions.md`.
+2. Review the Helpline Behaviour section in:
+   `behavioural_features_business_review.sql`
+3. Treat the reviewed standalone SQL as the primary source of truth for:
+   - feature definitions
+   - source fields
+   - filters
+   - exclusions
+   - date logic
+   - aggregation logic
+4. Inspect the actual Databricks schema before implementing.
 
-The only purpose of this change is to align all modules with the corrected modelling snapshot design.
+Databricks source should use the corresponding MRT landing table, expected to be:
 
-MANDATORY RULE:
+mer_wealth_dev.mer_wealth_landing_edge.mscs_mrt_account_engagement_helpline
 
-All feature modules must reuse the common base population from:
+Do not assume SQL Server and Databricks column names/types are identical.
+Inspect the actual Databricks schema and map the reviewed SQL logic appropriately.
 
-`ml_mscs_mrt_base_population.py`
+BASE POPULATION
 
-and must use the same explicitly supplied controlled:
+Reuse the common corrected base population from:
 
-`as_of_date`
+notebook/ml_mscs_mrt_base_population.py
 
-For the current development run:
+Do not rebuild AccountSummary eligibility logic inside this module.
+
+Call the shared base population using the same controlled modelling snapshot:
 
 as_of_date = "2024-03-31"
+
+Conceptually:
+
+base_population_df =
+    run_base_population_pipeline(
+        spark,
+        as_of_date="2024-03-31"
+    )
+
+The helpline pipeline should conceptually expose:
+
+run_helpline_feature_pipeline(
+    spark,
+    as_of_date="2024-03-31"
+)
+
+MANDATORY SNAPSHOT RULE
+
+The final modelling snapshot must come only from the explicitly supplied controlled `as_of_date`.
 
 Do NOT derive `as_of_date` from:
 
 - reportingDate
 - fundJoinDate
-- exit dates
-- transaction dates
-- event dates
-- system date
+- helpline interaction dates
+- system/current date
+- any other source date
 
-Each module should accept the active SparkSession and controlled snapshot date, conceptually:
-
-run_<feature>_pipeline(
-    spark,
-    as_of_date="2024-03-31"
-)
-
-Pass the same `as_of_date` to:
-
-`run_base_population_pipeline(...)`
-
-Do not independently rebuild the account population inside individual feature modules.
-
-Feature windows must remain relative to the controlled `as_of_date`.
-
-Examples:
-
-- trailing 12-month contribution window
-- recent 90-day contribution window
-- prior 90-day contribution window
-- rollover feature windows
-- investment position as of snapshot
-- insurance position as of snapshot
-
-All source records used in predictive features must satisfy:
-
-event/source date <= as_of_date
-
-Do not generate multiple snapshots inside any individual feature module.
-
-Final grain of every module must remain:
-
-one row per account_id per as_of_date
-
-For the current run, all output rows should have:
+For this development run every final row must have:
 
 as_of_date = 2024-03-31
 
-Keep the existing final DataFrames:
+FEATURE LOGIC
 
-- contribution_features_df
-- rollover_features_df
-- investment_features_df
-- insurance_features_df
+Implement only the reviewed/active Helpline Behaviour features from:
 
-Do not persist these individual feature DataFrames as tables yet.
+`behavioural_features_business_review.sql`
 
-Validation for each module must confirm:
+Preserve the standalone SQL logic as closely as possible.
 
+Where the reviewed SQL uses:
+
+- trailing 12-month windows
+- recent 90-day windows
+- recency calculations
+- call/contact counts
+- interaction/category filters
+- exclusions
+
+preserve those definitions exactly unless Databricks schema/type differences require a technical adaptation.
+
+All feature windows must be calculated relative to the controlled `as_of_date`.
+
+No source helpline interaction after `as_of_date` may contribute to predictive features.
+
+The final feature DataFrame must be:
+
+helpline_features_df
+
+Final grain:
+
+one row per account_id per as_of_date
+
+Accounts with no qualifying helpline activity must still remain in the output through the shared base population, with appropriate zero/NULL values consistent with the reviewed SQL logic.
+
+Do not persist this individual feature DataFrame as a table yet.
+
+VALIDATION
+
+Add logging and validation consistent with the existing contribution/rollover/investment/insurance modules.
+
+At minimum log and validate:
+
+- base population row count
 - output row count
-- distinct account_id + as_of_date
-- duplicate count = 0
+- distinct account_id + as_of_date count
+- distinct as_of_date count
+- duplicate account_id + as_of_date count
+- null account_id count
+- null as_of_date count
+- distinct as_of_date values
+- future helpline leakage count
+- negative count/rate values where applicable
+- any feature-specific invalid ranges
+
+Hard requirements:
+
+- output row count must equal base population row count
+- duplicate account_id + as_of_date = 0
 - null account_id = 0
 - null as_of_date = 0
-- future leakage count = 0 where applicable
-- exactly one controlled snapshot date for this development run
+- distinct as_of_date count = 1
+- as_of_date must equal 2024-03-31
+- future helpline leakage count = 0
 
-Do not change feature business logic unless required specifically to remove dependence on reportingDate-derived as_of_date.
+Use Python logging and re-raise critical exceptions.
 
-Do not modify unrelated Data Engineering / Power BI files.
+Do not modify:
 
-After updating, provide a short summary by file of what changed.
+- base population business logic
+- contribution features
+- rollover features
+- investment features
+- insurance features
+- unrelated Data Engineering / Power BI files
+
+Do not persist any table.
+
+After implementation, provide:
+
+1. Databricks source table used
+2. Actual source-field mappings
+3. Helpline features implemented
+4. Any reviewed SQL fields that could not be mapped
+5. Validation checks added
+6. Confirmation that final grain remains one row per account_id per as_of_date
