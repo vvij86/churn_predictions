@@ -1,48 +1,40 @@
-Fix the Unity Catalog preflight in:
+from pyspark.sql import SparkSession
 
-"notebook/ml_mscs_mrt_consolidated_features.py"
+spark = SparkSession.builder.getOrCreate()
 
-Current error:
+CATALOG = "mer_wealth_dev"
+SCHEMA = "mer_wealth_mra_mlops"
+TEST_TABLE = f"{CATALOG}.{SCHEMA}._member_retention_write_preflight"
 
-"[UC_INVALID_NAMESPACE] Nested or empty namespaces are not supported in Unity Catalog"
+print("Starting Delta write preflight...")
 
-The failing code is effectively doing:
+try:
+    spark.sql(f"USE CATALOG {CATALOG}")
+    spark.sql(f"USE SCHEMA {SCHEMA}")
 
-"USE SCHEMA mer_wealth_dev.mer_wealth_mra_mlops"
+    # Clean up any old test table first
+    spark.sql(f"DROP TABLE IF EXISTS {TEST_TABLE}")
 
-This is incorrect after setting the catalog.
+    # Actual Delta create/write test
+    spark.sql(f"""
+        CREATE TABLE {TEST_TABLE}
+        USING DELTA
+        AS
+        SELECT
+            1 AS test_id,
+            current_timestamp() AS created_at
+    """)
 
-Change the preflight to use:
+    # Read test
+    result = spark.sql(f"SELECT COUNT(*) AS row_count FROM {TEST_TABLE}").collect()[0]["row_count"]
+    print(f"Write/read test passed. Row count: {result}")
 
-spark.sql("USE CATALOG mer_wealth_dev")
-spark.sql("USE SCHEMA mer_wealth_mra_mlops")
+    # Cleanup
+    spark.sql(f"DROP TABLE {TEST_TABLE}")
 
-Do NOT use:
+    print("DELTA WRITE PREFLIGHT: PASS")
 
-"USE SCHEMA mer_wealth_dev.mer_wealth_mra_mlops"
-
-For fully-qualified table references, continue using:
-
-"mer_wealth_dev.mer_wealth_mra_mlops.member_retention_features"
-
-Also review "ml_mscs_mrt_target_labels.py" for the same incorrect "USE SCHEMA catalog.schema" pattern and fix it there too.
-
-Do not change:
-
-- feature logic
-- churn logic
-- target logic
-- validation logic
-- snapshot logic
-- persistence table names
-- grain
-
-Keep "persist_output=True".
-
-After the change confirm:
-
-1. "USE CATALOG mer_wealth_dev"
-2. "USE SCHEMA mer_wealth_mra_mlops"
-3. exact features table remains "mer_wealth_dev.mer_wealth_mra_mlops.member_retention_features"
-4. exact ground-truth table remains "mer_wealth_dev.mer_wealth_mra_mlops.member_retention_ground_truth"
-5. no business logic changed
+except Exception as e:
+    print("DELTA WRITE PREFLIGHT: FAIL")
+    print(str(e))
+    raise
