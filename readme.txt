@@ -1,4 +1,5 @@
-Baseline and candidate ML models are developed and trained using the prepared account-level dataset.
-Hyperparameter tuning is performed, if required, to improve model performance.
-Model experiments, parameters, performance metrics and artifacts are tracked using MLflow.
-Trained candidate models are available for further evaluation and final model selection.
+Candidate ML models are evaluated using agreed metrics such as Accuracy, Precision, Recall, F1-score and ROC-AUC.
+Model performance is compared using a consistent validation approach.
+Models are assessed for business suitability, interpretability and predictive performance.
+The most suitable churn prediction model is selected based on the evaluation results and business requirements.
+Final model selection, evaluation results and selection rationale are documented.
