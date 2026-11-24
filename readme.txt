@@ -1,20 +1,43 @@
-Review and correct the exit type filtering logic in "target.py".
+DECLARE @AsOfDate DATE = '2024-03-31';
+DECLARE @OutcomeEndDate DATE = '2024-06-29';
 
-The source column "exitType" contains only three possible values:
+SELECT
+    COUNT(DISTINCT a.accountID) AS churn_account_count
+FROM Edge.AccountSummary a
+WHERE
+    CAST(a.exitDateRecorded AS DATE) > @AsOfDate
+    AND CAST(a.exitDateRecorded AS DATE) <= @OutcomeEndDate
 
-- "Exit"
-- "Internal Transfer"
-- "NULL"
+    AND a.databaseCode IN
+    (
+        'MASTA',
+        'MASTP',
+        'MASTR',
+        'MASTS',
+        'MASTM',
+        'MTAPD',
+        'ST000',
+        'MASTR_AP'
+    )
 
-Update the target churn logic accordingly.
+    AND LOWER(LTRIM(RTRIM(ISNULL(a.exitType, '')))) = 'exit'
 
-- Consider "Exit" within the defined outcome window as churn, subject to the existing business exclusion rules.
-- Exclude internal transfers and deceased members as per the existing logic.
-- Handle NULL values appropriately.
-- Remove incorrect or unsupported exit type values from the filter conditions.
-- Preserve the existing feature window, outcome window, eligibility rules and account-level modelling grain (one row per account_id per as_of_date).
-- Do not modify any unrelated business logic or feature engineering.
+    AND a.dateOfDeath IS NULL
 
-Review the dependent files to identify whether the same incorrect filter is applied elsewhere. Restrict changes to "target.py" wherever possible. If changes are required in other files, report them with justification before modifying them.
+    -- Exclude internal transfers
+    AND NOT EXISTS
+    (
+        SELECT 1
+        FROM Edge.AccountRolloverPayment r
+        WHERE r.accountID = a.accountID
+        AND ISNULL(r.internalTransferFlag, 0) = 1
+    )
 
-Provide a summary of the changes and the SQL validation queries to verify the corrected churn counts.
+    -- Additional filter 1: Account joining date
+    AND CAST(a.fundJoinDate AS DATE) <= @AsOfDate
+
+    -- Additional filter 2: Death indicator
+    AND ISNULL(CAST(a.deathIndicatorFlag AS INT), 0) = 0
+
+    -- Additional filter 3: Valid reporting date
+    AND a.reportingDate IS NOT NULL;
