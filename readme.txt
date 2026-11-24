@@ -1,124 +1,90 @@
-We have completed target label generation and successfully reconciled the SQL Server and Databricks churn counts for the 2024-03-31 snapshot.
+We have executed "mult_snap_sanity_check.sql" in Databricks and obtained the following results:
 
-Completed validation results:
+Dataset summary:
 
-- Account full exits: 18,738
-- Full rollover to external fund: 33
-- Total churn accounts: 18,771
-- Databricks churn count: 18,771
-- Count difference: 0
+- Total records: 32,616,602
+- Total snapshots: 40
+- First snapshot: 2023-04-30
+- Last snapshot: 2026-07-31
+- Total churn records: 355,441
+- Total retained records: 32,261,161
+- Duplicate records: 0
+- NULL account IDs: 0
+- NULL snapshot dates: 0
+- NULL or invalid target labels: 0
+- Configured outcome horizon: 90 days
+- Maximum available event date: 2026-10-16
+- Incomplete outcome window records: 833,849
+- March 2024 churn count: 18,771 (successfully reconciled with SQL Server).
 
 Objective:
 
-Perform the final multi-snapshot ground-truth sanity checks before proceeding with temporal splitting.
+Complete the remaining ground-truth validations and investigate incomplete outcome windows before proceeding with temporal splitting.
 
-Review the existing files:
+Review the existing "mult_snap_sanity_check.sql" and "ml_mscs_mrt_target_labels.py" files.
 
-- "ml_mscs_mrt_target_labels.py"
-- "mult_snap_sanity_check.sql"
+Focus only on the following checks:
 
-Understand the existing implementation, business rules, eligibility criteria, outcome window and target label generation logic.
+1. Check 06 – Churn event window
 
-Databricks ground-truth table:
+- Identify churn events outside their respective outcome windows.
+- Return the actual violation count.
 
-"mer_wealth_dev.mer_wealth_mra_mlops.member_retention_ground_truth"
+2. Check 07 – Churn source distribution
 
-Modelling grain:
+- Provide account-level counts for ACCOUNT_FULL_EXIT and FULL_ROLLOVER_OUT.
+- Identify overlapping churn events.
+- Confirm that overlapping events do not cause duplicate target records.
 
-The modelling grain must remain at account level, with exactly one row per accountID per as_of_date.
+3. Check 08a–08d – Business rule exclusions
 
-Required validations:
+- Validate internal transfer exclusions.
+- Validate death-related exclusions.
+- Ensure partial withdrawals and partial rollovers do not independently qualify as churn.
+- Validate eligible database codes.
 
-1. Overall dataset summary:
-   
-   - Total record count.
-   - Number of snapshots.
-   - Earliest and latest snapshot dates.
+4. Check 09 – Historical account eligibility
 
-2. Snapshot-level distribution:
-   
-   - Total accounts.
-   - Churn accounts.
-   - Retained accounts.
-   - Churn percentage.
-   - Ineligible or incomplete-outcome accounts, if applicable.
+- Confirm that accounts were eligible as of their respective snapshot dates.
+- Return the actual violation count.
 
-3. Check for duplicate records at accountID and as_of_date level.
+5. Check 11 – Outcome window completeness
 
-4. Check for NULL account IDs, NULL snapshot dates and invalid target_churn values.
+- Identify all snapshots with incomplete outcome windows.
+- Display as_of_date, outcome_end_date, source coverage date, missing outcome days, total records, churn records and retained records.
+- Validate data coverage separately for AccountSummary and AccountRolloverPayment.
+- Do not assume that the maximum observed event date guarantees complete source data coverage.
+- Identify the latest fully observable snapshot based on confirmed source coverage.
+- Calculate the number of complete snapshots and records available for future temporal splitting.
+- Recommend excluding incomplete snapshots from supervised training, validation and testing without deleting them from the existing ground-truth table.
 
-5. Validate outcome window start dates, end dates and duration against the existing configuration.
+6. Check 12a – Target-level temporal validation
 
-6. Ensure qualifying churn event dates fall within their respective outcome windows.
-
-7. Validate churn source distribution across all snapshots:
-   
-   - ACCOUNT_FULL_EXIT.
-   - FULL_ROLLOVER_OUT.
-   - Check for overlapping churn events and duplicate account counts.
-
-8. Validate business rule exclusions:
-   
-   - Internal transfers.
-   - Death-related exclusions.
-   - Partial withdrawals and partial rollovers must not independently qualify as churn.
-   - Eligible database codes.
-
-9. Validate historical account eligibility as of each snapshot date.
-
-10. Identify unusual churn rate spikes or drops across monthly snapshots. Report them as warnings requiring investigation rather than automatically treating them as errors.
-
-11. Validate outcome window completeness, particularly for the latest snapshots, to ensure accounts with incomplete outcome windows are not incorrectly labelled as retained.
-
-12. Check for potential point-in-time violations and temporal data leakage wherever relevant source timestamps are available. Clearly distinguish checks that must be performed later during feature engineering.
-
-13. Reconfirm the 2024-03-31 snapshot churn count of 18,771 and perform account-level reconciliation where the required data is available.
+- Validate target-level point-in-time rules.
+- Identify any violations.
+- Defer feature-level data leakage checks to the feature engineering phase.
 
 Implementation requirements:
 
-- Reuse existing sanity-check queries wherever possible.
-- Update the existing "mult_snap_sanity_check.sql" file instead of creating redundant SQL files.
-- Use Databricks-compatible SQL syntax.
-- Use actual table names and column names from the existing implementation.
-- Do not assume or invent unavailable columns.
-- Preserve the existing approved business rules.
-- Keep each validation query separate, clearly numbered and commented.
-- Ensure each validation query can be executed independently.
-- Avoid unnecessary repeated scans of large historical datasets wherever possible.
-- Provide a consolidated validation summary query with the following columns:
-  - check_id
-  - check_name
-  - expected_result
-  - actual_result
-  - validation_status
-  - remarks
-- Use PASS, FAIL, WARNING or NOT VALIDATED as validation statuses.
-- Do not mark a check as PASS unless it is supported by actual execution results.
-- Clearly distinguish mandatory validation failures from informational warnings.
+- Update the existing "mult_snap_sanity_check.sql" file.
+- Retain previously completed validation queries.
+- Use actual table and column names from the existing implementation.
+- Maintain account-level grain: one row per accountID per as_of_date.
+- Use read-only Databricks-compatible SQL.
+- Provide a consolidated summary containing actual violation counts rather than references such as "See Check 08 output".
+- Return PASS, FAIL, WARNING or NOT VALIDATED for each check.
+- Do not mark unavailable or unverified checks as PASS.
+- Do not change existing business rules.
 
-Strict execution restrictions:
+Strict restrictions:
 
-- Do not execute any Python files.
-- Do not execute any SQL scripts.
-- Do not execute notebooks.
-- Do not execute terminal commands.
-- Do not launch any background execution or processes.
-- Do not trigger Databricks jobs or workflows.
-- Do not start or restart Databricks compute.
-- Do not create, overwrite, update, truncate or delete any Databricks tables.
-- Do not modify "ml_mscs_mrt_target_labels.py".
-- Do not modify any other Python files or existing production logic.
-- Do not proceed with temporal splitting, feature engineering or model training.
+- Do not execute any SQL, Python, notebooks or terminal commands.
+- Do not run any background processes.
+- Do not trigger Databricks jobs or compute.
+- Do not modify any Python files, including "ml_mscs_mrt_target_labels.py".
+- Do not create, overwrite, update or delete any Databricks tables.
+- Do not implement temporal splitting or feature engineering yet.
 
-Only review the existing implementation and update "mult_snap_sanity_check.sql" with the required read-only validation queries.
+Only update the existing sanity-check SQL file.
 
-After completing the changes, provide a short summary of:
-
-- Existing validations retained.
-- New validations added.
-- Any limitations or unavailable columns.
-- Recommended SQL execution order.
-
-I will manually review and execute the generated SQL queries in Databricks and share the validation results.
-
-The objective is to confirm that the historical ground-truth dataset is ready for the next ML development phase without modifying the existing data or business logic.
+I will manually execute the SQL in Databricks and review the results before proceeding to the next phase.
