@@ -1,46 +1,42 @@
-WITH raw_churn AS (
-    SELECT DISTINCT a.accountID AS account_id
-    FROM mer_wealth_dev.mer_wealth_landing_edge.mscs_mrt_account_summary a
+Audit "ml_mscs_mrt_target_labels.py" against the current Databricks SQL validation.
 
-    INNER JOIN (
-        SELECT DISTINCT account_id
-        FROM mer_wealth_dev.mer_wealth_mra_mlops.member_retention_features
-        WHERE as_of_date = DATE '2024-03-31'
-    ) b
-        ON a.accountID = b.account_id
+Do NOT change any code yet.
 
-    LEFT ANTI JOIN (
-        SELECT DISTINCT accountID
-        FROM mer_wealth_dev.mer_wealth_landing_edge.mscs_mrt_account_rollover_payment
-        WHERE COALESCE(internalTransferFlag, false) = true
-    ) i
-        ON a.accountID = i.accountID
+For snapshot:
 
-    WHERE a.exitDateRecorded > DATE '2024-03-31'
-      AND a.exitDateRecorded <= DATE '2024-06-29'
-      AND a.exitType = 'Exit'
-      AND a.dateOfDeath IS NULL
-),
+"as_of_date = 2024-03-31"
 
-gt AS (
-    SELECT DISTINCT account_id
-    FROM mer_wealth_dev.mer_wealth_mra_mlops.member_retention_ground_truth
-    WHERE as_of_date = DATE '2024-03-31'
-      AND target_churn = 1
-)
+Current ground-truth result:
 
-SELECT
-    'RAW_NOT_GT' AS mismatch_type,
-    COUNT(*) AS account_count
-FROM raw_churn r
-LEFT ANTI JOIN gt g
-    ON r.account_id = g.account_id
+"target_churn = 1" count = 8,751
 
-UNION ALL
+Manual raw churn validation currently gives:
 
-SELECT
-    'GT_NOT_RAW' AS mismatch_type,
-    COUNT(*) AS account_count
-FROM gt g
-LEFT ANTI JOIN raw_churn r
-    ON g.account_id = r.account_id;
+- RAW_NOT_GT = 10,020
+- GT_NOT_RAW = 33
+
+The manual raw churn logic currently uses:
+
+- eligible accounts from "member_retention_features" for "2024-03-31"
+- "exitDateRecorded > 2024-03-31"
+- "exitDateRecorded <= 2024-06-29"
+- "exitType = 'Exit'"
+- "dateOfDeath IS NULL"
+- exclude "AccountRolloverPayment.internalTransferFlag = true"
+
+Please inspect the exact implementation in "ml_mscs_mrt_target_labels.py" and report:
+
+1. Every source table used to derive "target_churn"
+2. Every condition required for "target_churn = 1"
+3. Any additional exit/churn source besides "AccountSummary.exitDateRecorded"
+4. Exact internal-transfer exclusion logic
+5. Exact death/deceased exclusion logic
+6. Any databaseCode or eligibility filtering applied during target creation
+7. Any date-window difference from the manual SQL
+8. Any deduplication / precedence rule between multiple churn sources
+9. Why 10,020 raw churn candidates are not labelled churn
+10. Why 33 ground-truth churn accounts are not captured by the manual raw query
+
+Then provide an equivalent Databricks SQL query that reproduces the exact "target_churn = 1" count for "2024-03-31".
+
+Do not modify feature logic, target logic, or persisted tables in this step.
