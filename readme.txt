@@ -1,42 +1,74 @@
-Audit "ml_mscs_mrt_target_labels.py" against the current Databricks SQL validation.
+Create a SQL Server validation query for the Member Retention Analytics churn target.
 
-Do NOT change any code yet.
+Do NOT change any existing PySpark code or target logic.
 
-For snapshot:
+Use these as the sources of truth:
+
+1. ".github/copilot-instructions.md"
+2. the reviewed churn/business-rule SQL already in the repository
+3. "ml_mscs_mrt_target_labels.py"
+
+Objective:
+
+Create one SQL Server query that reproduces the exact "target_churn = 1" logic for a controlled snapshot so we can independently validate the Databricks ground-truth count.
+
+Use this validation snapshot:
+
+"AsOfDate = 2024-03-31"
+
+Target outcome window:
+
+"2024-04-01" through "2024-06-29"
+
+The SQL must exactly match the approved business definition, including:
+
+- eligible modelling population for the snapshot
+- approved databaseCode scope
+- "fundJoinDate <= AsOfDate"
+- death/deceased exclusions
+- AccountSummary churn-event logic
+- AccountRolloverPayment full-rollover-out logic
+- internal-transfer exclusion
+- 90-day outcome-window logic
+- any event-level precedence/deduplication used by "ml_mscs_mrt_target_labels.py"
+- earliest qualifying churn event where applicable
+- final output at one row per "accountID"
+
+Do NOT simplify the rule to:
+
+"exitType = 'Exit'"
+
+unless that is explicitly the approved business definition.
+
+Do NOT invent column names or event rules.
+
+Use the exact SQL Server source table/column mappings already present in the reviewed SQL/reference files.
+
+The final query should return:
+
+1. "target_churn_1_count"
+2. optionally the list of qualifying "accountID"
+3. qualifying churn event date
+4. churn source/reason if derivable from the approved logic
+
+Also create a second small reconciliation query that compares the expected SQL Server count conceptually against the Databricks ground-truth count for:
 
 "as_of_date = 2024-03-31"
 
-Current ground-truth result:
+Current Databricks result is:
 
-"target_churn = 1" count = 8,751
+"target_churn = 1 = 8,751"
 
-Manual raw churn validation currently gives:
+Important:
 
-- RAW_NOT_GT = 10,020
-- GT_NOT_RAW = 33
+Do not force the SQL Server query to return 8,751.
 
-The manual raw churn logic currently uses:
+If the exact approved business rule returns a different count, report the difference clearly.
 
-- eligible accounts from "member_retention_features" for "2024-03-31"
-- "exitDateRecorded > 2024-03-31"
-- "exitDateRecorded <= 2024-06-29"
-- "exitType = 'Exit'"
-- "dateOfDeath IS NULL"
-- exclude "AccountRolloverPayment.internalTransferFlag = true"
+After creating the SQL, explain:
 
-Please inspect the exact implementation in "ml_mscs_mrt_target_labels.py" and report:
-
-1. Every source table used to derive "target_churn"
-2. Every condition required for "target_churn = 1"
-3. Any additional exit/churn source besides "AccountSummary.exitDateRecorded"
-4. Exact internal-transfer exclusion logic
-5. Exact death/deceased exclusion logic
-6. Any databaseCode or eligibility filtering applied during target creation
-7. Any date-window difference from the manual SQL
-8. Any deduplication / precedence rule between multiple churn sources
-9. Why 10,020 raw churn candidates are not labelled churn
-10. Why 33 ground-truth churn accounts are not captured by the manual raw query
-
-Then provide an equivalent Databricks SQL query that reproduces the exact "target_churn = 1" count for "2024-03-31".
-
-Do not modify feature logic, target logic, or persisted tables in this step.
+- exact churn definition implemented
+- which source tables are used
+- which exclusions are applied
+- why this SQL is equivalent to the Databricks target logic
+- any mismatch between reviewed business logic and current PySpark target code, if found
