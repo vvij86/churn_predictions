@@ -1,15 +1,46 @@
-Below is the proposed technology stack for our Member Retention Analytics ML use case.
+WITH ExitAccounts AS
+(
+    SELECT DISTINCT
+        accountID,
+        fundID,
+        CONVERT(VARCHAR(7), exitDateRecorded, 120) AS exit_month
+    FROM Edge.AccountSummary
+    WHERE databaseCode = 'ST000'
+        AND exitType = 'Exit'
+        AND exitDateRecorded >= '2026-03-01'
+        AND exitDateRecorded < '2026-05-01'
+),
+PaymentAccounts AS
+(
+    SELECT DISTINCT
+        accountID,
+        CONVERT(VARCHAR(7), processedDate, 120) AS payment_month
+    FROM Edge.AccountRolloverPayment
+    WHERE processedDate >= '2026-03-01'
+        AND processedDate < '2026-05-01'
+)
+SELECT
+    a.exit_month,
+    a.fundID,
+    COUNT(DISTINCT a.accountID) AS total_exits,
 
-Technologies Used:
+    COUNT(DISTINCT CASE
+        WHEN r.accountID IS NOT NULL
+        THEN a.accountID
+    END) AS exits_with_payment,
 
-- Python/PySpark: Historical dataset preparation, feature engineering and data preprocessing.
-- Spark SQL: Data extraction, transformation and business rule implementation.
-- Scikit-learn / Spark MLlib / XGBoost: Model training, hyperparameter tuning and evaluation.
-- Pandas/NumPy: Exploratory data analysis and statistical analysis.
-- SHAP: Model explainability and identification of churn drivers.
-- MLflow: Experiment tracking, model versioning and model registry.
-- Delta Lake: Persistent storage of feature datasets, ground truth and ML prediction outputs.
-- Unity Catalog: Data and model governance.
-- Databricks Workflows: ML pipeline orchestration and scheduled batch scoring.
+    COUNT(DISTINCT CASE
+        WHEN r.accountID IS NULL
+        THEN a.accountID
+    END) AS exits_without_payment
 
-The final ML algorithm and associated libraries will be confirmed based on model experimentation and evaluation results.
+FROM ExitAccounts a
+LEFT JOIN PaymentAccounts r
+    ON a.accountID = r.accountID
+    AND a.exit_month = r.payment_month
+GROUP BY
+    a.exit_month,
+    a.fundID
+ORDER BY
+    a.exit_month,
+    total_exits DESC;
