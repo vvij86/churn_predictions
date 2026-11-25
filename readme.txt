@@ -1,86 +1,36 @@
-from ml_mscs_mrt_base_population import run_base_population_pipeline
-from ml_mscs_mrt_contribution_features import run_contribution_feature_pipeline
-from ml_mscs_mrt_rollover_features import run_rollover_feature_pipeline
-from ml_mscs_mrt_investment_features import run_investment_feature_pipeline
-from ml_mscs_mrt_helpline_features import run_helpline_feature_pipeline
-from ml_mscs_mrt_campaign_features import run_campaign_feature_pipeline
-from ml_mscs_mrt_web_engagement_features import run_web_engagement_feature_pipeline
-from ml_mscs_mrt_third_party_authority_features import run_third_party_authority_feature_pipeline
-from ml_mscs_mrt_insurance_features import run_insurance_feature_pipeline
+Read and strictly follow ".github/copilot-instructions.md" and "AGENTS.md".
 
+We have completed manual Databricks historical feature coverage validation for the following three snapshots:
 
+- 2023-04-30
+- 2023-09-30
+- 2024-03-31
 
+All validation checks passed except "chk_future_event_violations", which failed consistently across all three snapshots. Source coverage confirmation returned the expected WARNING because historical source completeness is assumed.
 
-AS_OF_DATE = "2023-04-30"
+Investigate the root cause of "chk_future_event_violations" in "feature_historical_coverage_validation.sql".
 
-base_df = run_base_population_pipeline(
-    spark=spark,
-    as_of_date=AS_OF_DATE
-)
+Specifically:
 
-base_df.createOrReplaceTempView(
-    "tmp_base_population"
-)
+1. Identify the exact CTEs, conditions, source tables and date columns contributing to this failure.
+2. Determine whether the validation incorrectly counts future events from raw source tables rather than events actually consumed by the feature engineering pipelines.
+3. Review the corresponding Python feature modules and verify their point-in-time filtering against "as_of_date".
+4. Distinguish actual data leakage from a false-positive SQL validation failure.
+5. Provide lightweight, read-only diagnostic Databricks SQL queries to identify the failing feature category and violation counts.
+6. Provide exact file and line references for any confirmed issue.
+7. Review whether the overall validation status correctly propagates the source coverage confirmation WARNING.
 
+Strict restrictions:
 
+- Maintain one row per account_id and as_of_date.
+- Continue using fundJoinDate for account eligibility as per existing approved rules.
+- Do not use reportingDate for as-of-date filtering.
+- Preserve newly joined account eligibility.
+- Historical source start date remains 2023-04-01.
+- AccountEngagementWeb remains empty; preserve NULL features.
+- Do not reintroduce de-scoped workflow features.
+- Do not modify base population, target labels, temporal split or historical snapshot orchestration.
+- Do not change any files.
+- Do not execute any code, SQL, terminal commands or Databricks jobs.
 
-
-params = {
-    "spark": spark,
-    "as_of_date": AS_OF_DATE,
-    "base_population_df": base_df
-}
-
-contrib_df = run_contribution_feature_pipeline(**params)
-rollover_df = run_rollover_feature_pipeline(**params)
-invest_df = run_investment_feature_pipeline(**params)
-helpline_df = run_helpline_feature_pipeline(**params)
-campaign_df = run_campaign_feature_pipeline(**params)
-web_df = run_web_engagement_feature_pipeline(**params)
-tpa_df = run_third_party_authority_feature_pipeline(**params)
-insurance_df = run_insurance_feature_pipeline(**params)
-
-
-
-
-
-
-contrib_df.createOrReplaceTempView("tmp_contribution_features")
-rollover_df.createOrReplaceTempView("tmp_rollover_features")
-invest_df.createOrReplaceTempView("tmp_investment_features")
-helpline_df.createOrReplaceTempView("tmp_helpline_features")
-campaign_df.createOrReplaceTempView("tmp_campaign_features")
-web_df.createOrReplaceTempView("tmp_web_engagement_features")
-tpa_df.createOrReplaceTempView("tmp_third_party_authority_features")
-insurance_df.createOrReplaceTempView("tmp_insurance_features")
-
-
-
-
-
-
-
-
-schema = "mer_wealth_dev.mer_wealth_landing_edge"
-
-sources = {
-    "tmp_src_contribution": "mscs_mrt_account_money_inflow",
-    "tmp_src_rollover": "mscs_mrt_account_rollover_payment",
-    "tmp_src_investment": "mscs_mrt_account_investments",
-    "tmp_src_helpline": "mscs_mrt_account_engagement_helpline",
-    "tmp_src_campaign_event_details": "mscs_mrt_campaign_event_details",
-    "tmp_src_web": "mscs_mrt_account_engagement_web",
-    "tmp_src_third_party_authority": "mscs_mrt_third_party_authority"
-}
-
-for view_name, table_name in sources.items():
-    spark.table(
-        f"{schema}.{table_name}"
-    ).createOrReplaceTempView(view_name)
-
-
-
-
-
-
-
+Provide root cause analysis, diagnostic SQL and recommended corrections only.
