@@ -1,19 +1,18 @@
-Strictly follow ".github/copilot-instructions.md" and "AGENTS.md".
+Follow ".github/copilot-instructions.md".
 
-Fix the following Databricks runtime error in "ml_mscs_mrt_contribution_features.py", around line 570:
+Fix the runtime error in "ml_mscs_mrt_runtime_leakage_evidence.py", specifically inside "append_runtime_leakage_evidence()" around line 57.
 
-"UNRESOLVED_COLUMN.WITH_SUGGESTION: src.contributionType cannot be resolved. SQLSTATE: 42703"
+Error: "pyarrow.lib.ArrowTypeError: object of type <class 'str'> cannot be converted to int".
 
-Inspect the recently added runtime leakage validation logic.
-
-- Identify where contributionType is derived and why it is unavailable in the validation DataFrame.
-- Reuse the existing approved contribution classification logic and correct DataFrame references.
-- Do not assume inflowRolloverType is equivalent to contributionType.
-- Ensure leakage validation checks the actual feature-consumed records.
-- Do not change existing business feature calculations, historical coverage logic or output schema.
-- Preserve account-level grain, fundJoinDate eligibility and existing point-in-time rules.
+- Compare every value passed to createDataFrame against its declared schema and column order.
+- Ensure DateType receives Python datetime.date, numeric fields receive appropriate Python integers, and string fields receive strings.
+- Preserve NULL values where applicable. Do not convert missing leakage evidence to zero.
+- Ensure compatibility with Databricks Serverless and Spark Connect.
+- Review all existing callers of this shared utility for argument compatibility to prevent the same error in other feature modules.
+- Preserve existing leakage validation semantics.
+- Modify only the shared runtime leakage evidence utility unless another change is strictly necessary.
+- Do not change business feature calculations, base population, fundJoinDate eligibility, target labels or temporal split logic.
 - Do not use reportingDate.
-- Modify only the contribution feature module.
 - Do not execute any code or create permanent tables.
 
-Apply the minimal correction and provide a short summary.
+Apply the minimal fix and provide a short summary.
