@@ -1,23 +1,15 @@
-SELECT
-    a.fundID,
-    r.paymentType,
-    r.rolloverInstitution,
-    r.rolloverDestinationType,
-    r.rolloverCode,
-    COUNT(DISTINCT a.accountID) AS account_count
-FROM Edge.AccountSummary a
-INNER JOIN Edge.AccountRolloverPayment r
-    ON a.accountID = r.accountID
-WHERE a.databaseCode = 'ST000'
-    AND a.exitType = 'Exit'
-    AND a.exitDateRecorded >= '2026-03-01'
-    AND a.exitDateRecorded < '2026-05-01'
-    AND r.processedDate >= '2026-03-01'
-    AND r.processedDate < '2026-05-01'
-GROUP BY
-    a.fundID,
-    r.paymentType,
-    r.rolloverInstitution,
-    r.rolloverDestinationType,
-    r.rolloverCode
-ORDER BY account_count DESC;
+Below is the proposed technology stack for our Member Retention Analytics ML use case.
+
+Technologies Used:
+
+- Python/PySpark: Historical dataset preparation, feature engineering and data preprocessing.
+- Spark SQL: Data extraction, transformation and business rule implementation.
+- Scikit-learn / Spark MLlib / XGBoost: Model training, hyperparameter tuning and evaluation.
+- Pandas/NumPy: Exploratory data analysis and statistical analysis.
+- SHAP: Model explainability and identification of churn drivers.
+- MLflow: Experiment tracking, model versioning and model registry.
+- Delta Lake: Persistent storage of feature datasets, ground truth and ML prediction outputs.
+- Unity Catalog: Data and model governance.
+- Databricks Workflows: ML pipeline orchestration and scheduled batch scoring.
+
+The final ML algorithm and associated libraries will be confirmed based on model experimentation and evaluation results.
