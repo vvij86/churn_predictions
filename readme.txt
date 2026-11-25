@@ -1,140 +1,149 @@
 We are continuing the Member Retention Analytics ML development in Databricks.
 
-Based on the recent feature engineering code review, account profile features and workflow behaviour features are missing from the existing Python implementation.
+Review and correct the recently generated files:
 
-For this task, focus ONLY on account profile feature engineering.
+- ml_mscs_mrt_account_profile_features.py
+- account_profile_features_validation.sql
 
-1. Review existing references
+1. Mandatory repository instructions
 
-Review the following files before implementation:
+Before making any changes, read and strictly follow all applicable repository instruction files, including copilot-instructions.md.
 
-- behavioural_features_business_review.sql
-- ml_mscs_mrt_config.py
-- ml_mscs_mrt_base_population.py
-- ml_mscs_mrt_consolidated_features.py
-- ml_mscs_mrt_historical_snapshots.py
-- Existing individual feature engineering modules
-- Repository Copilot instructions
+Review the existing configuration, base population, historical snapshot implementation and approved business SQL references.
 
-Identify the reviewed account profile features from the business SQL and follow the existing Python coding conventions.
+Do not override previously established business rules or architectural decisions.
 
-2. Create a dedicated Python module
+2. Mandatory historical population rules
 
-Create:
+- Do NOT use AccountSummary.reportingDate for historical account eligibility, snapshot filtering, source row selection or ordering.
+- reportingDate and exitDate are identical in many MercerEdge records. This limitation has already been identified during historical dataset development.
+- Use fundJoinDate <= as_of_date for account joining eligibility.
+- Reuse the existing validated historical base population logic.
+- Do not introduce alternative account eligibility rules.
+- Do not exclude accounts simply because reportingDate is NULL or greater than as_of_date.
+- Do not introduce any additional population filters.
 
-ml_mscs_mrt_account_profile_features.py
+3. Account profile features
 
-Implement only the account profile features available in the reviewed business SQL and currently approved feature definitions.
+Retain the nine reviewed account profile features:
 
-Potential feature categories include:
+- account_tenure_months
+- account_tenure_years
+- member_age_years
+- member_source
+- is_super_flag
+- is_pension_flag
+- benefit_type
+- benefit_class
+- database_code
 
-- Account tenure
-- Member demographics
-- Account characteristics
-- Fund and product characteristics
-- Other reviewed account profile attributes
+Verify each feature against behavioural_features_business_review.sql.
 
-Do not assume column names or introduce unapproved features. Verify source mappings against existing repository references.
-
-3. Modelling grain
-
-The modelling grain must strictly remain at account level.
-
-- Exactly one row per account_id per as_of_date.
-- Use the existing historical account population as the base.
-- Preserve all eligible account snapshot records.
-- Prevent duplicate records from source joins.
-- Support members with multiple accounts without combining their account-level features.
-- Follow existing account_id and as_of_date key conventions.
+Do not introduce any additional unapproved features.
 
 4. Point-in-time correctness
 
-All features must represent information valid and available as of the respective historical snapshot date.
-
-- Calculate age and account tenure relative to as_of_date, where approved.
-- Do not use the current system date for historical feature calculations.
-- Do not use future events or future account information.
-- Do not blindly use current-state demographic or account attributes for historical snapshots.
+- Calculate account tenure using fundJoinDate and as_of_date.
+- Calculate member age using dateOfBirth and as_of_date.
+- Never use the current system date for historical feature calculations.
+- Do not use reportingDate as a historical versioning timestamp.
+- Do not assume fundJoinDate establishes historical validity for mutable account attributes.
 - Where historical validity cannot be established, preserve NULL and document the limitation.
-- Do not use exit dates, future exit status, final payment information, target_churn or other outcome-related information as predictors.
+- Preserve NULL for unavailable attributes and flags instead of defaulting them to zero.
+- Do not use exit-related or future outcome information as model predictors.
+- Follow the existing approved business feature derivation logic.
 
-5. Historical snapshot support
+5. Modelling grain and join integrity
 
-Follow the existing single-snapshot feature module design so the new module can be reused by the historical snapshot orchestration.
+- Strictly maintain account-level grain.
+- Exactly one row per account_id per as_of_date.
+- Preserve the existing eligible historical account population.
+- Prevent duplicate records and multiplicative joins.
+- Use deterministic source selection based on verified source semantics without relying on reportingDate.
+- Report unresolved source ambiguity instead of arbitrarily selecting records.
+
+6. Existing project constraints
 
 - Historical source start date: 2023-04-01.
-- Use configurable as_of_date.
-- Reuse existing configuration constants wherever applicable.
+- Feature lookback window: 12 months, wherever applicable.
+- Recent and prior windows: 90 days each.
 - Support accounts with shorter tenure.
-- Do not exclude accounts merely because 12 months of history is unavailable.
-- Do not artificially replace unavailable historical information with zero.
-
-6. Source availability and business restrictions
-
-- AccountEngagementWeb is still empty. Preserve NULL values for unavailable web engagement features in the existing implementation.
-- Do not introduce web engagement features into the account profile module.
-- Do not introduce unavailable CSAT or NPS features.
-- Respect all existing business-approved feature exclusions.
-- ATO-related churn definition clarification is still pending.
-- Do not introduce any ATO-related target or population exclusions.
+- Reuse existing configuration constants.
+- AccountEngagementWeb still contains no data. Preserve existing NULL handling.
+- CSAT, NPS and VOC data remain unavailable.
+- Respect existing business-approved feature exclusions.
+- ATO-related churn clarification is pending business confirmation.
+- Do not introduce ATO, ST000 or migration-related exclusions.
 - Feature engineering must remain independent of target labels and temporal split assignments.
 
-7. Performance and scalability
+7. Validation SQL correction
 
-The historical dataset contains approximately 32.6 million account snapshot records across 40 monthly snapshots.
+Update account_profile_features_validation.sql to align with the corrected Python implementation.
 
-- Use PySpark or Spark SQL consistent with existing modules.
-- Avoid Pandas conversion and large driver-side collections.
-- Avoid unnecessary joins and repeated source scans.
-- Use efficient aggregate-based validation.
-- Maintain compatibility with existing Databricks execution patterns.
-
-8. Validation SQL
-
-Create a separate read-only Databricks SQL validation file:
-
-account_profile_features_validation.sql
-
-Include checks for:
+Include:
 
 - Total record count.
-- Distinct account_id and as_of_date count.
-- Duplicate account snapshot keys.
-- Population reconciliation against the historical account base.
-- Missing and invalid feature values.
-- Age and tenure validity, where applicable.
-- Future-date violations.
-- Historical data availability limitations.
-- Source-to-feature reconciliation for selected sample accounts.
+- Distinct account snapshot key count.
+- Duplicate account_id + as_of_date checks.
+- Population reconciliation in both directions.
+- NULL key checks.
+- Invalid binary flag checks.
+- Negative age and tenure checks.
+- Future fundJoinDate and dateOfBirth checks for selected source records.
+- Feature-level NULL distribution.
+- Source-to-feature reconciliation.
+- Historical attribute availability limitations.
 
-Use actual existing table and column names. Do not assume an output table already exists.
+Do not use reportingDate in the validation logic.
 
-9. Expected implementation summary
+Do not report point-in-time validation as PASS where historical attribute validity cannot be established.
 
-After implementing the module, provide:
+8. Manual execution instructions
 
-- Files created or modified.
-- Complete implemented feature list.
-- Source table and column mapping for every feature.
-- Feature derivation logic.
-- Historical availability and point-in-time limitations.
-- Features deferred due to unavailable source data.
+Provide exact instructions to manually execute the corrected Python module in Databricks for the controlled snapshot:
+
+as_of_date = 2024-03-31
+
+Provide instructions to create the temporary validation view and execute the validation SQL within the same Spark session.
+
+No permanent table creation is required for this standalone validation.
+
+9. Strict scope restrictions
+
+Modify ONLY:
+
+- ml_mscs_mrt_account_profile_features.py
+- account_profile_features_validation.sql
+
+Do not modify:
+
+- Repository instruction files.
+- Configuration files.
+- Base population logic.
+- Historical snapshot generation.
+- Target label generation.
+- Temporal splitting.
+- Consolidated feature modules.
+- Other existing feature engineering modules.
+
+Do not execute Python, SQL, notebooks, terminal commands or Databricks jobs.
+
+Do not create, overwrite or delete any Databricks tables.
+
+Do not proceed with workflow features, EDA or model training.
+
+10. Expected implementation summary
+
+After completing the corrections, provide:
+
+- Files modified.
+- Exact changes made.
+- Confirmation that reportingDate is not used.
+- Confirmation that existing historical population rules are preserved.
+- Feature list and source mappings.
+- Historical limitations.
 - Expected output schema.
-- Manual Databricks execution instructions for one controlled snapshot: 2024-03-31.
-- Recommended validation procedure.
+- Manual execution instructions.
+- Expected validation results.
 
-10. Strict scope restrictions
-
-- Create only the account profile feature module and its validation SQL.
-- Do not implement workflow behaviour features yet.
-- Do not modify existing feature engineering modules.
-- Do not modify base population, historical snapshots, target labels or temporal splitting logic.
-- Do not update consolidated feature integration yet.
-- Do not execute Python scripts, SQL queries, notebooks or terminal commands.
-- Do not run Databricks jobs or background processes.
-- Do not create, overwrite or delete Databricks tables.
-- Do not proceed with EDA or model training.
-
-If additional dependencies or changes to existing files are required, report them separately instead of making those changes.
-
-Implement the code only and provide the implementation summary for manual review.
+Perform a final static review against the repository instructions and existing business rules before completing the task.
