@@ -1,36 +1,30 @@
 Read and strictly follow ".github/copilot-instructions.md" and "AGENTS.md".
 
-We have completed manual Databricks historical feature coverage validation for the following three snapshots:
+Based on the completed read-only root cause analysis, correct "feature_historical_coverage_validation.sql".
 
-- 2023-04-30
-- 2023-09-30
-- 2024-03-31
+Implement the following targeted corrections:
 
-All validation checks passed except "chk_future_event_violations", which failed consistently across all three snapshots. Source coverage confirmation returned the expected WARNING because historical source completeness is assumed.
+1. Separate raw future source event presence from actual feature leakage.
+2. Rename the existing raw future event check to "raw_future_source_presence" and treat it as informational diagnostics only. Future events existing in raw historical sources are expected and must not cause validation failure.
+3. Retain a strict future-event leakage validation using actual feature-consumed records or existing runtime validation evidence from the Python modules.
+4. Do not merely replicate as_of_date filtering in SQL and claim that leakage validation passed. If actual consumption evidence is unavailable, return NOT VALIDATED and explain the additional evidence required.
+5. Propagate "chk_source_coverage_confirmation = WARNING" into the overall validation status.
+6. Ensure genuine leakage violations still result in FAIL.
+7. Preserve all existing population reconciliation, duplicate key, historical coverage, contribution NULL handling, ratio guardrails and web NULL handling checks.
 
-Investigate the root cause of "chk_future_event_violations" in "feature_historical_coverage_validation.sql".
+Mandatory restrictions:
 
-Specifically:
-
-1. Identify the exact CTEs, conditions, source tables and date columns contributing to this failure.
-2. Determine whether the validation incorrectly counts future events from raw source tables rather than events actually consumed by the feature engineering pipelines.
-3. Review the corresponding Python feature modules and verify their point-in-time filtering against "as_of_date".
-4. Distinguish actual data leakage from a false-positive SQL validation failure.
-5. Provide lightweight, read-only diagnostic Databricks SQL queries to identify the failing feature category and violation counts.
-6. Provide exact file and line references for any confirmed issue.
-7. Review whether the overall validation status correctly propagates the source coverage confirmation WARNING.
-
-Strict restrictions:
-
-- Maintain one row per account_id and as_of_date.
-- Continue using fundJoinDate for account eligibility as per existing approved rules.
-- Do not use reportingDate for as-of-date filtering.
-- Preserve newly joined account eligibility.
+- Maintain account-level grain: one row per account_id and as_of_date.
+- Use fundJoinDate for account eligibility according to existing approved rules.
+- Never use reportingDate for as-of-date filtering.
 - Historical source start date remains 2023-04-01.
-- AccountEngagementWeb remains empty; preserve NULL features.
-- Do not reintroduce de-scoped workflow features.
-- Do not modify base population, target labels, temporal split or historical snapshot orchestration.
-- Do not change any files.
-- Do not execute any code, SQL, terminal commands or Databricks jobs.
+- Newly joined accounts remain eligible without minimum tenure restrictions.
+- AccountEngagementWeb is still empty. Preserve NULL behaviour.
+- Do not reintroduce workflow features.
+- Do not modify existing Python feature modules, base population, target labels, temporal split, consolidated features or historical snapshot orchestration.
+- Modify only "feature_historical_coverage_validation.sql".
+- If Python changes are necessary to expose actual leakage validation evidence, report them separately without implementing them.
+- Do not execute any code, SQL, terminal commands, notebooks or Databricks jobs.
+- Do not create or overwrite persistent tables.
 
-Provide root cause analysis, diagnostic SQL and recommended corrections only.
+Provide a summary of changes, expected validation results and exact manual Databricks execution steps.
