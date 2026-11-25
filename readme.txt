@@ -1,62 +1,55 @@
-Read and strictly follow ".github/copilot-instructions.md".
+Follow the repository instructions in ".github/copilot-instructions.md".
 
-Perform a targeted review and correction of the recently introduced runtime leakage validation logic across ALL existing ML feature modules.
+We have successfully completed historical coverage and runtime leakage validation for the following snapshots:
 
-Current Databricks execution results for as_of_date = 2024-03-31:
+- 2023-04-30
+- 2023-09-30
+- 2024-03-31
 
-- Contribution module completed successfully after the recent correction, with 785885 output rows and zero reported future leakage.
-- Rollover module failed with:
-  "ValueError: Critical validation failure: future rollover records detected in feature logic."
+All seven available feature modules passed the implemented leakage checks with zero detected leakage. Web engagement remains SOURCE_UNAVAILABLE.
 
-Review the following modules together:
+Now review the existing "ml_mscs_mrt_consolidated_features.py" and verify the following:
 
-- ml_mscs_mrt_contribution_features.py
-- ml_mscs_mrt_rollover_features.py
-- ml_mscs_mrt_investment_features.py
-- ml_mscs_mrt_helpline_features.py
-- ml_mscs_mrt_campaign_features.py
-- ml_mscs_mrt_web_engagement_features.py
-- ml_mscs_mrt_third_party_authority_features.py
-- ml_mscs_mrt_insurance_features.py
-- ml_mscs_mrt_account_profile_features.py
+1. All nine active feature modules are correctly integrated:
+   
+   - Account profile
+   - Contribution
+   - Rollover
+   - Investment
+   - Helpline
+   - Campaign
+   - Insurance
+   - Third-party authority
+   - Web engagement
 
-Implementation requirements:
+2. The consolidated dataset maintains exactly one row per account_id + as_of_date.
 
-1. Understand the recent successful contribution module correction and assess whether equivalent defects exist in the remaining modules.
-2. Trace each leakage counter to the actual DataFrame consumed during feature calculation.
-3. Distinguish future records present in raw source tables from future records actually consumed by features.
-4. Correct false-positive validation logic wherever identified.
-5. If genuine leakage exists, correct the relevant point-in-time feature filtering.
-6. Check all runtime evidence calls for correct column references, DataFrame aliases, schema compatibility, data types and function arguments.
-7. Prevent unresolved column errors and Spark Connect/PyArrow type conversion errors.
-8. Do not introduce tautological validation checks, hardcoded zero counts or artificial PASS results.
-9. Preserve NOT VALIDATED wherever sufficient evidence is unavailable.
-10. Review compatibility with the existing runtime leakage evidence utility and feature validation runner.
+3. All eligible base population accounts are preserved without missing or additional accounts.
 
-Mandatory restrictions:
+4. Recently corrected historical coverage and NULL/zero handling are preserved without blanket NULL-to-zero conversions.
 
-- Maintain one row per account_id per as_of_date.
-- Preserve fundJoinDate-based account eligibility.
-- Never use reportingDate for as-of-date filtering.
-- Preserve historical source start date 2023-04-01.
-- Newly joined accounts must remain eligible.
-- AccountEngagementWeb remains empty; preserve NULL handling.
-- Preserve insurance historical availability limitations.
-- Do not reintroduce de-scoped workflow features.
-- Do not change approved business feature calculations unless required to fix genuine leakage.
-- Do not modify base population, target labels, historical snapshots or temporal split logic.
-- Do not generate new Python files or notebooks.
-- Do not execute Databricks jobs or write permanent tables.
+5. Web engagement features remain NULL when the source is unavailable.
 
-Apply all necessary corrections together in this single request. Avoid unrelated refactoring.
+6. No de-scoped workflow features, target labels or temporal split columns are introduced.
 
-Perform a final static consistency check across all reviewed modules before completing.
+7. Existing feature names and business calculations remain unchanged.
 
-Provide a concise module-wise summary showing:
+8. Verify compatibility with the recently updated feature modules and their function signatures.
 
-- Module name
-- Issue identified
-- Correction applied
-- Remaining validation limitations
+9. Confirm whether the consolidated feature pipeline can be executed without writing or overwriting persistent Databricks tables during validation.
 
-Do not claim runtime validation has passed without execution evidence.
+Provide:
+
+- PASS/ISSUE status for each check.
+- Any identified issues with exact file and line references.
+- Whether any code changes are necessary.
+- Minimal Databricks Python execution code for as_of_date = 2024-03-31.
+- Expected validation results, including base population reconciliation against 785,885 accounts and duplicate key count of zero.
+
+Strict restrictions:
+
+- Read-only review.
+- Do not modify or create any files.
+- Do not execute any code, SQL, notebooks or terminal commands.
+- Do not redesign the existing architecture.
+- Keep the response concise.
