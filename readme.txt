@@ -1,28 +1,23 @@
 SELECT
-    fundID,
-    dbCode,
-    mtNumber,
-    subFund,
-    fundName
-FROM Edge.FundList
-WHERE COALESCE(NULLIF(mtNumber, ''), subFund)
-    IN ('MT888', 'MT999');
-
-
-SELECT
-    CAST(a.exitDateRecorded AS DATE) AS exit_date,
     a.fundID,
-    f.fundName,
-    COUNT(DISTINCT a.accountID) AS exit_accounts
+    r.paymentType,
+    r.rolloverInstitution,
+    r.rolloverDestinationType,
+    r.rolloverCode,
+    COUNT(DISTINCT a.accountID) AS account_count
 FROM Edge.AccountSummary a
-INNER JOIN Edge.FundList f
-    ON a.fundID = f.fundID
+INNER JOIN Edge.AccountRolloverPayment r
+    ON a.accountID = r.accountID
 WHERE a.databaseCode = 'ST000'
     AND a.exitType = 'Exit'
     AND a.exitDateRecorded >= '2026-03-01'
     AND a.exitDateRecorded < '2026-05-01'
+    AND r.processedDate >= '2026-03-01'
+    AND r.processedDate < '2026-05-01'
 GROUP BY
-    CAST(a.exitDateRecorded AS DATE),
     a.fundID,
-    f.fundName
-ORDER BY exit_accounts DESC;
+    r.paymentType,
+    r.rolloverInstitution,
+    r.rolloverDestinationType,
+    r.rolloverCode
+ORDER BY account_count DESC;
