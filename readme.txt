@@ -1,69 +1,53 @@
-Follow all repository ML instructions in ".github/copilot-instructions.md" and "AGENTS.md".
+Read and strictly follow ".github/copilot-instructions.md" and "AGENTS.md".
 
-Implement strict point-in-time leakage validation for the existing Member Retention Analytics feature engineering modules.
+Create a single reusable Python validation runner under the existing notebook folder:
 
-The previous historical coverage validation for all three representative snapshots returned NOT VALIDATED because structured runtime leakage evidence was unavailable to the validation SQL.
+"ml_mscs_mrt_feature_validation.py"
 
-Requirements
+Do not generate any Jupyter notebook (.ipynb).
 
-1. Review and reuse existing runtime leakage counters wherever they correctly validate the actual feature-consumed DataFrames.
+Objective:
 
-2. Correct incomplete or logically redundant leakage checks. Validate the actual records consumed by feature calculations before aggregation, rather than separately filtering raw source records to artificially produce zero violations.
+Automate the existing historical coverage and runtime leakage validation process using the already implemented Python feature modules and validation SQL.
 
-3. Cover all applicable feature modules:
-   
-   - Contribution
-   - Rollover
-   - Investment
-   - Helpline
-   - Campaign
-   - Web engagement
-   - Third-party authority
-   - Insurance
-   - Account profile, where applicable
+Implementation requirements:
 
-4. Create a reusable mechanism to expose runtime leakage evidence through a session-level temporary view containing:
-   
-   - as_of_date
-   - module_name
-   - leakage_count
-   - evidence_scope
-   - evidence_status
-   - evidence_note
+1. Inspect the actual function signatures, imports, return types and dependencies of existing modules before writing code.
+2. Reuse existing implementations. Do not duplicate or redesign feature engineering logic.
+3. Provide a single entry-point function named "run_feature_validation(spark, as_of_date)".
+4. Generate the base population once and reuse it across all eight existing feature pipelines.
+5. Initialize and capture actual runtime leakage evidence using the existing runtime leakage evidence module.
+6. Register all temporary feature views, required source views and "tmp_runtime_leakage_evidence".
+7. Load and execute the existing "feature_historical_coverage_validation.sql" using a reliable path relative to the repository structure.
+8. Return the final validation result as a Spark DataFrame.
+9. Log module-wise execution progress, elapsed time and meaningful error messages identifying the failing module.
+10. Avoid redundant count operations and repeated source scans where possible.
+11. Use existing Databricks-compatible import conventions and support Serverless compute.
+12. Perform static checks for import correctness, function arguments, SQL dependencies and temporary view names before completing implementation.
 
-5. Update "feature_historical_coverage_validation.sql" to consume this evidence:
-   
-   - FAIL when actual leakage is detected.
-   - PASS when all applicable checks have valid runtime evidence and zero violations.
-   - NOT VALIDATED when required evidence is missing or insufficient.
-   - Explicitly distinguish unavailable sources and non-applicable checks.
-   - Keep raw future source presence as an informational diagnostic, not actual leakage.
-   - Preserve existing source coverage warnings.
+Mandatory business rules:
 
-6. Where practical, provide a small independent test that verifies feature outputs remain unchanged when future-dated events are introduced into test inputs.
-
-Mandatory restrictions
-
-- Maintain account-level grain: one row per account_id + as_of_date.
-- Continue using fundJoinDate for account eligibility.
-- Do not use reportingDate for as-of-date filtering.
-- Historical source start date remains 2023-04-01.
-- Newly joined accounts remain eligible.
-- AccountEngagementWeb is still empty; preserve all web feature values as NULL.
-- Do not use current-state insurance attributes when historical validity cannot be established.
+- Maintain one row per account_id per as_of_date.
+- Reuse existing base population eligibility rules.
+- Use fundJoinDate for account eligibility.
+- Never use reportingDate for as-of-date filtering.
+- Historical source start date: 2023-04-01.
+- Newly joined accounts must remain eligible.
+- AccountEngagementWeb is empty; preserve NULL values.
+- Respect existing insurance historical limitations.
 - Do not reintroduce de-scoped workflow features.
-- Do not modify approved business feature calculations or predictor schemas.
-- Do not modify base population, target labels, temporal split, consolidated feature integration or historical snapshot orchestration.
-- Avoid expensive repeated source scans and unnecessary count operations.
-- Do not create persistent tables.
-- Do not execute notebooks, scripts, SQL or Databricks jobs.
+- Never fabricate leakage evidence or artificially force validation to PASS.
+- Preserve NOT VALIDATED when sufficient evidence is unavailable.
 
-Expected deliverables
+Strict restrictions:
 
-- Minimal required Python changes.
-- Updated historical coverage validation SQL.
-- Complete copy-paste-ready Databricks notebook execution code.
-- Validation instructions for 2023-04-30, 2023-09-30 and 2024-03-31.
-- Summary of modified files and remaining limitations.
+- Create only the requested Python file.
+- Do not modify existing Python modules or SQL files.
+- Do not modify base population, target labels, historical snapshots or temporal split logic.
+- Do not create, overwrite or delete permanent Databricks tables.
+- Do not execute Databricks jobs, notebooks or SQL.
+- Do not introduce unnecessary dependencies or additional helper files.
 
-Do not artificially force any validation status to PASS.
+Finally, provide only a concise implementation summary and the minimal Databricks notebook code required to invoke the validation runner.
+
+If any existing dependency prevents implementation, report the exact blocker instead of making assumptions or modifying unrelated files.
