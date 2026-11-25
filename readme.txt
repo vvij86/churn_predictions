@@ -1,18 +1,20 @@
-Follow ".github/copilot-instructions.md".
+Follow ".github/copilot-instructions.md" and "AGENTS.md".
 
-Fix the runtime error in "ml_mscs_mrt_runtime_leakage_evidence.py", specifically inside "append_runtime_leakage_evidence()" around line 57.
+Fix the following runtime validation failure in "ml_mscs_mrt_contribution_features.py" around line 674:
 
-Error: "pyarrow.lib.ArrowTypeError: object of type <class 'str'> cannot be converted to int".
+"ValueError: Critical validation failure: future contribution records detected in feature context."
 
-- Compare every value passed to createDataFrame against its declared schema and column order.
-- Ensure DateType receives Python datetime.date, numeric fields receive appropriate Python integers, and string fields receive strings.
-- Preserve NULL values where applicable. Do not convert missing leakage evidence to zero.
-- Ensure compatibility with Databricks Serverless and Spark Connect.
-- Review all existing callers of this shared utility for argument compatibility to prevent the same error in other feature modules.
-- Preserve existing leakage validation semantics.
-- Modify only the shared runtime leakage evidence utility unless another change is strictly necessary.
-- Do not change business feature calculations, base population, fundJoinDate eligibility, target labels or temporal split logic.
-- Do not use reportingDate.
-- Do not execute any code or create permanent tables.
+Snapshot date: 2024-03-31.
 
-Apply the minimal fix and provide a short summary.
+- Trace the future leakage counter to the exact DataFrame used for contribution feature aggregation.
+- Determine whether future records actually influence calculated features or are merely present in the raw source or intermediate candidate dataset.
+- If it is a validation false positive, correct the validation logic.
+- If actual leakage exists, correct the relevant point-in-time filtering.
+- Do not suppress the exception, hardcode zero counts or artificially force PASS.
+- Preserve approved contribution calculations and historical coverage logic.
+- Maintain account_id + as_of_date grain, fundJoinDate eligibility and no reportingDate filtering.
+- Briefly inspect the other feature modules for the same validation defect to avoid repeated runtime failures. Report any findings without modifying those modules.
+- Modify only the contribution feature module.
+- Do not execute code or write permanent tables.
+
+Apply the minimal necessary correction and provide a concise summary.
