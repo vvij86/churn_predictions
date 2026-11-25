@@ -1,59 +1,54 @@
-Follow the repository instructions in ".github/copilot-instructions.md".
+Follow ".github/copilot-instructions.md".
 
-We have successfully completed individual feature module validation, historical coverage validation, runtime leakage validation and consolidated feature integration.
+Implement the necessary corrections identified in the Step 2 historical consolidated feature dataset review.
 
-The consolidated pipeline successfully executed in Databricks Serverless for as_of_date="2024-03-31" with persist_output=False.
+Requirements:
 
-Actual results:
+1. Move the existing historical end date (2026-07-31) into the shared configuration file. Preserve the existing historical start date and monthly snapshot frequency.
 
-- Base population: 785885
-- Consolidated rows: 785885
-- Duplicate keys: 0
-- Future leakage check: PASS (0)
-- Total columns: 98
-- Total feature columns: 92
-- All nine feature modules integrated
-- DataFrame cache lifecycle issue resolved
-- Validation status: PASS
+2. Introduce a configurable feature-only execution option in "ml_mscs_mrt_historical_snapshots.py" so that historical consolidated features can be generated and persisted independently of target labels.
 
-Now proceed with Step 2: Historical Consolidated Feature Dataset Generation and Persistence.
+3. When feature-only execution is selected:
+   
+   - Do not execute the target label pipeline.
+   - Do not execute target-specific historical validation.
+   - Do not generate temporal splits.
+   - Perform consolidated feature validation and persistence only.
 
-Review the existing "ml_mscs_mrt_historical_snapshots.py", "ml_mscs_mrt_consolidated_features.py" and relevant configuration.
+4. Preserve the existing consolidated feature pipeline containing all nine feature modules.
 
-Verify the following:
+5. Ensure each snapshot passes validation before persistence.
 
-1. Historical snapshot generation starts from April 2023, with the first monthly snapshot on 2023-04-30.
-2. Monthly snapshot generation follows the configured historical end date. Do not invent or hardcode a new end date.
-3. Each snapshot invokes the latest consolidated feature pipeline containing all nine feature modules.
-4. Maintain exactly one row per account_id + as_of_date.
-5. Preserve newly joined account eligibility without minimum tenure exclusion.
-6. Preserve historical coverage, NULL/zero handling, point-in-time filtering and runtime leakage safeguards.
-7. Web engagement features remain NULL when the source is unavailable.
-8. Review the recently corrected DataFrame cache lifecycle for compatibility with repeated monthly snapshot execution.
-9. Verify that the historical consolidated dataset is persisted as a Delta table, not a view.
-10. Verify that rerunning a specific snapshot does not duplicate records, overwrite unrelated historical snapshots or modify source tables.
-11. Ensure failed snapshot validation prevents persistence of invalid data.
-12. Verify that completed snapshots can be safely resumed after an execution failure.
-13. Ensure target labels, temporal split assignments and de-scoped workflow features are not included.
+6. Preserve Delta MERGE behavior using account_id + as_of_date. Verify that rerunning a snapshot cannot leave stale account keys, duplicate records or modify unrelated snapshots. Apply a minimal snapshot-scoped correction only if required.
 
-Provide:
+7. Preserve stop-on-first-failure behavior and allow safe resumption from a failed snapshot. Previously completed valid snapshots should remain intact.
 
-- PASS/ISSUE status for each requirement.
-- Existing historical snapshot execution flow.
-- Configured start date, end date and total snapshot count.
-- Exact target catalog, schema and table name.
-- Current write mode and rerun behavior.
-- Any necessary corrections with exact file and line references.
-- Recommended execution approach for validating and persisting one snapshot before running the complete historical range.
-- Minimal Databricks Python execution code.
+8. Ensure repeated monthly execution does not introduce cache accumulation or CACHE_DATAFRAME_ACCESS_AFTER_UNCACHE errors.
 
-Strict restrictions:
+9. Preserve all existing feature calculations, historical coverage assumptions, NULL/zero handling, runtime leakage safeguards and newly joined account eligibility.
 
-- Read-only review only.
-- Do not modify or create any files.
-- Do not execute Python, SQL, notebooks, jobs or terminal commands.
-- Do not create, overwrite or delete any Databricks tables.
-- Do not change existing business rules or feature calculations.
-- Do not proceed with target label generation, model training or MLflow.
-- Avoid unnecessary architectural changes.
-- Keep the response concise.
+10. Preserve the existing target table name:
+    mer_wealth_dev.mer_wealth_mra_mlops.member_retention_features
+
+11. Provide concise per-snapshot execution logs including snapshot date, base count, persisted row count, validation status and execution duration.
+
+12. Preserve the existing target-label execution functionality for future use without changing its business rules.
+
+Restrictions:
+
+- Modify only the historical snapshots and configuration files wherever possible.
+- Modify the consolidated feature file only if strictly necessary for safe persistence or cache lifecycle management.
+- Do not modify individual feature modules.
+- Do not create new files or notebooks.
+- Do not introduce unnecessary architectural changes.
+- Do not execute scripts, SQL, notebooks, jobs or terminal commands.
+- Do not write or overwrite Databricks tables.
+- Do not proceed with model training or MLflow.
+
+Finally, provide:
+
+- Modified files and concise change summary.
+- Exact Databricks Python execution code for feature-only persistence of one snapshot (2024-03-31).
+- Execution code for the complete historical monthly range.
+- Execution code for resuming from a failed snapshot.
+- Read-only SQL to validate persisted snapshot counts and duplicate keys.
