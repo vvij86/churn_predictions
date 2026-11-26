@@ -1,54 +1,94 @@
-Follow ".github/copilot-instructions.md".
+Based on David's review comments and our current ML implementation, you can provide the following responses directly in Confluence. I suggest keeping them short, business-friendly and avoiding unnecessary technical details.
 
-Implement the necessary corrections identified in the Step 2 historical consolidated feature dataset review.
+### 1\. Churn definition
 
-Requirements:
+David's comment:
 
-1. Move the existing historical end date (2026-07-31) into the shared configuration file. Preserve the existing historical start date and monthly snapshot frequency.
+* And that the exit type is Rollover to external fund or SMSF?
 
-2. Introduce a configurable feature-only execution option in "ml_mscs_mrt_historical_snapshots.py" so that historical consolidated features can be generated and persisted independently of target labels.
+* Can we agree on a formal definition of churn?
 
-3. When feature-only execution is selected:
-   
-   - Do not execute the target label pipeline.
-   - Do not execute target-specific historical validation.
-   - Do not generate temporal splits.
-   - Perform consolidated feature validation and persistence only.
+Response:
 
-4. Preserve the existing consolidated feature pipeline containing all nine feature modules.
+Proposed definition: Churn occurs when an account is fully exited due to a rollover to an external superannuation fund or SMSF. Internal transfers, death-related exits and other non-churn account closures are excluded.
 
-5. Ensure each snapshot passes validation before persistence.
+Could you please confirm this definition, including the treatment of Inactive Low Balance Account and Trustee Voluntary Payment exits identified during historical validation?
 
-6. Preserve Delta MERGE behavior using account_id + as_of_date. Verify that rerunning a snapshot cannot leave stale account keys, duplicate records or modify unrelated snapshots. Apply a minimal snapshot-scoped correction only if required.
+Note: Keep this open until David confirms the formal definition. We should not finalise the target label logic before this confirmation.
 
-7. Preserve stop-on-first-failure behavior and allow safe resumption from a failed snapshot. Previously completed valid snapshots should remain intact.
+### 2\. FR-ML-007 – Account eligibility
 
-8. Ensure repeated monthly execution does not introduce cache accumulation or CACHE_DATAFRAME_ACCESS_AFTER_UNCACHE errors.
+David's comment: Just confirming the distinction between datejoinedfund, which is when someone started in a specific product/subfund, compared to Tenure_Event, which captures the date someone joined the MST.
 
-9. Preserve all existing feature calculations, historical coverage assumptions, NULL/zero handling, runtime leakage safeguards and newly joined account eligibility.
+Response:
 
-10. Preserve the existing target table name:
-    mer_wealth_dev.mer_wealth_mra_mlops.member_retention_features
+Yes, agreed. As the current ML modelling is at account level, fundJoinDate is used to determine account eligibility and account-level tenure. Tenure_Event represents overall MST membership tenure, which is a separate concept and can be considered as an additional feature if required.
 
-11. Provide concise per-snapshot execution logs including snapshot date, base count, persisted row count, validation status and execution duration.
+### 3\. FR-ML-008 – AccountSummary requirement
 
-12. Preserve the existing target-label execution functionality for future use without changing its business rules.
+David's comment: This just saying, having clean data?
 
-Restrictions:
+Response:
 
-- Modify only the historical snapshots and configuration files wherever possible.
-- Modify the consolidated feature file only if strictly necessary for safe persistence or cache lifecycle management.
-- Do not modify individual feature modules.
-- Do not create new files or notebooks.
-- Do not introduce unnecessary architectural changes.
-- Do not execute scripts, SQL, notebooks, jobs or terminal commands.
-- Do not write or overwrite Databricks tables.
-- Do not proceed with model training or MLflow.
+Yes, essentially. This ensures that each account included in modelling has a valid AccountSummary record and sufficient information to establish its eligibility at the prediction cut-off date.
 
-Finally, provide:
+### 4\. FR-ML-009 – Feature window
 
-- Modified files and concise change summary.
-- Exact Databricks Python execution code for feature-only persistence of one snapshot (2024-03-31).
-- Execution code for the complete historical monthly range.
-- Execution code for resuming from a failed snapshot.
-- Read-only SQL to validate persisted snapshot counts and duplicate keys.
+David's comment: Could be worth aligning taxonomy e.g. Lookback window → cut-off date → prediction window or whatever, but be consistent?
+
+Response:
+
+Agreed. We will standardise the terminology across the ML documentation as Lookback Window, Prediction Cut-off Date (AsOfDate) and Prediction Window to ensure consistency.
+
+For your understanding:
+
+Illustration using the current proposed three-month prediction window.
+
+### 5\. FR-ML-013 – Outcome window
+
+David's comment: Wasn't exploration and testing meant to be applied to determine which would give the best outcomes?
+
+Response:
+
+Yes, agreed. The three-month prediction window is an initial baseline. We will evaluate alternative prediction windows during model experimentation and recommend the most suitable duration based on model performance, business usefulness and retention intervention lead time.
+
+### 6\. FR-ML-025 – Risk bands
+
+David's comment: Please confirm we will see the individual score from 0 to 1 for each account in addition to the band labels.
+
+Response:
+
+Yes, confirmed. The ML output will provide both the individual churn probability score between 0 and 1 and the corresponding risk band (High, Medium or Low) for each account.
+
+### 7\. FR-ML-017 – Website engagement
+
+David's comment: This is only a restriction for testing while in UAT and until data quality is confirmed to be good.
+
+Response:
+
+Yes, agreed. Website engagement remains in scope. The current limitation is due to source data unavailability in the development/testing environment. The features will remain NULL until the source is populated and data quality is validated.
+
+### 8\. FR-ML-026 – Primary churn driver
+
+David's comment: Needs to be the specific field that is the driver. But this will be more than one driver, right?
+
+Response:
+
+Yes, confirmed. The ML output will identify the specific feature contributing most significantly to the account's churn risk as the primary driver. Additional significant contributing features will be provided under additional churn drivers (FR-ML-027), where applicable.
+
+### Impact on our current development
+
+| Review comment               | Impact                                                             |
+| ---------------------------- | ------------------------------------------------------------------ |
+| Formal churn definition      | Target label changes after confirmation                            |
+| Account vs MST tenure        | Existing account-level logic retained; additional feature optional |
+| AccountSummary eligibility   | No immediate change                                                |
+| Terminology alignment        | Documentation update                                               |
+| Prediction window            | Next sprint experimentation                                        |
+| Individual probability score | Already planned                                                    |
+| Website engagement           | Existing NULL handling retained                                    |
+| Multiple churn drivers       | Next sprint explainability implementation                          |
+
+We can continue with Step 2 – Historical consolidated feature dataset generation. None of these comments requires an immediate redesign of our existing feature pipeline, based on the current interpretation.
+
+The main pending business confirmation is the formal churn definition.
