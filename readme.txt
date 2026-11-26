@@ -1,11 +1,23 @@
-%sql
+from ml_mscs_mrt_historical_snapshots import (
+    run_historical_snapshot_pipeline,
+    EXECUTION_MODE_FEATURES_ONLY,
+    HISTORICAL_START_DATE,
+    HISTORICAL_END_DATE,
+)
 
-SELECT
-    as_of_date,
-    COUNT(*) AS row_count,
-    COUNT(DISTINCT account_id) AS distinct_accounts,
-    COUNT(*) - COUNT(DISTINCT account_id)
-        AS duplicate_or_null_keys
-FROM mer_wealth_dev.mer_wealth_mra_mlops.member_retention_features
-WHERE as_of_date = DATE '2024-03-31'
-GROUP BY as_of_date;
+from ml_mscs_mrt_consolidated_features import (
+    FEATURE_SNAPSHOT_TARGET_TABLE,
+)
+
+result = run_historical_snapshot_pipeline(
+    spark=spark,
+    start_date=HISTORICAL_START_DATE,
+    end_date=HISTORICAL_END_DATE,
+    execution_mode=EXECUTION_MODE_FEATURES_ONLY,
+    feature_table_name=FEATURE_SNAPSHOT_TARGET_TABLE,
+    stop_on_first_failure=True,
+)
+
+print(result["overall_status"])
+print(result["successful_snapshot_count"])
+print(result["failed_snapshot_count"])
