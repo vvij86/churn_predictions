@@ -1,29 +1,23 @@
-Perform a focused read-only review of the following files:
+Historical_Feature_Dataset_Generation
 
-- ml_mscs_mrt_rollover_features.py
-- ml_mscs_mrt_target_labels.py
-- mult_snap_sanity_check.sql
-- Existing target churn validation SQL
 
-The rollover feature module includes the following paymentType values:
+from ml_mscs_mrt_historical_snapshots import (
+    run_historical_snapshot_pipeline,
+    EXECUTION_MODE_FEATURES_ONLY,
+)
 
-- Rollover to External Fund
-- Other
-- Rollover/Transfer to Annuity
+from ml_mscs_mrt_consolidated_features import (
+    FEATURE_SNAPSHOT_TARGET_TABLE,
+)
 
-However, the target label logic and multi-snapshot validation SQL exclude 'Other'.
+result = run_historical_snapshot_pipeline(
+    spark=spark,
+    start_date="2024-03-31",
+    end_date="2024-03-31",
+    execution_mode=EXECUTION_MODE_FEATURES_ONLY,
+    feature_table_name=FEATURE_SNAPSHOT_TARGET_TABLE,
+    stop_on_first_failure=True,
+)
 
-The existing business SQL appears to classify all three payment types as Rollover to External Fund, subject to preceding CASE conditions.
-
-Please check:
-
-1. Why 'Other' is excluded from target label generation.
-2. Whether this exclusion is intentional or an implementation gap.
-3. Whether target label logic and validation SQL are consistent.
-4. Whether AccountSummary exit events can independently classify these accounts as churn.
-5. Whether adding 'Other' could incorrectly classify administrative or non-churn exits as churn.
-6. Whether the complete business payment classification logic needs to be considered instead of filtering only by raw paymentType.
-
-Provide concise findings, affected files, line references and recommended corrections.
-
-Do not modify any files, generate new files, execute code or change Databricks tables. Business confirmation of the formal churn definition is still pending.
+print(result["overall_status"])
+print(result["snapshot_results"])
