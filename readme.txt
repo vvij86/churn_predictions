@@ -1,1 +1,11 @@
+from ml_mscs_mrt_config import (
+    TARGET_OUTCOME_HORIZON_MODE,
+    TARGET_OUTCOME_HORIZON_VALUE,
+    TARGET_OUTCOME_HORIZON_DAYS,
+    GROUND_TRUTH_TARGET_TABLE,
+)
 
+print("Horizon mode:", TARGET_OUTCOME_HORIZON_MODE)
+print("Horizon value:", TARGET_OUTCOME_HORIZON_VALUE)
+print("Legacy horizon days:", TARGET_OUTCOME_HORIZON_DAYS)
+print("Ground Truth table:", GROUND_TRUTH_TARGET_TABLE)
