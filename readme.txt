@@ -1,12 +1,19 @@
-%sql
+from ml_mscs_mrt_config import (
+    GROUND_TRUTH_TARGET_TABLE,
+    GROUND_TRUTH_SOURCE_COVERAGE_END_DATE,
+    TEMPORAL_SPLIT_TARGET_TABLE,
+    TEMPORAL_SPLIT_TRAIN_RATIO,
+    TEMPORAL_SPLIT_VALIDATION_RATIO,
+    TEMPORAL_SPLIT_TEST_RATIO,
+    TEMPORAL_SPLIT_PURGE_DAYS,
+    TEMPORAL_SPLIT_DRY_RUN_DEFAULT,
+)
 
-SELECT
-    as_of_date,
-    outcome_horizon_key,
-    COUNT(*) AS total_rows,
-    COUNT(DISTINCT account_id) AS unique_accounts,
-    COUNT_IF(target_churn = 1) AS churn_count,
-    COUNT_IF(target_churn = 0) AS non_churn_count,
-    COUNT_IF(target_churn IS NULL) AS null_targets
-FROM mer_wealth_dev.mer_wealth_mra_mlops.member_retention_ground_truth_6m
-GROUP BY as_of_date, outcome_horizon_key;
+print("Ground Truth:", GROUND_TRUTH_TARGET_TABLE)
+print("Source coverage:", GROUND_TRUTH_SOURCE_COVERAGE_END_DATE)
+print("Split table:", TEMPORAL_SPLIT_TARGET_TABLE)
+print("Train ratio:", TEMPORAL_SPLIT_TRAIN_RATIO)
+print("Validation ratio:", TEMPORAL_SPLIT_VALIDATION_RATIO)
+print("Test ratio:", TEMPORAL_SPLIT_TEST_RATIO)
+print("Purge days:", TEMPORAL_SPLIT_PURGE_DAYS)
+print("Dry run:", TEMPORAL_SPLIT_DRY_RUN_DEFAULT)
