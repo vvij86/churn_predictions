@@ -1,9 +1,17 @@
-Are the migrated funds still within the scope of Member Retention Analytics?
-Where can we access the post-migration data?
-3. Historical data and ML training
-Can we consider historical data until February or April 2026 as reliable for ML training?
-Can we temporarily restrict the training dataset to the pre-migration period?
-Should we include migrated funds in historical training if they are no longer part of the current scoring population?
-4. Payment to ATO confirmation
-Can we exclude Payment to ATO from our churn definition, considering it is not necessarily a voluntary member exit?
-Are there any other exit types that should not be considered churn?
+### Main questions to ask David
+
+* We noticed a significant drop in account exits from May 2026 onwards. Is this expected, or was there any fund migration or source system change?
+
+* Can we consider historical data up to April 2026 reliable and complete for ML training?
+
+* Can we exclude Payment to ATO from our churn definition?
+
+### If he confirms fund migration
+
+* Which funds were migrated, and when?
+
+* Should migration-related exits be excluded from churn?
+
+* Are the migrated funds still within our project scope? If yes, where can we access the post-migration data?
+
+These six questions are sufficient to decide our next steps for ground-truth generation and model training.
