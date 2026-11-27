@@ -1,14 +1,18 @@
 %sql
 
-SELECT DISTINCT
-    as_of_date,
-    DATE_ADD(as_of_date, 1) AS outcome_start_date,
-    LAST_DAY(ADD_MONTHS(as_of_date, 6)) AS outcome_end_date,
-    CASE
-        WHEN LAST_DAY(ADD_MONTHS(as_of_date, 6))
-             <= DATE '2026-10-16'
-        THEN 'ELIGIBLE'
-        ELSE 'INCOMPLETE_OUTCOME'
-    END AS outcome_status
-FROM mer_wealth_dev.mer_wealth_mra_mlops.member_retention_features
-ORDER BY as_of_date;
+SELECT
+    MIN(exitDate) AS earliest_exit_date,
+    MAX(exitDate) AS latest_exit_date,
+    COUNT(*) AS total_records,
+    COUNT(exitDate) AS exit_records
+FROM mer_wealth_dev.mer_wealth_landing_edge.mscs_mrt_account_summary;
+
+
+%sql
+
+SELECT
+    MIN(processedDate) AS earliest_payment_date,
+    MAX(processedDate) AS latest_payment_date,
+    COUNT(*) AS total_records,
+    COUNT(processedDate) AS payment_records
+FROM mer_wealth_dev.mer_wealth_landing_edge.mscs_mrt_account_rollover_payment;
