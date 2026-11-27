@@ -1,9 +1,35 @@
-Follow .github/copilot-instructions.md.
+SELECT
+    DATEFROMPARTS(
+        YEAR(exitDate),
+        MONTH(exitDate),
+        1
+    ) AS month_start,
+    COUNT(DISTINCT accountID) AS exit_account_count
+FROM edgeSource.AccountSummary
+WHERE exitDate >= '2024-01-01'
+  AND exitDate < '2026-11-01'
+  AND exitType = 'Exit'
+GROUP BY
+    YEAR(exitDate),
+    MONTH(exitDate)
+ORDER BY month_start;
 
-Convert the existing monthly churn-source diagnostic query to SQL Server syntax using MercerEdge source tables.
 
-Compare monthly ACCOUNT_FULL_EXIT, FULL_ROLLOVER_OUT and PAYMENT_TO_ATO event counts from January 2026 to October 2026 using identical event filters.
 
-Investigate the significant event count drop from May 2026.
-
-Do not modify files or business logic. Provide read-only SQL only.
+SELECT
+    fundID,
+    DATEFROMPARTS(
+        YEAR(exitDate),
+        MONTH(exitDate),
+        1
+    ) AS month_start,
+    COUNT(DISTINCT accountID) AS exit_account_count
+FROM edgeSource.AccountSummary
+WHERE exitDate >= '2026-01-01'
+  AND exitDate < '2026-11-01'
+  AND exitType = 'Exit'
+GROUP BY
+    fundID,
+    YEAR(exitDate),
+    MONTH(exitDate)
+ORDER BY fundID, month_start;
