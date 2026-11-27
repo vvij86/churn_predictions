@@ -1,21 +1,12 @@
 Follow .github/copilot-instructions.md.
 
-Generate an executable Databricks Python validation script for the 2024-03-31 snapshot using the existing target label pipeline.
+Update only multi_snap_sanity_check.sql:
 
-Requirements:
+- Replace old ground-truth table references with member_retention_ground_truth_6m.
+- Update expected churn count from 18771 to 36432 for 2024-03-31.
+- Ensure all parameter blocks use calendar_months, 6, and exclude_payment_to_ato=true.
+- Preserve existing business logic, account-level grain and Databricks SQL syntax.
 
-- Run once with EXCLUDE_PAYMENT_TO_ATO = False and once with EXCLUDE_PAYMENT_TO_ATO = True.
-- Ensure the imported target label module actually uses the respective flag for each execution.
-- Use the existing six-calendar-month outcome horizon from the config.
-- Explicitly set persist_output=False for both runs.
-- Compare total accounts, churn accounts, non-churn accounts, null targets, churn percentage and duplicate counts.
-- Identify accounts whose churn label changed from 1 to 0 and verify their ATO payment events.
-- Validate potential date mismatches between ATO payments and AccountSummary exits.
-- Ensure independently qualifying non-ATO churn events remain unaffected.
-- Maintain account-level grain: one row per account_id per as_of_date.
-- Do not use AccountSummary.reportingDate for historical filtering or source row ordering.
-- Restore the original configuration after validation.
+Also provide a minimal read-only Python dry-run script for multi-snapshot target validation using the updated pipeline, with persist_output=False and complete outcome windows only.
 
-Display a before-and-after comparison table with PASS/FAIL validation results.
-
-Do not modify existing files, business logic or persistent Databricks tables. Provide only the executable Python validation script.
+Do not modify other files, execute queries or write to tables. Keep the response concise.
