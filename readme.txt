@@ -1,13 +1,9 @@
 Follow .github/copilot-instructions.md.
 
-Update only multi_snap_sanity_check.sql:
+Convert the existing monthly churn-source diagnostic query to SQL Server syntax using MercerEdge source tables.
 
-- Replace old ground-truth table references with member_retention_ground_truth_6m.
-- Update expected churn count from 18771 to 36432.
-- Ensure calendar_months, 6, and exclude_payment_to_ato=true across all parameter blocks.
+Compare monthly ACCOUNT_FULL_EXIT, FULL_ROLLOVER_OUT and PAYMENT_TO_ATO event counts from January 2026 to October 2026 using identical event filters.
 
-Separately, provide a read-only Databricks SQL query showing monthly churn-source event counts and data coverage for AccountSummary exits, full rollover outs and Payment to ATO from Jan 2024 to Oct 2026, to investigate the churn rate drop from 4.28% to 1.23%.
+Investigate the significant event count drop from May 2026.
 
-Preserve existing business logic and account-level grain. Do not use AccountSummary.reportingDate for historical filtering or ordering.
-
-Do not modify other files or execute queries. Keep response concise.
+Do not modify files or business logic. Provide read-only SQL only.
