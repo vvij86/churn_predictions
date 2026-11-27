@@ -1,18 +1,14 @@
-existing_columns = spark.table(
-    GROUND_TRUTH_TARGET_TABLE
-).columns
+from ml_mscs_mrt_config import (
+    GROUND_TRUTH_TARGET_TABLE,
+    TARGET_OUTCOME_HORIZON_MODE,
+    TARGET_OUTCOME_HORIZON_VALUE,
+)
 
-required_columns = [
-    "outcome_horizon_mode",
-    "outcome_horizon_value",
-    "outcome_horizon_days",
-    "outcome_horizon_months",
-    "outcome_horizon_key"
-]
+print("Ground Truth table:", GROUND_TRUTH_TARGET_TABLE)
+print("Horizon mode:", TARGET_OUTCOME_HORIZON_MODE)
+print("Horizon value:", TARGET_OUTCOME_HORIZON_VALUE)
 
-for col in required_columns:
-    print(
-        col, ":",
-        "EXISTS" if col in existing_columns
-        else "MISSING"
-    )
+print(
+    "Table already exists:",
+    spark.catalog.tableExists(GROUND_TRUTH_TARGET_TABLE)
+)
