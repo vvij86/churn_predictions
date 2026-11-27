@@ -1,35 +1,9 @@
-SELECT
-    DATEFROMPARTS(
-        YEAR(exitDate),
-        MONTH(exitDate),
-        1
-    ) AS month_start,
-    COUNT(DISTINCT accountID) AS exit_account_count
-FROM edgeSource.AccountSummary
-WHERE exitDate >= '2024-01-01'
-  AND exitDate < '2026-11-01'
-  AND exitType = 'Exit'
-GROUP BY
-    YEAR(exitDate),
-    MONTH(exitDate)
-ORDER BY month_start;
-
-
-
-SELECT
-    fundID,
-    DATEFROMPARTS(
-        YEAR(exitDate),
-        MONTH(exitDate),
-        1
-    ) AS month_start,
-    COUNT(DISTINCT accountID) AS exit_account_count
-FROM edgeSource.AccountSummary
-WHERE exitDate >= '2026-01-01'
-  AND exitDate < '2026-11-01'
-  AND exitType = 'Exit'
-GROUP BY
-    fundID,
-    YEAR(exitDate),
-    MONTH(exitDate)
-ORDER BY fundID, month_start;
+Are the migrated funds still within the scope of Member Retention Analytics?
+Where can we access the post-migration data?
+3. Historical data and ML training
+Can we consider historical data until February or April 2026 as reliable for ML training?
+Can we temporarily restrict the training dataset to the pre-migration period?
+Should we include migrated funds in historical training if they are no longer part of the current scoring population?
+4. Payment to ATO confirmation
+Can we exclude Payment to ATO from our churn definition, considering it is not necessarily a voluntary member exit?
+Are there any other exit types that should not be considered churn?
