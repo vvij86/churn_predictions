@@ -1,17 +1,51 @@
-### Main questions to ask David
+WITH ExitAccounts AS (
+    SELECT
+        acs.accountID,
+        acs.fundID,
+        f.sub_fund,
+        acs.memberSource,
+        acs.exitDate,
+        DATEFROMPARTS(
+            YEAR(acs.exitDate),
+            MONTH(acs.exitDate),
+            1
+        ) AS month_start,
 
-* We noticed a significant drop in account exits from May 2026 onwards. Is this expected, or was there any fund migration or source system change?
+        CASE
+            WHEN f.sub_fund IN ('MT888', 'MT999')
+                 AND acs.exitDate >= '2025-03-19'
+            THEN 1
+            WHEN acs.memberSource = 'PC1PSUPERB'
+            THEN 1
+            ELSE 0
+        END AS IsTransitionedMemberExit
 
-* Can we consider historical data up to April 2026 reliable and complete for ML training?
+    FROM MercerEdge.Edge.AccountSummary acs
 
-* Can we exclude Payment to ATO from our churn definition?
+    LEFT JOIN MercerEdge.Edge.FundList f
+        ON f.fundID = acs.fundID
 
-### If he confirms fund migration
+    WHERE acs.exitType = 'Exit'
+      AND acs.exitDate >= '2024-01-01'
+      AND acs.exitDate < '2026-11-01'
+)
 
-* Which funds were migrated, and when?
+SELECT
+    month_start,
 
-* Should migration-related exits be excluded from churn?
+    COUNT(DISTINCT accountID)
+        AS total_exit_accounts,
 
-* Are the migrated funds still within our project scope? If yes, where can we access the post-migration data?
+    COUNT(DISTINCT CASE
+        WHEN IsTransitionedMemberExit = 1
+        THEN accountID
+    END) AS transitioned_exit_accounts,
 
-These six questions are sufficient to decide our next steps for ground-truth generation and model training.
+    COUNT(DISTINCT CASE
+        WHEN IsTransitionedMemberExit = 0
+        THEN accountID
+    END) AS non_transitioned_exit_accounts
+
+FROM ExitAccounts
+GROUP BY month_start
+ORDER BY month_start;
